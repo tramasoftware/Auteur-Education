@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+
+# Python
+.venv/
+.tools-venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs and debug
+npm-debug.log*
+pnpm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Build / coverage
+dist/
+build/
+coverage/
+.turbo/

@@ -1,0 +1,15 @@
+{
+  "name": "auteur-education",
+  "private": true,
+  "packageManager": "pnpm@10.18.2",
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"pnpm dev:web\" \"pnpm dev:api\"",
+    "dev:web": "pnpm --filter @auteur/web dev",
+    "dev:api": "pnpm --filter @auteur/api dev",
+    "lint": "pnpm --filter @auteur/web lint && pnpm --filter @auteur/api lint",
+    "test": "pnpm --filter @auteur/api test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
