@@ -1,0 +1,170 @@
+---
+globs: apps/web/**/*.ts, apps/web/**/*.tsx, apps/web/**/*.css, apps/web/**/*.mjs, apps/web/**/*.json
+alwaysApply: false
+---
+# Auteur Education — Frontend Rules
+
+## Stack
+
+The frontend uses:
+
+* Next.js 16.3.5
+* React 19.2.8
+* TypeScript 5
+* Tailwind CSS 4
+* ESLint 9
+
+Do not introduce additional frontend libraries without justification.
+
+---
+
+## Architecture
+
+Prefer:
+
+* Server Components by default.
+* Client Components only when interactivity requires them.
+* Feature-oriented organization.
+* Small reusable components.
+* Explicit TypeScript types.
+
+Do not introduce global state libraries unless clearly required.
+
+Do not create abstractions before repeated usage justifies them.
+
+---
+
+## Product Experience
+
+The interface should communicate a learning trajectory:
+
+```text
+Intent
+→ Objective
+→ Proposals
+→ Blueprint
+→ Course
+→ Module
+→ Lesson
+→ Synthesis
+→ Knowledge Check
+```
+
+Avoid turning Auteur into a generic AI chat interface.
+
+Prioritize:
+
+* clarity;
+* focus;
+* progression;
+* trust;
+* editorial quality;
+* restraint.
+
+---
+
+## API
+
+Never invent API contracts.
+
+If a backend contract exists, follow it.
+
+If it does not exist:
+
+* use isolated temporary mocks when necessary;
+* clearly mark assumptions;
+* keep the mock replaceable.
+
+Never put secrets in browser code.
+
+Never expose sensitive credentials through `NEXT_PUBLIC_*`.
+
+---
+
+## UI States
+
+Interactive operations should account for:
+
+* loading;
+* success;
+* error;
+* empty states where applicable.
+
+Do not fabricate AI generation progress or percentages.
+
+---
+
+## Accessibility
+
+Use:
+
+* semantic HTML;
+* labels;
+* keyboard interaction;
+* visible focus states;
+* meaningful button semantics;
+* accessible errors;
+* meaningful alt text.
+
+Do not rely exclusively on color.
+
+---
+
+## Responsive Design
+
+Support:
+
+* mobile;
+* tablet;
+* desktop;
+
+unless a task explicitly specifies otherwise.
+
+Prefer responsive CSS over separate implementations.
+
+---
+
+## Styling
+
+Use Tailwind CSS.
+
+Avoid unnecessary:
+
+* gradients;
+* glassmorphism;
+* decorative AI visuals;
+* excessive animations;
+* excessive cards;
+* dashboard-like layouts.
+
+Visual complexity must serve the product experience.
+
+---
+
+## Scope
+
+Do not implement:
+
+* authentication;
+* subscriptions;
+* Stripe;
+* credits;
+* library;
+* administration;
+* progress;
+* audio;
+
+unless explicitly authorized.
+
+---
+
+## Validation
+
+After meaningful changes, run the project's available:
+
+```bash
+npm run lint
+npm run build
+```
+
+Do not claim validation passed unless the commands were actually run.

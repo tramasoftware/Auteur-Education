@@ -1,0 +1,264 @@
+---
+
+description: Defines the workflow Cursor Agent must follow before planning, implementing, refactoring, or debugging Auteur Education code.
+alwaysApply: true
+-----------------
+
+# Auteur Education — Agent Workflow
+
+## 1. Before Coding
+
+Before modifying code, determine:
+
+### Authorization
+
+Which approved document authorizes the task?
+
+### Scope
+
+What exactly is being implemented?
+
+### Affected behavior
+
+Which user flow, business rule, or generation behavior is affected?
+
+### Decision type
+
+Is this:
+
+* functional;
+* technical;
+* temporary implementation?
+
+### Out of scope
+
+What will deliberately not be implemented?
+
+### Assumptions
+
+What information is temporarily missing?
+
+---
+
+## 2. For Small Tasks
+
+For a small, isolated change:
+
+1. Inspect relevant code.
+2. Identify existing patterns.
+3. Confirm the task is authorized.
+4. Implement the smallest change.
+5. Run relevant checks.
+
+Do not create a large implementation plan for trivial changes.
+
+---
+
+## 3. For Multi-File Tasks
+
+When a task affects multiple files or architectural boundaries:
+
+1. Inspect the repository.
+2. Identify relevant documentation.
+3. Search for existing implementations.
+4. Form a concise plan.
+5. Implement in small logical steps.
+6. Validate after each meaningful stage.
+7. Run final checks.
+
+Do not immediately start editing files before understanding the existing structure.
+
+---
+
+## 4. Repository Inspection
+
+Before creating new files, search for:
+
+* existing components;
+* existing routes;
+* existing schemas;
+* existing utilities;
+* existing API clients;
+* existing error handling;
+* existing tests;
+* existing configuration.
+
+Reuse existing patterns where appropriate.
+
+---
+
+## 5. Canonical Examples
+
+When the repository already contains an established implementation of something similar:
+
+* inspect it;
+* follow its conventions;
+* avoid creating a competing pattern.
+
+Canonical code is more authoritative than generic coding preferences.
+
+---
+
+## 6. Planning
+
+A plan should answer:
+
+```text
+Goal
+Authorization
+Affected files
+Affected behavior
+Implementation steps
+Out of scope
+Temporary assumptions
+Validation
+```
+
+Keep plans proportional to task complexity.
+
+---
+
+## 7. Implementation
+
+Implement one coherent change at a time.
+
+Prefer:
+
+```text
+inspect
+→ plan
+→ implement
+→ verify
+```
+
+over:
+
+```text
+modify everything
+→ discover problems later
+```
+
+---
+
+## 8. Minimal Diff
+
+Only change files necessary for the task.
+
+Do not:
+
+* reformat unrelated files;
+* rename unrelated symbols;
+* reorganize unrelated folders;
+* refactor unrelated code;
+* update dependencies unnecessarily.
+
+---
+
+## 9. Debugging
+
+When fixing a bug:
+
+1. Reproduce or identify the failure.
+2. Trace the actual execution path.
+3. Identify the root cause.
+4. Fix the root cause.
+5. Add or update a regression test when appropriate.
+6. Re-run the relevant checks.
+
+Do not hide symptoms with arbitrary conditions.
+
+Do not rewrite large sections unless necessary.
+
+---
+
+## 10. Refactoring
+
+Before refactoring, identify:
+
+* why the refactor is necessary;
+* what problem it solves;
+* what behavior must remain unchanged.
+
+Do not refactor merely because another architecture looks cleaner.
+
+Do not mix a large refactor with an unrelated feature.
+
+---
+
+## 11. Dependencies
+
+If a dependency is proposed:
+
+```text
+Dependency:
+[package]
+
+Need:
+[problem]
+
+Why existing stack is insufficient:
+[reason]
+
+Scope:
+[required/optional]
+
+Architectural impact:
+[impact]
+```
+
+Do not add dependencies without justification.
+
+---
+
+## 12. Temporary Solutions
+
+Temporary solutions are allowed when the project documentation is incomplete.
+
+They must be:
+
+* explicit;
+* isolated;
+* replaceable;
+* minimal.
+
+Do not build production architecture around temporary assumptions.
+
+---
+
+## 13. Generated Code
+
+Do not manually modify generated files unless the project explicitly requires it.
+
+Prefer modifying their source or generation process.
+
+---
+
+## 14. Completion Report
+
+After implementation, summarize:
+
+### Changed
+
+What was implemented.
+
+### Authorization
+
+Which project documents support it.
+
+### Validation
+
+Which commands/checks were run and their actual results.
+
+### Temporary assumptions
+
+Any assumptions that remain.
+
+### Out of scope
+
+What was intentionally not implemented.
+
+### Follow-up decisions
+
+Any missing decisions that should be addressed later.
+
+Never claim "everything is done" when unresolved decisions remain.

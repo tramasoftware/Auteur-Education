@@ -1,0 +1,178 @@
+---
+globs: apps/api/**/*.py
+alwaysApply: false
+---
+# Auteur Education — Backend Rules
+
+## Stack
+
+The backend currently uses:
+
+* Python >= 3.12
+* FastAPI >= 0.115
+* Pydantic Settings >= 2.6
+* Uvicorn >= 0.32
+
+Do not add dependencies without justification.
+
+---
+
+## API
+
+Use:
+
+* typed route functions;
+* Pydantic request models;
+* explicit response models;
+* meaningful HTTP status codes;
+* structured errors.
+
+Do not expose internal Python objects directly as API contracts.
+
+Do not use arbitrary dictionaries for stable response structures.
+
+---
+
+## Validation
+
+Validate input at the API boundary.
+
+Do not invent arbitrary business constraints.
+
+Business rules must come from approved documentation.
+
+---
+
+## Business Rules
+
+Backend code is authoritative for backend business rules.
+
+Never rely on frontend validation for:
+
+* authorization;
+* permissions;
+* ownership;
+* business invariants;
+* state transitions.
+
+Do not implement rules that are outside the current MVP.
+
+---
+
+## Architecture
+
+Do not automatically introduce:
+
+* repositories;
+* services for every function;
+* domain layers;
+* event buses;
+* queues;
+* workers;
+* microservices;
+* task systems.
+
+Use the simplest structure that solves the current problem.
+
+---
+
+## Persistence
+
+`DATA_MODEL.md` may not yet exist.
+
+Do not invent a permanent database model.
+
+Temporary in-memory state is acceptable for the current generator demonstration when appropriate.
+
+Keep temporary persistence isolated and replaceable.
+
+---
+
+## AI
+
+AI generation must follow `AI_GENERATION.md`.
+
+Logical AI stages do not automatically require separate technical subsystems.
+
+Do not create agents, queues, jobs, services, or pipelines merely because the documentation names a conceptual stage.
+
+---
+
+## External Integrations
+
+Do not invent provider contracts.
+
+Until `INTEGRATIONS.md` exists:
+
+* isolate provider-specific code;
+* keep assumptions explicit;
+* keep integrations replaceable.
+
+---
+
+## Secrets
+
+Never hardcode secrets.
+
+Never return secrets through APIs.
+
+Never log secrets.
+
+Use Pydantic Settings for server-side configuration.
+
+Never expose backend credentials to the frontend.
+
+---
+
+## Errors
+
+Do not expose:
+
+* stack traces;
+* internal filesystem paths;
+* provider secrets;
+* database credentials;
+* raw sensitive provider errors.
+
+Use safe structured API errors.
+
+---
+
+## Async
+
+Use async for actual I/O-bound operations where appropriate.
+
+Do not make every function async automatically.
+
+Do not introduce background workers without a demonstrated requirement.
+
+---
+
+## Current Demo
+
+Prioritize:
+
+* intention;
+* objective;
+* proposals;
+* Blueprint;
+* generation;
+* course structure;
+* lessons;
+* synthesis;
+* Knowledge Checks;
+* sources;
+* time;
+* cost.
+
+Do not implement production infrastructure prematurely.
+
+---
+
+## Validation
+
+Use the project's configured commands.
+
+At minimum, verify that the application can start with the project's Uvicorn entry point.
+
+Never claim a test or command passed unless it was actually executed.

@@ -1,0 +1,121 @@
+---
+
+description: Testing rules for Auteur Education. Apply when creating, modifying, or reviewing tests.
+globs:
+
+* "**/*.test.ts"
+* "**/*.test.tsx"
+* "**/*.spec.ts"
+* "**/*.spec.tsx"
+* "**/tests/**/*.py"
+* "**/*_test.py"
+* "**/test_*.py"
+  alwaysApply: false
+
+---
+
+# Auteur Education — Testing Rules
+
+## 1. Test Approved Behavior
+
+Tests should verify:
+
+* approved product behavior;
+* business rules;
+* user flows;
+* API contracts;
+* important error conditions.
+
+Do not create tests for speculative functionality.
+
+---
+
+## 2. Test Behavior
+
+Prefer testing observable behavior over implementation details.
+
+Avoid tests that break merely because:
+
+* a component is refactored;
+* a function is renamed;
+* an internal helper changes.
+
+---
+
+## 3. Business Rules
+
+When a business rule has an identifier, preserve it in relevant tests.
+
+Example:
+
+```text
+BUSINESS_RULES.md:
+BR-XXX
+
+Test:
+BR-XXX — prevents invalid state transition
+```
+
+---
+
+## 4. API Tests
+
+Test:
+
+* valid requests;
+* invalid requests;
+* relevant business-rule failures;
+* important response structures;
+* safe error behavior.
+
+---
+
+## 5. AI Generation
+
+Do not rely exclusively on exact AI-generated text.
+
+Prefer testing:
+
+* structure;
+* required fields;
+* validation;
+* invariants;
+* error handling;
+* source presence when required;
+* Knowledge Check structure.
+
+Avoid brittle tests based on exact model wording.
+
+---
+
+## 6. Regression Tests
+
+When fixing a reproducible bug:
+
+1. reproduce the issue;
+2. identify the root cause;
+3. add a regression test when practical;
+4. implement the fix;
+5. rerun the relevant checks.
+
+---
+
+## 7. Test Scope
+
+Do not introduce a large testing framework merely because testing is useful.
+
+Follow the project's existing testing strategy.
+
+If no strategy exists yet, use the simplest appropriate approach.
+
+---
+
+## 8. Verification
+
+Never claim tests passed unless they were actually run.
+
+If a test cannot be executed, state:
+
+* why;
+* what was verified instead;
+* what remains unverified.

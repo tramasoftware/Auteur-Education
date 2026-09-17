@@ -1,0 +1,275 @@
+---
+
+description: Explains how Cursor must interpret Auteur Education product documents, their scope, precedence, and relationships.
+alwaysApply: true
+-----------------
+
+# Auteur Education — Project Context
+
+## 1. Product
+
+Auteur Education is a B2C platform for personalized theoretical education.
+
+The user expresses:
+
+* what they want to learn;
+* their current level;
+* previous knowledge;
+* desired outcome.
+
+Auteur helps:
+
+1. refine the intention;
+2. formulate an objective;
+3. generate possible learning directions;
+4. construct a reviewable Blueprint;
+5. research and generate a structured course;
+6. provide lessons, synthesis, sources, and formative evaluation.
+
+The product aims to create a coherent intellectual learning trajectory.
+
+It is not:
+
+* a generic chatbot;
+* a summary generator;
+* a decorative syllabus;
+* a generic content generator.
+
+The MVP operates exclusively in English.
+
+---
+
+## 2. Document Responsibilities
+
+### `PRODUCT.md`
+
+Use for:
+
+* product identity;
+* product direction;
+* user;
+* value proposition;
+* intended experience;
+* pedagogical principles;
+* editorial principles;
+* product boundaries.
+
+Do not use it to define:
+
+* architecture;
+* API contracts;
+* database models;
+* implementation details.
+
+---
+
+### `MVP.md`
+
+This is the primary scope boundary.
+
+Use it to determine:
+
+* included functionality;
+* excluded functionality;
+* minimum requirements;
+* integrations;
+* acceptance scenarios;
+* definition of done;
+* launch limits.
+
+If something is not included, do not implement it without approval.
+
+---
+
+### `USER_FLOWS.md`
+
+Use for:
+
+* user actions;
+* interaction order;
+* preconditions;
+* variants;
+* errors;
+* results;
+* states;
+* destinations.
+
+It defines observable behavior, not internal architecture.
+
+---
+
+### `BUSINESS_RULES.md`
+
+Use for mandatory invariants:
+
+* permissions;
+* language;
+* onboarding;
+* objective;
+* proposals;
+* subscription;
+* credits;
+* Blueprint;
+* generation;
+* content;
+* sources;
+* Knowledge Checks;
+* audio;
+* progress;
+* library;
+* administration;
+* errors;
+* idempotency.
+
+When rules have identifiers, preserve them in relevant code, tests, plans, and discussions.
+
+---
+
+### `AI_GENERATION.md`
+
+Use for generation behavior:
+
+* intention interpretation;
+* compatibility;
+* learning-object precision;
+* objective formulation;
+* proposals;
+* Blueprint;
+* research;
+* source selection;
+* lesson planning;
+* writing;
+* synthesis;
+* Knowledge Checks;
+* editorial controls;
+* pedagogical controls;
+* materialist criteria;
+* audit;
+* correction;
+* recovery.
+
+These are logical responsibilities.
+
+They do not automatically imply technical subsystems.
+
+---
+
+## 3. Recommended Reading
+
+For complete product understanding:
+
+1. `PRODUCT.md`
+2. `MVP.md`
+3. `USER_FLOWS.md`
+4. `BUSINESS_RULES.md`
+5. `AI_GENERATION.md`
+
+For a specific task:
+
+* start with the specialized document;
+* check `MVP.md`;
+* check relevant business rules;
+* check relevant flows;
+* check generation rules when applicable.
+
+Do not load unrelated documentation unnecessarily.
+
+---
+
+## 4. Approved vs Historical
+
+Approved documents are authoritative.
+
+Historical documents may provide:
+
+* context;
+* rationale;
+* examples;
+* background.
+
+Historical documents do not authorize functionality.
+
+When historical and approved documents conflict, approved documents win.
+
+---
+
+## 5. AI Generation Architecture
+
+Never interpret conceptual stages in `AI_GENERATION.md` as mandatory architecture.
+
+For example:
+
+"research"
+
+does not automatically mean:
+
+```text
+ResearchService
+ResearchAgent
+ResearchJob
+ResearchRepository
+ResearchQueue
+```
+
+Likewise:
+
+"audit"
+
+does not automatically mean an audit subsystem.
+
+Implement the behavior, not unnecessary architecture around the terminology.
+
+---
+
+## 6. Product Language
+
+The MVP is English-only.
+
+Do not introduce:
+
+* localization infrastructure;
+* translation systems;
+* language selection;
+* multilingual content;
+
+unless explicitly approved.
+
+---
+
+## 7. Contradictions
+
+If documents appear contradictory:
+
+```text
+Conflict:
+[document A] states X.
+[document B] states Y.
+
+Impact:
+[what would change]
+
+Required decision:
+[minimum clarification]
+```
+
+Do not silently resolve the contradiction.
+
+---
+
+## 8. Evidence-Driven Development
+
+The project is intentionally iterative.
+
+The generator demonstration exists to gather evidence about:
+
+* quality;
+* depth;
+* research;
+* writing;
+* structure;
+* differentiation;
+* time;
+* cost.
+
+Do not optimize for hypothetical future requirements before evidence exists.
+

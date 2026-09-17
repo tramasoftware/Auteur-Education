@@ -1,0 +1,154 @@
+---
+
+description: Security rules for Auteur Education, including frontend/backend separation, secrets, external providers, validation, and sensitive data.
+alwaysApply: true
+-----------------
+
+# Auteur Education — Security Rules
+
+## 1. Secrets
+
+Never:
+
+* hardcode API keys;
+* commit secrets;
+* expose secrets in frontend code;
+* expose secrets through `NEXT_PUBLIC_*`;
+* return secrets through APIs;
+* log secrets.
+
+Server-side credentials remain server-side.
+
+---
+
+## 2. AI Providers
+
+API keys for AI providers must never be exposed to the browser.
+
+Frontend code must call the Auteur backend rather than external AI providers directly when credentials are required.
+
+---
+
+## 3. External Services
+
+Keep provider credentials and sensitive integration details server-side.
+
+Do not expose:
+
+* provider API keys;
+* database credentials;
+* Stripe secret keys;
+* internal service credentials.
+
+---
+
+## 4. Environment Variables
+
+Environment variables containing secrets must remain server-side.
+
+Public frontend environment variables must contain only values explicitly safe for browser exposure.
+
+---
+
+## 5. Validation
+
+Treat all external input as untrusted.
+
+Validate:
+
+* HTTP request bodies;
+* query parameters;
+* path parameters;
+* external provider responses;
+* user-controlled content.
+
+Do not assume AI-generated output is valid.
+
+---
+
+## 6. AI Output
+
+AI-generated output must be validated before being treated as structured application data.
+
+Never execute model output as code.
+
+Never trust model-generated URLs, identifiers, or commands without validation.
+
+---
+
+## 7. Error Exposure
+
+Never expose:
+
+* stack traces;
+* internal filesystem paths;
+* credentials;
+* tokens;
+* database details;
+* provider secrets.
+
+Return safe user-facing errors.
+
+---
+
+## 8. Authorization
+
+Hiding UI elements is not authorization.
+
+When authentication and permissions are implemented, enforce them server-side.
+
+Do not implement authentication prematurely merely because the final product will require it.
+
+---
+
+## 9. Logging
+
+Do not log:
+
+* passwords;
+* API keys;
+* authentication tokens;
+* secrets;
+* unnecessary sensitive user data.
+
+Logs should contain only information useful for diagnosis.
+
+---
+
+## 10. Dependencies
+
+Do not add security-sensitive dependencies without justification.
+
+Keep dependencies minimal.
+
+Prefer maintained, established packages when an external dependency is genuinely required.
+
+---
+
+## 11. Demo vs Production
+
+Temporary demo configurations must not be mistaken for production security architecture.
+
+Explicitly identify temporary:
+
+* CORS;
+* authentication bypasses;
+* mock credentials;
+* in-memory state;
+* development-only behavior.
+
+Never commit real credentials to support a demo.
+
+---
+
+## 12. Security Principle
+
+Security should be enforced at the actual trust boundary.
+
+Frontend behavior improves UX.
+
+Backend behavior enforces security.
+
+External providers must be treated as untrusted dependencies.
+
+User input and AI output must both be validated.

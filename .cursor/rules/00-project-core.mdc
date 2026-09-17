@@ -1,0 +1,253 @@
+---
+
+description: Core rules for the Auteur Education project. Defines scope protection, decision authority, implementation discipline, and general agent behavior.
+alwaysApply: true
+-----------------
+
+# Auteur Education — Core Project Rules
+
+## 1. Mission
+
+You are working on Auteur Education, a B2C platform for personalized theoretical education.
+
+Your job is to implement the approved product accurately and incrementally.
+
+Do not invent what Auteur should become.
+
+Do not expand the MVP.
+
+Do not convert assumptions into requirements.
+
+Do not introduce architecture merely because it is conventional.
+
+Prefer the smallest implementation that satisfies the approved requirement.
+
+---
+
+## 2. Source of Truth
+
+Project documentation has different authority and different purposes.
+
+For implementation decisions, use this precedence:
+
+1. `DECISIONS.md`
+2. `MVP.md`
+3. `BUSINESS_RULES.md`
+4. `AI_GENERATION.md`
+5. `USER_FLOWS.md`
+6. `PRODUCT.md`
+7. Historical or source documents
+
+Never silently override a higher-priority document with a lower-priority document.
+
+If two approved documents conflict:
+
+1. Identify the conflict.
+2. Explain the impact.
+3. Do not choose arbitrarily.
+4. Request the minimum required decision.
+
+---
+
+## 3. Scope Protection
+
+Never implement functionality only because:
+
+* it seems useful;
+* it is conventional;
+* it may be needed later;
+* it appears in an older document;
+* it appears in the previous Master Prompt;
+* it would make the architecture "more complete".
+
+A feature must be authorized by current project documentation.
+
+Do not expand the MVP.
+
+---
+
+## 4. Missing Decisions
+
+The following documents may not yet exist:
+
+* `DECISIONS.md`
+* `DATA_MODEL.md`
+* `INTEGRATIONS.md`
+* `ARCHITECTURE.md`
+* `AGENTS.md`
+* testing strategy
+
+Their absence does not authorize assumptions.
+
+If implementation depends on missing information:
+
+1. Identify the missing decision.
+2. Explain why it matters.
+3. Propose the minimum viable temporary assumption if possible.
+4. Clearly label it as temporary.
+5. Keep the implementation easy to replace.
+
+Never turn a temporary assumption into permanent architecture.
+
+---
+
+## 5. Current Demonstration Scope
+
+The current milestone is the Auteur course-generator demonstration.
+
+The demonstration prioritizes:
+
+* initial intention and context;
+* objective;
+* differentiated proposals;
+* Blueprint;
+* content generation;
+* verifiable sources;
+* pedagogical structure;
+* materialist criteria when applicable;
+* complete module;
+* lessons;
+* synthesis;
+* Knowledge Check;
+* quality;
+* generation time;
+* generation cost.
+
+The following are currently out of scope unless explicitly approved:
+
+* authentication;
+* subscriptions;
+* Stripe;
+* credits;
+* ElevenLabs;
+* library;
+* administration;
+* student progress;
+* final production interface;
+* production architecture;
+* advanced persistence;
+* complex mechanisms from the old Master Prompt.
+
+---
+
+## 6. Old Source Material
+
+Historical documents are context, not automatic requirements.
+
+Do not automatically implement mechanisms from the old Master Prompt, including:
+
+* exactly five proposals;
+* Spanish courses;
+* quizzes per lesson;
+* open final evaluations;
+* glossary;
+* pronunciation guide;
+* fixed extensions;
+* artifact hashes;
+* `BuildState`;
+* `AuditState`;
+* `CoursePackage`;
+* multi-batch audits;
+* new entities;
+* new technical processes.
+
+Only implement these if a newer approved document explicitly requires them.
+
+---
+
+## 7. Simplicity
+
+Prefer:
+
+* simple code;
+* explicit behavior;
+* local solutions;
+* small abstractions;
+* existing project patterns.
+
+Avoid premature:
+
+* frameworks;
+* dependencies;
+* abstraction layers;
+* services;
+* repositories;
+* state-management systems;
+* queues;
+* workers;
+* event buses;
+* microservices;
+* caching;
+* persistence;
+* infrastructure.
+
+Complexity must solve an existing problem.
+
+---
+
+## 8. Dependencies
+
+Do not add a dependency without justification.
+
+Before adding one, verify:
+
+1. The existing stack cannot reasonably solve the problem.
+2. The dependency is actually required.
+3. It does not create unnecessary architectural coupling.
+
+Prefer the existing project stack.
+
+---
+
+## 9. Existing Code
+
+Before modifying code:
+
+* inspect the relevant files;
+* search for existing patterns;
+* reuse existing abstractions when appropriate;
+* avoid duplicating existing behavior.
+
+Do not create a new pattern when an established project pattern already exists.
+
+---
+
+## 10. Changes
+
+Make focused changes.
+
+Do not refactor unrelated code while implementing a feature.
+
+Do not rewrite working code merely because you prefer another style.
+
+Keep diffs small and understandable.
+
+---
+
+## 11. Comments
+
+Comments should explain:
+
+* why something exists;
+* why an unusual decision was made;
+* important product constraints.
+
+Do not comment obvious code.
+
+Prefer code that is self-explanatory.
+
+---
+
+## 12. Final Verification
+
+Before declaring a task complete:
+
+* verify scope;
+* verify relevant product rules;
+* verify affected flows;
+* verify security implications;
+* run the relevant project checks;
+* report temporary assumptions;
+* report unresolved decisions.
+
+Never claim a check passed unless it was actually run.

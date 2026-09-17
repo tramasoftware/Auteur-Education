@@ -1,0 +1,152 @@
+---
+
+description: Rules for designing, changing, and consuming contracts between Auteur Education frontend and backend.
+globs:
+
+* "web/**/*"
+* "frontend/**/*"
+* "backend/**/*"
+* "api/**/*"
+* "server/**/*"
+  alwaysApply: false
+
+---
+
+# Auteur Education — API Contract Rules
+
+## 1. Contract Authority
+
+API contracts must represent approved product behavior.
+
+Do not derive API contracts directly from:
+
+* database schemas;
+* React components;
+* internal Python classes;
+* speculative future functionality.
+
+---
+
+## 2. No Invented Contracts
+
+Before creating or changing an endpoint, verify:
+
+* why it exists;
+* which approved flow requires it;
+* request shape;
+* response shape;
+* errors;
+* state implications.
+
+If the contract is not defined yet, explicitly identify the temporary assumption.
+
+---
+
+## 3. Backend Authority
+
+The backend is authoritative for:
+
+* validation;
+* business rules;
+* permissions;
+* authorization;
+* state transitions;
+* sensitive operations.
+
+The frontend may improve UX but must not be treated as a security boundary.
+
+---
+
+## 4. Request Models
+
+Requests should contain only information required by the current operation.
+
+Do not include:
+
+* speculative fields;
+* database fields that the client does not need;
+* internal IDs unless the approved flow requires them;
+* secrets;
+* implementation metadata.
+
+---
+
+## 5. Response Models
+
+Responses should contain information required by the consumer.
+
+Do not expose:
+
+* internal implementation details;
+* secrets;
+* database internals;
+* unnecessary metadata.
+
+---
+
+## 6. Breaking Changes
+
+Before changing an existing contract:
+
+1. Search all consumers.
+2. Identify affected frontend/backend code.
+3. Check approved documentation.
+4. Update consumers consistently.
+5. Add or update tests where appropriate.
+
+Do not silently change response semantics.
+
+---
+
+## 7. Temporary Demo Contracts
+
+Temporary demo contracts are acceptable.
+
+They must be:
+
+* clearly identified;
+* minimal;
+* isolated;
+* easy to replace.
+
+Do not treat demo contracts as final architecture.
+
+---
+
+## 8. AI-Generated Content
+
+Generated educational content must preserve meaningful structure.
+
+Do not flatten complex content into arbitrary strings when the approved behavior requires structure.
+
+Do not fabricate:
+
+* source metadata;
+* verification status;
+* generation state;
+* provider information.
+
+---
+
+## 9. Errors
+
+Error responses should be predictable and safe.
+
+Frontend code should not depend on backend stack traces or provider-specific error messages.
+
+Use stable error categories where appropriate.
+
+---
+
+## 10. Documentation
+
+When an API contract is intentionally established, document:
+
+* endpoint;
+* purpose;
+* request;
+* response;
+* relevant errors;
+* affected product flow.
+
+Do not duplicate the entire API specification across multiple files.
