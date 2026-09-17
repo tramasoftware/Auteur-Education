@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getHealth } from "@/lib/api";
 
 export default async function Home() {
@@ -23,6 +25,12 @@ export default async function Home() {
           Turn an intention to understand something into a researched course
           with a clear path, sources, and a personal library.
         </p>
+        <Link
+          href="/onboarding"
+          className="inline-flex w-fit items-center rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+        >
+          Start a learning request
+        </Link>
       </div>
       <p className="text-sm text-zinc-500">
         API health:{" "}

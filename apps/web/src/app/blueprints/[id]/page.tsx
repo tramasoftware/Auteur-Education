@@ -11,9 +11,9 @@ export default async function BlueprintPage({ params }: BlueprintPageProps) {
   return (
     <PlaceholderPage
       title="Blueprint"
-      description={`Review and approve the pedagogical contract ${id} before a course is built.`}
+      description="The pedagogical contract for your course: what will be taught, what is left out, how it progresses, and why. Review it before the course is built."
     >
-      <BlueprintFeature />
+      <BlueprintFeature blueprintId={id} />
     </PlaceholderPage>
   );
 }
