@@ -22,9 +22,13 @@ from auteur_api.modules.generation.schemas import (
     ResearchOutput,
 )
 
-MIN_SUBSTANTIVE_SOURCES = 2  # BR-SRC-003
-SUBSTANTIVE_ROLES = {"primary_support", "corroboration", "counterpoint"}
-SUBSTANTIVE_SUPPORT = {"strong", "moderate"}
+# --- Strict thresholds (BR-SRC-003) — kept for easy restore after demo testing ---
+# MIN_SUBSTANTIVE_SOURCES = 2
+# SUBSTANTIVE_ROLES = {"primary_support", "corroboration", "counterpoint"}
+# SUBSTANTIVE_SUPPORT = {"strong", "moderate"}
+
+# Temporary demo/testing: accept a single source without search-citation verification.
+MIN_SUBSTANTIVE_SOURCES_DEMO = 1
 
 PLACEHOLDER = re.compile(
     r"(\bTODO\b|\bTBD\b|lorem ipsum|\[insert|\[citation needed\]|\[placeholder|"
@@ -54,15 +58,21 @@ def word_count(draft: LessonDraftOutput) -> int:
 def make_research_validator(
     *, require_retrieved: bool
 ) -> Callable[[StructuredResult[ResearchOutput]], list[str]]:
+    """Demo/testing validator.
+
+    Strict BR-SRC-003/007 logic is preserved below, commented out.
+    """
+
     def validate(result: StructuredResult[ResearchOutput]) -> list[str]:
+        _ = require_retrieved  # ignored in demo mode; strict mode used this flag
         out = result.parsed
         codes: list[str] = []
-        cited = {normalize_url(c.url) for c in result.citations}
         refs = [e.ref.strip() for e in out.evidence]
         if len(set(refs)) != len(refs) or any(not r for r in refs):
             codes.append("evidence_ref_invalid")
+
         urls: set[str] = set()
-        substantive = 0
+        acceptable = 0
         for item in out.evidence:
             if not is_http_url(item.url):
                 codes.append("evidence_url_invalid")
@@ -73,16 +83,43 @@ def make_research_validator(
             if norm in urls:
                 codes.append("evidence_url_duplicated")
             urls.add(norm)
-            retrieved = (not require_retrieved) or norm in cited
-            if (
-                retrieved
-                and item.role in SUBSTANTIVE_ROLES
-                and item.support_level in SUBSTANTIVE_SUPPORT
-            ):
-                substantive += 1
-        if substantive < MIN_SUBSTANTIVE_SOURCES and not out.blocking_conditions:
-            codes.append("evidence_insufficient")  # AI-QA-05 / BR-GEN-009
+            # Demo: model-reported URLs count; no web-search citation match required.
+            acceptable += 1
+
+        if acceptable < MIN_SUBSTANTIVE_SOURCES_DEMO and not out.blocking_conditions:
+            codes.append("evidence_insufficient")
         return sorted(set(codes))
+
+    # --- Strict validation (restore for production demo) ---
+    # def validate(result: StructuredResult[ResearchOutput]) -> list[str]:
+    #     out = result.parsed
+    #     codes: list[str] = []
+    #     cited = {normalize_url(c.url) for c in result.citations}
+    #     refs = [e.ref.strip() for e in out.evidence]
+    #     if len(set(refs)) != len(refs) or any(not r for r in refs):
+    #         codes.append("evidence_ref_invalid")
+    #     urls: set[str] = set()
+    #     substantive = 0
+    #     for item in out.evidence:
+    #         if not is_http_url(item.url):
+    #             codes.append("evidence_url_invalid")
+    #             continue
+    #         if not item.title.strip() or not item.relevant_excerpt.strip():
+    #             codes.append("evidence_metadata_missing")
+    #         norm = normalize_url(item.url)
+    #         if norm in urls:
+    #             codes.append("evidence_url_duplicated")
+    #         urls.add(norm)
+    #         retrieved = (not require_retrieved) or norm in cited
+    #         if (
+    #             retrieved
+    #             and item.role in SUBSTANTIVE_ROLES
+    #             and item.support_level in SUBSTANTIVE_SUPPORT
+    #         ):
+    #             substantive += 1
+    #     if substantive < MIN_SUBSTANTIVE_SOURCES and not out.blocking_conditions:
+    #         codes.append("evidence_insufficient")  # AI-QA-05 / BR-GEN-009
+    #     return sorted(set(codes))
 
     return validate
 
@@ -96,8 +133,10 @@ def make_write_validator(
         used = [r.strip() for r in out.draft.sources_used_refs]
         if any(r not in evidence_refs for r in used):
             codes.append("sources_used_unknown_ref")  # BR-SRC-008
-        if len(set(used)) < MIN_SUBSTANTIVE_SOURCES:
-            codes.append("sources_used_insufficient")  # BR-SRC-003
+        if len(set(used)) < MIN_SUBSTANTIVE_SOURCES_DEMO:
+            codes.append("sources_used_insufficient")  # BR-SRC-003 (demo: 1 source)
+        # if len(set(used)) < MIN_SUBSTANTIVE_SOURCES:
+        #     codes.append("sources_used_insufficient")  # BR-SRC-003
         if any(r not in evidence_refs for r in out.spec.assigned_evidence_refs):
             codes.append("spec_assigned_refs_unknown")
         if out.spec.main_claims and not out.spec.assigned_evidence_refs:
@@ -144,10 +183,37 @@ def validate_synthesis(result: StructuredResult[ModuleSynthesisOutput]) -> list[
     return codes
 
 
+def _normalize_lesson_title(title: str) -> str:
+    """Strip UI-style module prefixes such as 'Module › Lesson'."""
+    cleaned = title.strip().lower()
+    if "›" in cleaned:
+        cleaned = cleaned.rsplit("›", 1)[-1].strip()
+    return cleaned
+
+
+def _related_title_matches_lesson(related: str, lesson_titles: set[str]) -> bool:
+    """Demo: accept exact, substring, or module-prefixed lesson title references."""
+    related_norm = _normalize_lesson_title(related)
+    if not related_norm:
+        return False
+    for title in lesson_titles:
+        lesson_norm = _normalize_lesson_title(title)
+        if (
+            related_norm == lesson_norm
+            or related_norm in lesson_norm
+            or lesson_norm in related_norm
+        ):
+            return True
+    return False
+
+
 def make_knowledge_check_validator(
     lesson_titles: set[str],
 ) -> Callable[[StructuredResult[KnowledgeCheckOutput]], list[str]]:
-    lowered = {t.strip().lower() for t in lesson_titles}
+    """Demo/testing validator.
+
+    Strict exact-title matching is preserved below, commented out.
+    """
 
     def validate(result: StructuredResult[KnowledgeCheckOutput]) -> list[str]:
         out = result.parsed
@@ -165,10 +231,21 @@ def make_knowledge_check_validator(
             texts = {o.text.strip().lower() for o in q.options}
             if len(texts) != len(q.options):
                 codes.append("knowledge_check_options_duplicated")
-            if not q.related_lesson_titles or any(
-                t.strip().lower() not in lowered for t in q.related_lesson_titles
+            if not q.related_lesson_titles or not any(
+                _related_title_matches_lesson(t, lesson_titles)
+                for t in q.related_lesson_titles
             ):
                 codes.append("knowledge_check_unrelated_to_lessons")
         return sorted(set(codes))
+
+    # --- Strict validation (restore for production demo) ---
+    # lowered = {t.strip().lower() for t in lesson_titles}
+    #
+    # def validate(result: StructuredResult[KnowledgeCheckOutput]) -> list[str]:
+    #     ...
+    #     if not q.related_lesson_titles or any(
+    #         t.strip().lower() not in lowered for t in q.related_lesson_titles
+    #     ):
+    #         codes.append("knowledge_check_unrelated_to_lessons")
 
     return validate

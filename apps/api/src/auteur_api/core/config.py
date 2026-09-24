@@ -1,4 +1,4 @@
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,15 @@ class Settings(BaseSettings):
 
     # Technical safety/cost limit for free-text inputs; not a business rule.
     max_free_text_chars: int = 4000
+
+    @field_validator("openai_api_key", mode="before")
+    @classmethod
+    def empty_openai_api_key_is_none(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @property
     def is_production(self) -> bool:

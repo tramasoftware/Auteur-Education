@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { blueprintJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   BulletList,
   Button,
   DefinitionList,
   ErrorNotice,
   Field,
+  GenerationStatus,
   Notice,
   StatusBadge,
   inputClass,
@@ -27,6 +29,8 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [revising, setRevising] = useState(false);
+
+  useJourneyStep(blueprintJourneyStep(blueprint?.state ?? null));
 
   const load = useCallback(
     () =>
@@ -79,7 +83,10 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   if (!blueprint) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <GenerationStatus
+          title="Opening your Blueprint"
+          description="Loading the pedagogical contract for this course."
+        />
         <ErrorNotice error={error} />
       </div>
     );
@@ -97,29 +104,34 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-center gap-3">
-        <StatusBadge label={blueprintStateLabel[blueprint.state]} tone={tone} />
-        {blueprint.current_version ? (
-          <span className="text-sm text-zinc-500">
-            Version {blueprint.current_version}
-            {blueprint.previous_versions.length > 0
-              ? ` · previous: ${blueprint.previous_versions.join(", ")}`
-              : ""}
-          </span>
-        ) : null}
+      <div className="flex flex-col items-start gap-3">
         <Link
           href={`/proposals?request=${blueprint.request_id}`}
-          className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+          className="inline-flex items-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-50"
         >
+          <span aria-hidden className="mr-1.5">
+            ←
+          </span>
           Back to directions
         </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusBadge label={blueprintStateLabel[blueprint.state]} tone={tone} />
+          {blueprint.current_version ? (
+            <span className="text-sm text-zinc-500">
+              Version {blueprint.current_version}
+              {blueprint.previous_versions.length > 0
+                ? ` · previous: ${blueprint.previous_versions.join(", ")}`
+                : ""}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {blueprint.state === "generating" ? (
-        <Notice tone="info" title="Drafting your Blueprint">
-          Auteur is turning your objective and chosen direction into a pedagogical
-          contract. This page updates automatically.
-        </Notice>
+        <GenerationStatus
+          title="Drafting your Blueprint"
+          description="Turning your objective and chosen direction into the pedagogical contract. This page updates automatically."
+        />
       ) : null}
 
       {blueprint.failure_message ? (
@@ -162,7 +174,7 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-lg font-semibold">Intellectual arc</h3>
+            <h3 className="text-lg font-semibold">Introduction</h3>
             <p className="text-sm leading-7">{v.intellectual_arc}</p>
           </section>
 

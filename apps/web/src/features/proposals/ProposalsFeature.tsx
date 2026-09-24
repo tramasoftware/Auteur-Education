@@ -2,19 +2,42 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { proposalsJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   BulletList,
   Button,
   DefinitionList,
   ErrorNotice,
+  GenerationStatus,
   Notice,
   StatusBadge,
 } from "@/components/ui";
 import { learningRequests } from "@/lib/api";
 import { recallRequestId, rememberRequestId } from "@/lib/session";
 import type { CourseProposal, LearningRequest } from "@/types/generator";
+
+/** Dedupe concurrent generateProposals calls for the same request (React Strict Mode). */
+const proposalGenerationByRequest = new Map<string, Promise<LearningRequest>>();
+
+async function loadProposalsForRequest(requestId: string): Promise<LearningRequest> {
+  const current = await learningRequests.get(requestId);
+  if (current.state !== "objective_confirmed") {
+    return current;
+  }
+
+  const pending = proposalGenerationByRequest.get(requestId);
+  if (pending) {
+    return pending;
+  }
+
+  const generation = learningRequests
+    .generateProposals(requestId)
+    .finally(() => proposalGenerationByRequest.delete(requestId));
+  proposalGenerationByRequest.set(requestId, generation);
+  return generation;
+}
 
 /** UF-03: 1-5 differentiated learning directions; select one, then Blueprint. */
 export function ProposalsFeature() {
@@ -23,32 +46,34 @@ export function ProposalsFeature() {
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const loadSeq = useRef(0);
 
   const requestId = params.get("request") ?? recallRequestId();
   const missing = !requestId;
+
+  useJourneyStep(proposalsJourneyStep(request));
 
   useEffect(() => {
     if (!requestId) {
       return;
     }
+    const seq = ++loadSeq.current;
     let cancelled = false;
     (async () => {
+      setBusy(true);
+      setError(null);
       try {
-        let current = await learningRequests.get(requestId);
-        if (current.state === "objective_confirmed") {
-          setBusy(true);
-          current = await learningRequests.generateProposals(requestId);
-        }
-        if (!cancelled) {
+        const current = await loadProposalsForRequest(requestId);
+        if (!cancelled && seq === loadSeq.current) {
           rememberRequestId(current.id);
           setRequest(current);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && seq === loadSeq.current) {
           setError(err);
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && seq === loadSeq.current) {
           setBusy(false);
         }
       }
@@ -99,9 +124,10 @@ export function ProposalsFeature() {
     return (
       <div className="flex flex-col gap-3">
         {busy ? (
-          <p className="text-sm text-zinc-500" role="status">
-            Generating differentiated learning directions for your objective…
-          </p>
+          <GenerationStatus
+            title="Preparing learning directions"
+            description="Building differentiated ways to approach your confirmed objective."
+          />
         ) : (
           <p className="text-sm text-zinc-500">Loading…</p>
         )}
@@ -152,7 +178,7 @@ export function ProposalsFeature() {
           <ul className="flex flex-col gap-4">
             {set.proposals.map((proposal) => (
               <ProposalCard
-                key={proposal.id}
+                key={`${proposal.id}:${proposal.id === request.selected_proposal_id}`}
                 proposal={proposal}
                 recommended={proposal.id === set.recommended_proposal_id}
                 selected={proposal.id === request.selected_proposal_id}
@@ -204,6 +230,8 @@ type ProposalCardProps = {
 };
 
 function ProposalCard({ proposal, recommended, selected, busy, onSelect }: ProposalCardProps) {
+  const [expanded, setExpanded] = useState(selected);
+
   return (
     <li
       className={`flex flex-col gap-3 rounded-md border p-5 ${
@@ -222,36 +250,62 @@ function ProposalCard({ proposal, recommended, selected, busy, onSelect }: Propo
           {selected ? <StatusBadge label="Selected" tone="success" /> : null}
         </div>
       </div>
-      <DefinitionList
-        items={[
-          { term: "Central question", detail: proposal.central_question },
-          { term: "You will be able to", detail: proposal.intellectual_outcome },
-          { term: "Trajectory", detail: proposal.distinctive_trajectory },
-          { term: "Organizing principle", detail: proposal.organizing_principle },
-          {
-            term: "Guided by",
-            detail: <BulletList items={proposal.guiding_authors_or_traditions} />,
-          },
-          { term: "Scope", detail: <BulletList items={proposal.scope} /> },
-          { term: "Leaves out", detail: <BulletList items={proposal.exclusions} /> },
-          { term: "Fit for your level", detail: proposal.level_fit },
-          {
-            term: "Estimate",
-            detail: `${proposal.estimated_modules} modules · ${proposal.estimated_duration}`,
-          },
-          { term: "Main advantage", detail: proposal.main_advantage },
-          { term: "Trade-off", detail: proposal.trade_off },
-        ]}
-      />
-      <Button
-        type="button"
-        variant={selected ? "secondary" : "primary"}
-        disabled={busy || selected}
-        onClick={onSelect}
-        className="self-start"
-      >
-        {selected ? "Selected" : "Choose this direction"}
-      </Button>
+
+      {expanded ? (
+        <>
+          <DefinitionList
+            items={[
+              { term: "Central question", detail: proposal.central_question },
+              { term: "You will be able to", detail: proposal.intellectual_outcome },
+              { term: "Trajectory", detail: proposal.distinctive_trajectory },
+              { term: "Organizing principle", detail: proposal.organizing_principle },
+              {
+                term: "Guided by",
+                detail: <BulletList items={proposal.guiding_authors_or_traditions} />,
+              },
+              { term: "Scope", detail: <BulletList items={proposal.scope} /> },
+              { term: "Leaves out", detail: <BulletList items={proposal.exclusions} /> },
+              { term: "Fit for your level", detail: proposal.level_fit },
+              {
+                term: "Estimate",
+                detail: `${proposal.estimated_modules} modules · ${proposal.estimated_duration}`,
+              },
+              { term: "Main advantage", detail: proposal.main_advantage },
+              { term: "Trade-off", detail: proposal.trade_off },
+            ]}
+          />
+          <Button
+            type="button"
+            variant={selected ? "secondary" : "primary"}
+            disabled={busy || selected}
+            onClick={onSelect}
+            className="self-start"
+          >
+            {selected ? "Selected" : "Choose this direction"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="inline-flex items-center gap-1.5 self-start text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          >
+            Read less
+            <span aria-hidden className="inline-block -rotate-90 text-base leading-none">
+              ›
+            </span>
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center gap-1.5 self-start text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+        >
+          Read more
+          <span aria-hidden className="inline-block rotate-90 text-base leading-none">
+            ›
+          </span>
+        </button>
+      )}
     </li>
   );
 }

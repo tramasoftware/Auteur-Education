@@ -104,6 +104,11 @@ async def generate_proposals(
     except StageFailed as exc:
         raise stage_failure(exc) from exc
 
+    # A concurrent POST /proposals (e.g. React Strict Mode) may have finished first.
+    record = store.get_learning_request(request_id)
+    if record.state in (RequestState.PROPOSALS_READY, RequestState.PROPOSAL_SELECTED):
+        return record
+
     out = result.parsed
     proposals = [
         CourseProposal(id=new_id()[:8], **p.model_dump()) for p in out.proposals

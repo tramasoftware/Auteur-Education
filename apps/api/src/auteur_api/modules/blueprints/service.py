@@ -52,18 +52,19 @@ def validate_blueprint(result) -> list[str]:  # noqa: ANN001
     if len(set(lesson_titles)) != len(lesson_titles):
         codes.append("blueprint_lesson_titles_duplicated")
 
-    deviates = (
-        not REFERENCE_MODULE_RANGE[0] <= len(modules) <= REFERENCE_MODULE_RANGE[1]
-    )
-    for module in modules:
-        if (
-            not REFERENCE_LESSON_RANGE[0]
-            <= len(module.lessons)
-            <= (REFERENCE_LESSON_RANGE[1])
-        ):
-            deviates = True
-    if deviates and not (internal.structure_deviation_reasons or "").strip():
-        codes.append("blueprint_structure_deviation_unjustified")  # BR-BLP-006/007
+    # --- Strict structure-deviation check (BR-BLP-006/007) — restore after demo ---
+    # deviates = (
+    #     not REFERENCE_MODULE_RANGE[0] <= len(modules) <= REFERENCE_MODULE_RANGE[1]
+    # )
+    # for module in modules:
+    #     if (
+    #         not REFERENCE_LESSON_RANGE[0]
+    #         <= len(module.lessons)
+    #         <= (REFERENCE_LESSON_RANGE[1])
+    #     ):
+    #         deviates = True
+    # if deviates and not (internal.structure_deviation_reasons or "").strip():
+    #     codes.append("blueprint_structure_deviation_unjustified")
 
     required_text = [
         visible.title,

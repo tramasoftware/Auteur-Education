@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   BulletList,
   Button,
+  ConfirmDialog,
   DefinitionList,
   ErrorNotice,
   Field,
+  GenerationStatus,
   Notice,
   StatusBadge,
   inputClass,
@@ -31,6 +34,8 @@ export function OnboardingFeature() {
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+
+  useJourneyStep(onboardingJourneyStep(request));
 
   useEffect(() => {
     const id = params.get("request") ?? recallRequestId();
@@ -58,11 +63,53 @@ export function OnboardingFeature() {
     }
   };
 
-  const reset = () => {
-    forgetRequestId();
-    setRequest(null);
+  const continueToLearningDirections = async () => {
+    if (!request?.objective) {
+      return;
+    }
+    setLoading(true);
     setError(null);
-    router.replace("/onboarding");
+    try {
+      const next = await learningRequests.confirmObjective(
+        request.id,
+        request.objective.version,
+      );
+      rememberRequestId(next.id);
+      router.push(`/proposals?request=${next.id}`);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmObjectiveWithChanges = async (feedback: string) => {
+    if (!request) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const revised = await learningRequests.reviseObjective(request.id, feedback);
+      const next = await learningRequests.confirmObjective(
+        revised.id,
+        revised.objective!.version,
+      );
+      rememberRequestId(next.id);
+      setRequest(next);
+      router.replace(`/onboarding?request=${next.id}`);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetFromScratch = () => {
+    forgetRequestId();
+    // Full navigation resets client state; client routing alone left stale onboarding UI.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
+    window.location.assign("/onboarding");
   };
 
   if (!request) {
@@ -79,32 +126,7 @@ export function OnboardingFeature() {
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold">Your intention</h2>
-          <StatusBadge label={requestStateLabel[request.state]} tone="active" />
-        </div>
-        <DefinitionList
-          items={[
-            { term: "Intention", detail: request.inputs.initial_intent },
-            { term: "Level", detail: request.inputs.experience_level },
-            {
-              term: "Prior knowledge",
-              detail: request.inputs.prior_knowledge ?? "Not provided",
-            },
-            { term: "Expected outcome", detail: request.inputs.expected_outcome },
-          ]}
-        />
-        <button
-          type="button"
-          onClick={reset}
-          className="self-start text-sm text-zinc-500 underline-offset-4 hover:underline"
-        >
-          Start over with a new intention
-        </button>
-      </section>
-
-      <CompatibilityPanel request={request} />
+      <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
 
       {request.state === "incompatible" ? (
         <Notice tone="info" title="This request cannot continue">
@@ -127,14 +149,8 @@ export function OnboardingFeature() {
         <ObjectivePanel
           request={request}
           busy={loading}
-          onConfirm={() =>
-            run(() =>
-              learningRequests.confirmObjective(
-                request.id,
-                request.objective!.version,
-              ),
-            )
-          }
+          onContinueToDirections={continueToLearningDirections}
+          onConfirmWithChanges={confirmObjectiveWithChanges}
           onRevise={(feedback) =>
             run(() => learningRequests.reviseObjective(request.id, feedback))
           }
@@ -264,44 +280,97 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
         Analyze my intention
       </Button>
       {busy ? (
-        <p className="text-sm text-zinc-500" role="status">
-          Interpreting your intention and checking what text and audio can teach…
-        </p>
+        <GenerationStatus
+          title="Reading your intention"
+          description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
+        />
       ) : null}
     </form>
   );
 }
 
-function CompatibilityPanel({ request }: { request: LearningRequest }) {
-  const c = request.compatibility;
-  const tone =
-    c.classification === "Incompatible"
-      ? "danger"
-      : c.classification === "Allowed with reframing"
-        ? "active"
-        : "success";
+const intentionCardClass =
+  "rounded-md border border-zinc-200 dark:border-zinc-800";
+
+type YourIntentionSectionProps = {
+  request: LearningRequest;
+  onResetFromScratch: () => void;
+};
+
+function YourIntentionSection({
+  request,
+  onResetFromScratch,
+}: YourIntentionSectionProps) {
+  const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const confirmReset = () => {
+    setConfirmOpen(false);
+    onResetFromScratch();
+  };
+
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold">Compatibility</h2>
-        <StatusBadge label={c.classification} tone={tone} />
-      </div>
-      <p className="text-sm leading-6">{c.explanation}</p>
-      {c.safe_reframing ? (
-        <DefinitionList
-          items={[{ term: "Theoretical reframing", detail: c.safe_reframing }]}
-        />
+    <section className={`flex flex-col overflow-hidden ${intentionCardClass}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <span
+            aria-hidden
+            className={`inline-block text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            ›
+          </span>
+          Your Intention
+        </span>
+        <StatusBadge label={requestStateLabel[request.state]} tone="active" />
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-4 border-t border-zinc-200 p-4 dark:border-zinc-800">
+          <DefinitionList
+            items={[
+              { term: "Intention", detail: request.inputs.initial_intent },
+              { term: "Level", detail: request.inputs.experience_level },
+              {
+                term: "Prior knowledge",
+                detail: request.inputs.prior_knowledge ?? "Not provided",
+              },
+              { term: "Expected outcome", detail: request.inputs.expected_outcome },
+            ]}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="self-start"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <span aria-hidden className="mr-1.5">
+              ←
+            </span>
+            Start over with a new intention
+          </Button>
+        </div>
       ) : null}
-      {c.unreachable_aspects.length > 0 ? (
-        <DefinitionList
-          items={[
-            {
-              term: "Not achievable through text and audio",
-              detail: <BulletList items={c.unreachable_aspects} />,
-            },
-          ]}
-        />
-      ) : null}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Start over?"
+        description={
+          <>
+            This will clear your current progress and return you to the initial
+            learning intention form. Your objective and any steps completed in this
+            request will no longer be accessible in this session.
+          </>
+        }
+        confirmLabel="Yes, start over"
+        cancelLabel="Keep my progress"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={confirmReset}
+      />
     </section>
   );
 }
@@ -372,6 +441,12 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
       >
         Formulate my objective
       </Button>
+      {busy ? (
+        <GenerationStatus
+          title="Formulating your objective"
+          description="Turning the chosen learning object into a precise objective you can review."
+        />
+      ) : null}
     </section>
   );
 }
@@ -379,15 +454,22 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
 type ObjectivePanelProps = {
   request: LearningRequest;
   busy: boolean;
-  onConfirm: () => void;
+  onContinueToDirections: () => void;
+  onConfirmWithChanges: (feedback: string) => void;
   onRevise: (feedback: string) => void;
 };
 
-function ObjectivePanel({ request, busy, onConfirm, onRevise }: ObjectivePanelProps) {
-  const [revising, setRevising] = useState(false);
+function ObjectivePanel({
+  request,
+  busy,
+  onContinueToDirections,
+  onConfirmWithChanges,
+  onRevise,
+}: ObjectivePanelProps) {
   const [feedback, setFeedback] = useState("");
   const o = request.objective!;
   const locked = request.state !== "objective_confirmation" && !o.confirmed;
+  const hasFeedback = feedback.trim().length > 0;
 
   return (
     <section className="flex flex-col gap-4">
@@ -422,45 +504,41 @@ function ObjectivePanel({ request, busy, onConfirm, onRevise }: ObjectivePanelPr
       />
       {!o.confirmed && !locked ? (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" busy={busy} onClick={onConfirm}>
-              Confirm this objective
-            </Button>
+          <Field
+            id="objective-feedback"
+            label="What should change?"
+            hint="Leave empty to accept this objective and continue."
+          >
+            <textarea
+              id="objective-feedback"
+              className={inputClass}
+              rows={3}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+            />
+          </Field>
+          {hasFeedback ? (
             <Button
               type="button"
-              variant="secondary"
-              disabled={busy}
-              onClick={() => setRevising((v) => !v)}
+              busy={busy}
+              className="self-start"
+              onClick={() => {
+                onConfirmWithChanges(feedback.trim());
+                setFeedback("");
+              }}
             >
-              Request changes
+              Confirm these changes for the objective
             </Button>
-          </div>
-          {revising ? (
-            <div className="flex flex-col gap-2">
-              <Field id="objective-feedback" label="What should change?">
-                <textarea
-                  id="objective-feedback"
-                  className={inputClass}
-                  rows={3}
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                />
-              </Field>
-              <Button
-                type="button"
-                variant="secondary"
-                busy={busy}
-                disabled={!feedback.trim()}
-                onClick={() => {
-                  onRevise(feedback.trim());
-                  setFeedback("");
-                  setRevising(false);
-                }}
-              >
-                Reformulate objective
-              </Button>
-            </div>
-          ) : null}
+          ) : (
+            <Button
+              type="button"
+              busy={busy}
+              className="self-start"
+              onClick={onContinueToDirections}
+            >
+              Continue to learning directions
+            </Button>
+          )}
         </div>
       ) : null}
       {o.confirmed && request.state !== "approved" && !request.blueprint_id ? (
@@ -490,6 +568,12 @@ function ObjectivePanel({ request, busy, onConfirm, onRevise }: ObjectivePanelPr
             </Button>
           </div>
         </details>
+      ) : null}
+      {busy ? (
+        <GenerationStatus
+          title="Updating your objective"
+          description="Applying this change so the objective stays precise before the next step."
+        />
       ) : null}
     </section>
   );
