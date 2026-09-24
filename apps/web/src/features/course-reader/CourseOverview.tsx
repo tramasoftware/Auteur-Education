@@ -19,6 +19,42 @@ const BUILDING: Course["state"][] = [
   "reviewing",
 ];
 
+function BuildingDots() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      setCount((current) => (current + 1) % 4);
+    }, 450);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <span aria-hidden className="inline-block w-[1.5ch] text-left">
+      {".".repeat(count)}
+    </span>
+  );
+}
+
+function BuildingHeading() {
+  return (
+    <p className="flex items-center gap-2 font-medium">
+      <span
+        aria-hidden
+        className="size-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-foreground motion-reduce:animate-none"
+      />
+      <span>
+        Building
+        <BuildingDots />
+        <span className="sr-only">. In progress.</span>
+      </span>
+    </p>
+  );
+}
+
 function moduleTone(state: ModuleState) {
   switch (state) {
     case "published":
@@ -68,7 +104,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
   if (!course) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
         <ErrorNotice error={error} />
       </div>
     );
@@ -88,22 +124,24 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge label={courseStateLabel[course.state]} tone={stateTone} />
-          <span className="text-sm text-zinc-500">
+          <span className="text-sm text-muted">
             Blueprint v{course.blueprint_version}
           </span>
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight">{course.title}</h2>
-        <p className="text-lg text-zinc-600 dark:text-zinc-400">{course.subtitle}</p>
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">{course.title}</h2>
+        <p className="text-lg text-muted">{course.subtitle}</p>
         <p className="text-sm leading-6">{course.objective_statement}</p>
       </section>
 
       {course.current_activity ? (
-        <Notice tone="info" title={building ? "Building" : "Status"}>
+        <Notice tone="info" title={building ? undefined : "Status"}>
+          {building ? <BuildingHeading /> : null}
           {course.current_activity}
           {building ? " This page updates automatically." : ""}
         </Notice>
       ) : building ? (
-        <Notice tone="info" title="Building">
+        <Notice tone="info">
+          <BuildingHeading />
           Modules are published one at a time once they pass review. You can read a
           published module while the rest is generated.
         </Notice>
@@ -123,17 +161,17 @@ export function CourseOverview({ courseId }: { courseId: string }) {
           {course.modules.map((module) => (
             <li
               key={module.id}
-              className="flex flex-col gap-2 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+              className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <h4 className="font-semibold">
                     {module.index}. {module.title}
                   </h4>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  <p className="text-sm text-muted">
                     {module.function}
                   </p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-muted">
                     {module.lesson_count} lessons
                   </p>
                 </div>

@@ -52,7 +52,7 @@ export function ConfirmDialog({
       <button
         type="button"
         aria-label="Close dialog"
-        className="absolute inset-0 bg-zinc-950/40"
+        className="absolute inset-0 bg-foreground/40"
         disabled={busy}
         onClick={onCancel}
       />
@@ -61,14 +61,14 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative z-10 w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
+        className="relative z-10 w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-lg"
       >
         <h2 id={titleId} className="text-lg font-semibold tracking-tight">
           {title}
         </h2>
         <div
           id={descriptionId}
-          className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400"
+          className="mt-2 text-sm leading-6 text-muted"
         >
           {description}
         </div>

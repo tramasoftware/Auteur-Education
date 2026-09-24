@@ -40,7 +40,7 @@ export function DiagnosticsPanel({
   const seconds = Math.round(data.trace_summary.total_duration_ms / 1000);
 
   return (
-    <details className="rounded-md border border-dashed border-zinc-300 p-4 text-sm dark:border-zinc-700">
+    <details className="rounded-xl border border-dashed border-line bg-surface p-4 text-sm">
       <summary className="cursor-pointer font-medium">
         Generation diagnostics (demo) — {data.trace_summary.calls} model calls,{" "}
         {seconds}s, {data.trace_summary.usage.total_tokens.toLocaleString()} tokens
@@ -66,11 +66,11 @@ export function DiagnosticsPanel({
           <p className="font-medium">
             Materialist criterion: {data.blueprint_internal.materialist_classification}
           </p>
-          <p className="text-zinc-600 dark:text-zinc-400">
+          <p className="text-muted">
             {data.blueprint_internal.materialist_justification}
           </p>
           {data.blueprint_internal.structure_deviation_reasons ? (
-            <p className="text-zinc-600 dark:text-zinc-400">
+            <p className="text-muted">
               Structure deviation: {data.blueprint_internal.structure_deviation_reasons}
             </p>
           ) : null}
@@ -122,7 +122,7 @@ export function DiagnosticsPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-zinc-500">
+                <tr className="text-muted">
                   <th className="py-1 pr-3">Stage</th>
                   <th className="py-1 pr-3">Target</th>
                   <th className="py-1 pr-3">Attempt</th>
@@ -135,7 +135,7 @@ export function DiagnosticsPanel({
               </thead>
               <tbody>
                 {data.traces.map((t, i) => (
-                  <tr key={i} className="border-t border-zinc-200 dark:border-zinc-800">
+                  <tr key={i} className="border-t border-line">
                     <td className="py-1 pr-3 font-mono">{t.stage}</td>
                     <td className="py-1 pr-3 font-mono">{t.target}</td>
                     <td className="py-1 pr-3">{t.attempt}</td>

@@ -13,6 +13,7 @@ import {
   GenerationStatus,
   Notice,
   StatusBadge,
+  outlineButtonClass,
 } from "@/components/ui";
 import { learningRequests } from "@/lib/api";
 import { recallRequestId, rememberRequestId } from "@/lib/session";
@@ -113,8 +114,12 @@ export function ProposalsFeature() {
   if (missing) {
     return (
       <Notice tone="info" title="No learning request yet">
-        <Link href="/onboarding" className="underline underline-offset-4">
-          Start by describing what you want to learn.
+        <Link
+          href="/onboarding"
+          className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface no-underline cursor-pointer hover:bg-foreground/85"
+        >
+          <span aria-hidden>+</span>
+          New course
         </Link>
       </Notice>
     );
@@ -129,7 +134,7 @@ export function ProposalsFeature() {
             description="Building differentiated ways to approach your confirmed objective."
           />
         ) : (
-          <p className="text-sm text-zinc-500">Loading…</p>
+          <p className="text-sm text-muted">Loading…</p>
         )}
         <ErrorNotice error={error} />
       </div>
@@ -139,7 +144,7 @@ export function ProposalsFeature() {
   if (!request.objective?.confirmed) {
     return (
       <Notice tone="info" title="Confirm your objective first">
-        <Link href={`/onboarding?request=${request.id}`} className="underline underline-offset-4">
+        <Link href={`/onboarding?request=${request.id}`} className={`mt-3 ${outlineButtonClass}`}>
           Return to the objective step.
         </Link>
       </Notice>
@@ -165,7 +170,7 @@ export function ProposalsFeature() {
                 ? "One sound direction"
                 : `${set.proposals.length} learning directions`}
             </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-sm text-muted">
               Each direction is a different intellectual trajectory toward the same
               objective. Choose the one that fits how you want to think about it.
             </p>
@@ -178,7 +183,7 @@ export function ProposalsFeature() {
           <ul className="flex flex-col gap-4">
             {set.proposals.map((proposal) => (
               <ProposalCard
-                key={`${proposal.id}:${proposal.id === request.selected_proposal_id}`}
+                key={proposal.id}
                 proposal={proposal}
                 recommended={proposal.id === set.recommended_proposal_id}
                 selected={proposal.id === request.selected_proposal_id}
@@ -194,7 +199,7 @@ export function ProposalsFeature() {
             {request.blueprint_id ? (
               <Link
                 href={`/blueprints/${request.blueprint_id}`}
-                className="inline-flex items-center rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950"
+                className="inline-flex items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
               >
                 Open the Blueprint
               </Link>
@@ -210,7 +215,7 @@ export function ProposalsFeature() {
             )}
             <Link
               href={`/onboarding?request=${request.id}`}
-              className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+              className={outlineButtonClass}
             >
               Back to objective
             </Link>
@@ -230,20 +235,18 @@ type ProposalCardProps = {
 };
 
 function ProposalCard({ proposal, recommended, selected, busy, onSelect }: ProposalCardProps) {
-  const [expanded, setExpanded] = useState(selected);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <li
-      className={`flex flex-col gap-3 rounded-md border p-5 ${
-        selected
-          ? "border-zinc-950 dark:border-zinc-50"
-          : "border-zinc-200 dark:border-zinc-800"
+      className={`flex flex-col gap-3 rounded-xl border bg-surface p-5 ${
+        selected ? "border-foreground" : "border-line"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h3 className="text-base font-semibold">{proposal.title}</h3>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{proposal.description}</p>
+          <h3 className="font-serif text-base font-semibold">{proposal.title}</h3>
+          <p className="text-sm text-muted">{proposal.description}</p>
         </div>
         <div className="flex gap-2">
           {recommended ? <StatusBadge label="Suggested" tone="active" /> : null}
@@ -251,54 +254,64 @@ function ProposalCard({ proposal, recommended, selected, busy, onSelect }: Propo
         </div>
       </div>
 
-      {expanded ? (
-        <>
-          <DefinitionList
-            items={[
-              { term: "Central question", detail: proposal.central_question },
-              { term: "You will be able to", detail: proposal.intellectual_outcome },
-              { term: "Trajectory", detail: proposal.distinctive_trajectory },
-              { term: "Organizing principle", detail: proposal.organizing_principle },
-              {
-                term: "Guided by",
-                detail: <BulletList items={proposal.guiding_authors_or_traditions} />,
-              },
-              { term: "Scope", detail: <BulletList items={proposal.scope} /> },
-              { term: "Leaves out", detail: <BulletList items={proposal.exclusions} /> },
-              { term: "Fit for your level", detail: proposal.level_fit },
-              {
-                term: "Estimate",
-                detail: `${proposal.estimated_modules} modules · ${proposal.estimated_duration}`,
-              },
-              { term: "Main advantage", detail: proposal.main_advantage },
-              { term: "Trade-off", detail: proposal.trade_off },
-            ]}
-          />
-          <Button
-            type="button"
-            variant={selected ? "secondary" : "primary"}
-            disabled={busy || selected}
-            onClick={onSelect}
-            className="self-start"
-          >
-            {selected ? "Selected" : "Choose this direction"}
-          </Button>
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="inline-flex items-center gap-1.5 self-start text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          >
-            Read less
-            <span aria-hidden className="inline-block -rotate-90 text-base leading-none">
-              ›
-            </span>
-          </button>
-        </>
-      ) : (
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+          expanded ? "grid-rows-[1fr] opacity-100" : "-mb-3 grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className={expanded ? "overflow-hidden" : "pointer-events-none overflow-hidden"}>
+          <div className="flex flex-col gap-3">
+            <DefinitionList
+              items={[
+                { term: "Central question", detail: proposal.central_question },
+                { term: "You will be able to", detail: proposal.intellectual_outcome },
+                { term: "Trajectory", detail: proposal.distinctive_trajectory },
+                { term: "Organizing principle", detail: proposal.organizing_principle },
+                {
+                  term: "Guided by",
+                  detail: <BulletList items={proposal.guiding_authors_or_traditions} />,
+                },
+                { term: "Scope", detail: <BulletList items={proposal.scope} /> },
+                { term: "Leaves out", detail: <BulletList items={proposal.exclusions} /> },
+                { term: "Fit for your level", detail: proposal.level_fit },
+                {
+                  term: "Estimate",
+                  detail: `${proposal.estimated_modules} modules · ${proposal.estimated_duration}`,
+                },
+                { term: "Main advantage", detail: proposal.main_advantage },
+                { term: "Trade-off", detail: proposal.trade_off },
+              ]}
+            />
+            <Button
+              type="button"
+              variant={selected ? "secondary" : "primary"}
+              disabled={busy || selected}
+              onClick={() => {
+                setExpanded(false);
+                onSelect();
+              }}
+              className="self-start"
+            >
+              {selected ? "Selected" : "Choose this direction"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
+            >
+              Read less
+              <span aria-hidden className="inline-block -rotate-90 text-base leading-none">
+                ›
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      {expanded ? null : (
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="inline-flex items-center gap-1.5 self-start text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
         >
           Read more
           <span aria-hidden className="inline-block rotate-90 text-base leading-none">

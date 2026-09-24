@@ -38,14 +38,14 @@ export function KnowledgeCheck({ check }: { check: KnowledgeCheckData }) {
                 return (
                   <label
                     key={oi}
-                    className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm ${
+                    className={`flex cursor-pointer gap-3 rounded-xl border bg-surface p-3 text-sm ${
                       showState && option.is_correct
                         ? "border-emerald-500"
                         : showState && chosen
                           ? "border-red-500"
                           : chosen
-                            ? "border-zinc-950 dark:border-zinc-50"
-                            : "border-zinc-200 dark:border-zinc-800"
+                            ? "border-foreground"
+                            : "border-line"
                     }`}
                   >
                     <input
@@ -59,7 +59,7 @@ export function KnowledgeCheck({ check }: { check: KnowledgeCheckData }) {
                     <span className="flex flex-col gap-1">
                       <span>{option.text}</span>
                       {showState ? (
-                        <span className="text-zinc-600 dark:text-zinc-400">
+                        <span className="text-muted">
                           {option.is_correct ? "Correct. " : "Not quite. "}
                           {option.explanation}
                         </span>
@@ -70,7 +70,7 @@ export function KnowledgeCheck({ check }: { check: KnowledgeCheckData }) {
               })}
             </fieldset>
             {revealed ? (
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted">
                 Assesses: {question.assessed_concepts.join(", ")} · Lessons:{" "}
                 {question.related_lesson_titles.join(", ")}
               </p>

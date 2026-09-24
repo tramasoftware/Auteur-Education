@@ -9,7 +9,7 @@ export default function ProposalsPage() {
       title="Learning directions"
       description="Genuinely different ways to approach your objective. Pick one before Auteur drafts the Blueprint."
     >
-      <Suspense fallback={<p className="text-sm text-zinc-500">Loading…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
         <ProposalsFeature />
       </Suspense>
     </JourneyFrame>

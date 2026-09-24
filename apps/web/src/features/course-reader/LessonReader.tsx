@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ErrorNotice } from "@/components/ui";
+import { ErrorNotice, outlineButtonClass } from "@/components/ui";
 import { courses } from "@/lib/api";
 import type { Lesson } from "@/types/generator";
 
@@ -27,7 +27,7 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
   if (!lesson) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
         <ErrorNotice error={error} />
       </div>
     );
@@ -39,30 +39,30 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
     <article className="flex flex-col gap-8">
       <Link
         href={moduleHref}
-        className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+        className={outlineButtonClass}
       >
         ← Module
       </Link>
 
       <header className="flex flex-col gap-2">
-        <p className="text-sm text-zinc-500">Lesson {lesson.index}</p>
-        <h2 className="text-2xl font-semibold tracking-tight">{lesson.title}</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{lesson.purpose}</p>
-        <p className="text-xs text-zinc-500">~{lesson.word_count} words</p>
+        <p className="text-sm text-muted">Lesson {lesson.index}</p>
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">{lesson.title}</h2>
+        <p className="text-sm text-muted">{lesson.purpose}</p>
+        <p className="text-xs text-muted">~{lesson.word_count} words</p>
       </header>
 
       <div className="flex flex-col gap-8">
         {lesson.sections.map((section, i) => (
           <section key={i} className="flex flex-col gap-3">
             {section.heading ? (
-              <h3 className="text-lg font-semibold">{section.heading}</h3>
+              <h3 className="font-serif text-lg font-semibold">{section.heading}</h3>
             ) : null}
             <Prose text={section.body} />
           </section>
         ))}
       </div>
 
-      <section className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <section className="flex flex-col gap-3 border-t border-line pt-6">
         <h3 className="text-lg font-semibold">Sources</h3>
         <SourcesList sources={lesson.sources} />
       </section>
@@ -71,7 +71,7 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
         {lesson.previous_lesson_id ? (
           <Link
             href={`${moduleHref}/lessons/${lesson.previous_lesson_id}`}
-            className="underline-offset-4 hover:underline"
+            className={outlineButtonClass}
           >
             ← Previous lesson
           </Link>

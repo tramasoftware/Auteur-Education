@@ -7,10 +7,10 @@ export function DefinitionList({ items }: { items: Item[] }) {
     <dl className="grid gap-3 text-sm sm:grid-cols-[minmax(10rem,auto)_1fr]">
       {items.map((item) => (
         <div key={item.term} className="contents">
-          <dt className="font-medium text-zinc-700 dark:text-zinc-300">
+          <dt className="font-medium text-muted">
             {item.term}
           </dt>
-          <dd className="leading-6 text-zinc-900 dark:text-zinc-100">
+          <dd className="leading-6 text-foreground">
             {item.detail}
           </dd>
         </div>
@@ -21,7 +21,7 @@ export function DefinitionList({ items }: { items: Item[] }) {
 
 export function BulletList({ items }: { items: string[] }) {
   if (items.length === 0) {
-    return <span className="text-zinc-500">None</span>;
+    return <span className="text-muted">None</span>;
   }
   return (
     <ul className="list-disc pl-5">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { BulletList, DefinitionList, ErrorNotice } from "@/components/ui";
+import { BulletList, DefinitionList, ErrorNotice, outlineButtonClass } from "@/components/ui";
 import { courses } from "@/lib/api";
 import type { CourseModule } from "@/types/generator";
 
@@ -25,9 +25,9 @@ export function ModuleView({ courseId, moduleId }: ModuleViewProps) {
   if (!module) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
         <ErrorNotice error={error} />
-        <Link href={`/courses/${courseId}`} className="text-sm underline underline-offset-4">
+        <Link href={`/courses/${courseId}`} className={outlineButtonClass}>
           Back to the course
         </Link>
       </div>
@@ -38,13 +38,13 @@ export function ModuleView({ courseId, moduleId }: ModuleViewProps) {
     <div className="flex flex-col gap-8">
       <Link
         href={`/courses/${courseId}`}
-        className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+        className={outlineButtonClass}
       >
         ← Course overview
       </Link>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-2xl font-semibold tracking-tight">
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">
           Module {module.index}: {module.title}
         </h2>
         <p className="text-base leading-7">{module.function}</p>
@@ -70,8 +70,8 @@ export function ModuleView({ courseId, moduleId }: ModuleViewProps) {
               >
                 {module.index}.{lesson.index} {lesson.title}
               </Link>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">{lesson.purpose}</p>
-              <p className="text-xs text-zinc-500">~{lesson.word_count} words</p>
+              <p className="text-sm text-muted">{lesson.purpose}</p>
+              <p className="text-xs text-muted">~{lesson.word_count} words</p>
             </li>
           ))}
         </ol>
@@ -92,7 +92,7 @@ export function ModuleView({ courseId, moduleId }: ModuleViewProps) {
       {module.knowledge_check ? (
         <section className="flex flex-col gap-3">
           <h3 className="text-lg font-semibold">Knowledge Check</h3>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-muted">
             Five questions on the ideas this module developed. Optional and repeatable.
           </p>
           <KnowledgeCheck check={module.knowledge_check} />

@@ -82,9 +82,18 @@ export function onboardingJourneyStep(request: LearningRequest | null): JourneyS
   };
 }
 
-/** UF-03. */
+/** UF-03. Hidden only on the empty invite; visible once a request is in progress. */
 export function proposalsJourneyStep(request: LearningRequest | null): JourneyStep {
-  if (!request?.proposals) {
+  if (!request) {
+    return {
+      stage: "proposals",
+      substepIndex: 0,
+      substepCount: 3,
+      substepLabel: "Generating directions",
+      hidden: true,
+    };
+  }
+  if (!request.proposals) {
     return {
       stage: "proposals",
       substepIndex: 0,
@@ -162,7 +171,7 @@ export function JourneyProgress({ step }: { step: JourneyStep }) {
 
   return (
     <div
-      className="sticky top-0 z-10 -mx-6 border-b border-zinc-200 bg-background px-6 py-3 dark:border-zinc-800"
+      className="sticky top-0 z-10 -mx-6 border-b border-line bg-background px-6 py-3"
       role="progressbar"
       aria-valuemin={1}
       aria-valuemax={STAGES.length}
@@ -181,19 +190,17 @@ export function JourneyProgress({ step }: { step: JourneyStep }) {
           return (
             <div key={stage.id} className="flex min-w-0 flex-1 flex-col gap-1.5">
               <div
-                className="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                className="h-1.5 overflow-hidden rounded-full bg-line"
                 aria-hidden
               >
                 <div
-                  className="h-full rounded-full bg-zinc-950 dark:bg-zinc-50"
+                  className="h-full rounded-full bg-foreground"
                   style={{ width: `${Math.round(fill * 100)}%` }}
                 />
               </div>
               <span
                 className={`truncate text-xs ${
-                  current
-                    ? "font-medium text-zinc-950 dark:text-zinc-50"
-                    : "text-zinc-500"
+                  current ? "font-medium text-foreground" : "text-muted"
                 }`}
               >
                 {stage.label}
@@ -206,10 +213,10 @@ export function JourneyProgress({ step }: { step: JourneyStep }) {
         })}
       </div>
       <p className="mt-3 flex items-baseline gap-2">
-        <span className="text-xs font-medium tracking-wide text-zinc-500 uppercase">
+        <span className="text-xs font-medium tracking-wide text-muted uppercase">
           Current step
         </span>
-        <span className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
+        <span className="text-base font-semibold text-foreground">
           {step.substepLabel}
         </span>
       </p>
@@ -232,9 +239,9 @@ export function JourneyFrame({ title, description, children }: JourneyFrameProps
     <JourneyStepContext.Provider value={setStep}>
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-8">
         {shown.hidden ? null : <JourneyProgress step={shown} />}
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="font-display text-[1.75rem] font-semibold tracking-tight">{title}</h1>
         {description ? (
-          <p className="text-zinc-600 dark:text-zinc-400">{description}</p>
+          <p className="text-muted">{description}</p>
         ) : null}
         {children}
       </main>

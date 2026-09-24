@@ -9,18 +9,16 @@ type NoticeProps = {
 };
 
 const tones = {
-  info: "border-zinc-300 bg-zinc-50 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200",
-  error:
-    "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100",
-  success:
-    "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100",
+  info: "border-line bg-surface text-foreground",
+  error: "border-red-200 bg-red-100 text-red-900",
+  success: "border-emerald-200 bg-surface text-emerald-900",
 };
 
 export function Notice({ tone = "info", title, children }: NoticeProps) {
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
-      className={`rounded-md border px-4 py-3 text-sm leading-6 ${tones[tone]}`}
+      className={`rounded-xl border px-4 py-3 text-sm leading-6 ${tones[tone]}`}
     >
       {title ? <p className="font-medium">{title}</p> : null}
       <div>{children}</div>

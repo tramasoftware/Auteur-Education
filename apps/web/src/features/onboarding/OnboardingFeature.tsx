@@ -13,6 +13,7 @@ import {
   ErrorNotice,
   Field,
   GenerationStatus,
+  Select,
   Notice,
   StatusBadge,
   inputClass,
@@ -163,7 +164,7 @@ export function OnboardingFeature() {
         <div className="flex flex-col gap-2">
           <Link
             href={`/proposals?request=${request.id}`}
-            className="inline-flex w-fit items-center rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+            className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
           >
             Continue to learning directions
           </Link>
@@ -229,18 +230,12 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
         />
       </Field>
       <Field id="level" label="Your current level" error={fieldError("experience_level")}>
-        <select
+        <Select
           id="level"
-          className={inputClass}
           value={level}
-          onChange={(e) => setLevel(e.target.value as ExperienceLevel)}
-        >
-          {LEVELS.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
+          options={LEVELS}
+          onChange={setLevel}
+        />
       </Field>
       <Field
         id="prior"
@@ -290,7 +285,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
 }
 
 const intentionCardClass =
-  "rounded-md border border-zinc-200 dark:border-zinc-800";
+  "rounded-xl border border-line bg-surface";
 
 type YourIntentionSectionProps = {
   request: LearningRequest;
@@ -315,12 +310,12 @@ function YourIntentionSection({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+        className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-[#eceae4]"
       >
         <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
           <span
             aria-hidden
-            className={`inline-block text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`}
+            className={`inline-block text-muted transition-transform ${open ? "rotate-90" : ""}`}
           >
             ›
           </span>
@@ -330,7 +325,7 @@ function YourIntentionSection({
       </button>
 
       {open ? (
-        <div className="flex flex-col gap-4 border-t border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="flex flex-col gap-4 border-t border-line p-4">
           <DefinitionList
             items={[
               { term: "Intention", detail: request.inputs.initial_intent },
@@ -344,7 +339,7 @@ function YourIntentionSection({
           />
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             className="self-start"
             onClick={() => setConfirmOpen(true)}
           >
@@ -389,13 +384,13 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold">Narrow the object of learning</h2>
-      <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">{p.reason}</p>
+      <p className="text-sm leading-6 text-muted">{p.reason}</p>
       <fieldset className="flex flex-col gap-2">
         <legend className="sr-only">Precision options</legend>
         {p.options.map((option) => (
           <label
             key={option.id}
-            className="flex cursor-pointer gap-3 rounded-md border border-zinc-200 p-3 text-sm has-[:checked]:border-zinc-950 dark:border-zinc-800 dark:has-[:checked]:border-zinc-50"
+            className="flex cursor-pointer gap-3 rounded-xl border border-line bg-surface p-3 text-sm has-[:checked]:border-foreground"
           >
             <input
               type="radio"
@@ -410,10 +405,10 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
             />
             <span className="flex flex-col gap-1">
               <span className="font-medium">{option.title}</span>
-              <span className="text-zinc-600 dark:text-zinc-400">
+              <span className="text-muted">
                 {option.explanation}
               </span>
-              <span className="text-xs text-zinc-500">{option.relation_to_intention}</span>
+              <span className="text-xs text-muted">{option.relation_to_intention}</span>
             </span>
           </label>
         ))}
@@ -543,7 +538,7 @@ function ObjectivePanel({
       ) : null}
       {o.confirmed && request.state !== "approved" && !request.blueprint_id ? (
         <details className="text-sm">
-          <summary className="cursor-pointer text-zinc-500">
+          <summary className="cursor-pointer text-muted">
             Change the objective (this discards current proposals)
           </summary>
           <div className="mt-2 flex flex-col gap-2">
