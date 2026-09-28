@@ -1,4 +1,4 @@
-import { PlaceholderPage } from "@/components/layout";
+import { JourneyFrame } from "@/components/layout";
 import { BlueprintFeature } from "@/features/blueprint";
 
 type BlueprintPageProps = {
@@ -9,11 +9,11 @@ export default async function BlueprintPage({ params }: BlueprintPageProps) {
   const { id } = await params;
 
   return (
-    <PlaceholderPage
+    <JourneyFrame
       title="Blueprint"
-      description={`Review and approve the pedagogical contract ${id} before a course is built.`}
+      description="The pedagogical contract for your course: what will be taught, what is left out, how it progresses, and why. Review it before the course is built."
     >
-      <BlueprintFeature />
-    </PlaceholderPage>
+      <BlueprintFeature blueprintId={id} />
+    </JourneyFrame>
   );
 }

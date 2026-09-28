@@ -6,6 +6,7 @@
     "dev": "concurrently -n web,api -c cyan,magenta \"pnpm dev:web\" \"pnpm dev:api\"",
     "dev:web": "pnpm --filter @auteur/web dev",
     "dev:api": "pnpm --filter @auteur/api dev",
+    "demo": "concurrently -n web,api -c cyan,magenta \"pnpm dev:web\" \"pnpm --filter @auteur/api demo\"",
     "lint": "pnpm --filter @auteur/web lint && pnpm --filter @auteur/api lint",
     "test": "pnpm --filter @auteur/api test"
   },

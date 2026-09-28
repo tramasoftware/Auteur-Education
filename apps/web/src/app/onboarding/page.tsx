@@ -1,13 +1,14 @@
-import { PlaceholderPage } from "@/components/layout";
+import { Suspense } from "react";
+
+import { JourneyFrame } from "@/components/layout";
 import { OnboardingFeature } from "@/features/onboarding";
 
 export default function OnboardingPage() {
   return (
-    <PlaceholderPage
-      title="Onboarding"
-      description="Capture intention, level, prior knowledge, and expected outcome before generating proposals."
-    >
-      <OnboardingFeature />
-    </PlaceholderPage>
+    <JourneyFrame title="Start a learning request">
+      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+        <OnboardingFeature />
+      </Suspense>
+    </JourneyFrame>
   );
 }

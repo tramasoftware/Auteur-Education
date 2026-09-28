@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "uv run uvicorn auteur_api.main:app --reload --host 127.0.0.1 --port 8000",
-    "lint": "uv run ruff check src tests",
+    "demo": "uv run uvicorn auteur_api.main:app --host 127.0.0.1 --port 8000",
+    "lint": "uv run ruff check src tests scripts",
     "test": "uv run pytest"
   }
 }

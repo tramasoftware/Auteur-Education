@@ -1,5 +1,5 @@
 import { PlaceholderPage } from "@/components/layout";
-import { CourseReaderFeature } from "@/features/course-reader";
+import { CourseOverview } from "@/features/course-reader";
 
 type CoursePageProps = {
   params: Promise<{ courseId: string }>;
@@ -11,9 +11,9 @@ export default async function CoursePage({ params }: CoursePageProps) {
   return (
     <PlaceholderPage
       title="Course"
-      description={`Published modules and generation status for course ${courseId}.`}
+      description="Modules are published one at a time once they pass review. The state shown is the real state of the build."
     >
-      <CourseReaderFeature />
+      <CourseOverview courseId={courseId} />
     </PlaceholderPage>
   );
 }
