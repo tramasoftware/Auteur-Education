@@ -115,4 +115,10 @@ def test_request_diagnostics_hidden_in_production(client, fake_ai, monkeypatch) 
     fake_ai.enqueue(LearningObjectiveOutput, objective())
     rid = client.post("/api/v1/learning-requests", json=REQUEST_BODY).json()["id"]
     monkeypatch.setattr(settings, "app_env", "production")
+    # Isolate DEC-005 from DEC-011: keep the demo identity so the 404 is diagnostics.
+    monkeypatch.setattr(
+        type(settings),
+        "demo_user_bypass_enabled",
+        property(lambda _self: True),
+    )
     assert client.get(f"/api/v1/learning-requests/{rid}/diagnostics").status_code == 404

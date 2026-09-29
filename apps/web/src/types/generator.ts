@@ -25,6 +25,7 @@ export type ErrorCode =
   | "not_found"
   | "invalid_state"
   | "stale_version"
+  | "unauthorized"
   | "generation_failed"
   | "provider_unavailable"
   | "internal_error";

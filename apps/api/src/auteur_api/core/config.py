@@ -1,6 +1,8 @@
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEMO_USER_ID = "00000000-0000-0000-0000-000000000001"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -27,7 +29,11 @@ class Settings(BaseSettings):
     # Technical safety/cost limit for free-text inputs; not a business rule.
     max_free_text_chars: int = 4000
 
-    @field_validator("openai_api_key", mode="before")
+    supabase_url: str | None = None
+    supabase_service_role_key: SecretStr | None = None
+    demo_user_id: str = DEMO_USER_ID
+
+    @field_validator("openai_api_key", "supabase_service_role_key", mode="before")
     @classmethod
     def empty_openai_api_key_is_none(cls, value: object) -> object:
         if value is None:
@@ -49,6 +55,19 @@ class Settings(BaseSettings):
     def demo_commercial_bypass_enabled(self) -> bool:
         # DEC-003: auth/subscription/entitlement preconditions are skipped in demo.
         return not self.is_production
+
+    @property
+    def supabase_configured(self) -> bool:
+        return bool(self.supabase_url and self.supabase_service_role_key)
+
+    @property
+    def demo_user_bypass_enabled(self) -> bool:
+        # DEC-011: anonymous demo traffic is attributed to a seeded profile.
+        return not self.is_production
+
+    @property
+    def has_openai_api_key(self) -> bool:
+        return self.openai_api_key is not None
 
 
 settings = Settings()

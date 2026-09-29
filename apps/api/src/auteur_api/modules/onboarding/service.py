@@ -20,7 +20,7 @@ from auteur_api.ai.stages import StageFailed, run_stage
 from auteur_api.ai.tracing import now
 from auteur_api.core.config import settings
 from auteur_api.core.errors import ApiError, invalid_state, not_found
-from auteur_api.core.store import DemoStore, new_id
+from auteur_api.core.store import Store, new_id
 from auteur_api.modules.onboarding import prompts
 from auteur_api.modules.onboarding.schemas import (
     CreateLearningRequest,
@@ -126,7 +126,7 @@ def validate_objective(result: StructuredResult[LearningObjectiveOutput]) -> lis
 
 
 async def create_learning_request(
-    payload: CreateLearningRequest, *, ai: AIClient, store: DemoStore
+    payload: CreateLearningRequest, *, ai: AIClient, store: Store, user_id: str
 ) -> LearningRequestRecord:
     inputs = LearningRequestInputs(
         initial_intent=payload.initial_intent.strip(),
@@ -163,6 +163,7 @@ async def create_learning_request(
 
     record = LearningRequestRecord(
         id=request_id,
+        user_id=user_id,
         created_at=now(),
         state=RequestState.DRAFT,
         inputs=inputs,
@@ -178,7 +179,7 @@ async def create_learning_request(
             needs_precision=analysis.precision.needs_precision,
             reason=analysis.precision.reason,
             options=[
-                PrecisionOption(id=new_id()[:8], **option.model_dump())
+                PrecisionOption(id=new_id(), **option.model_dump())
                 for option in analysis.precision.options
             ],
             allows_free_text=analysis.precision.allows_free_text,
@@ -201,7 +202,7 @@ async def apply_precision(
     payload: PrecisionSelectionRequest,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
     if record.state not in (
@@ -249,7 +250,7 @@ async def apply_precision(
 
 
 def confirm_objective(
-    request_id: str, version: int, *, store: DemoStore
+    request_id: str, version: int, *, store: Store
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
     current = record.current_objective
@@ -272,7 +273,7 @@ def confirm_objective(
 
 
 async def revise_objective(
-    request_id: str, feedback: str, *, ai: AIClient, store: DemoStore
+    request_id: str, feedback: str, *, ai: AIClient, store: Store
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
     if record.state not in (
@@ -300,7 +301,7 @@ async def _formulate_objective(
     record: LearningRequestRecord,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
     feedback: str | None,
 ) -> None:
     previous = record.current_objective

@@ -15,7 +15,7 @@ from auteur_api.ai.tracing import now
 from auteur_api.core.background import TaskRunner
 from auteur_api.core.config import settings
 from auteur_api.core.errors import ApiError, invalid_state
-from auteur_api.core.store import DemoStore, new_id
+from auteur_api.core.store import Store, new_id
 from auteur_api.modules.blueprints import prompts
 from auteur_api.modules.blueprints.schemas import (
     BlueprintOutput,
@@ -85,7 +85,7 @@ def validate_blueprint(result) -> list[str]:  # noqa: ANN001
 
 
 async def start_blueprint(
-    request_id: str, *, ai: AIClient, store: DemoStore, runner: TaskRunner
+    request_id: str, *, ai: AIClient, store: Store, runner: TaskRunner
 ) -> BlueprintRecord:
     record = store.get_learning_request(request_id)
     if record.blueprint_id:
@@ -115,6 +115,7 @@ async def start_blueprint(
 
     blueprint = BlueprintRecord(
         id=new_id(),
+        user_id=record.user_id,
         request_id=record.id,
         proposal_id=record.selected_proposal_id,
         objective_version=record.current_objective.version,
@@ -134,7 +135,7 @@ async def revise_blueprint(
     feedback: str,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
     runner: TaskRunner,
 ) -> BlueprintRecord:
     blueprint = store.get_blueprint(blueprint_id)
@@ -153,7 +154,7 @@ async def revise_blueprint(
     return blueprint
 
 
-def approve_blueprint(blueprint_id: str, version: int, *, store: DemoStore) -> str:
+def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
     """Approve the exact current version and return the course (build) id."""
     blueprint = store.get_blueprint(blueprint_id)
     current = blueprint.current
@@ -190,7 +191,7 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: DemoStore) -> s
 
 
 async def _generate_version(
-    blueprint_id: str, *, ai: AIClient, store: DemoStore
+    blueprint_id: str, *, ai: AIClient, store: Store
 ) -> None:
     blueprint = store.get_blueprint(blueprint_id)
     request = store.get_learning_request(blueprint.request_id)

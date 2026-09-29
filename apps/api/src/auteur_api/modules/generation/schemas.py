@@ -291,6 +291,7 @@ class ModuleRecord(BaseModel):
 
 class CourseRecord(BaseModel):
     id: str
+    user_id: str = ""
     request_id: str
     blueprint_id: str
     blueprint_version: int
@@ -304,6 +305,7 @@ class CourseRecord(BaseModel):
     course_audit: CourseAuditOutput | None = None
     failure: str | None = None
     module_limit: int | None = None
+    started_at: datetime | None = None
     created_at: datetime
     completed_at: datetime | None = None
 

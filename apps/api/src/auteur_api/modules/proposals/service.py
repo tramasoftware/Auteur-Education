@@ -9,7 +9,7 @@ from auteur_api.ai.stages import StageFailed, run_stage
 from auteur_api.ai.tracing import now
 from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
-from auteur_api.core.store import DemoStore, new_id
+from auteur_api.core.store import Store, new_id
 from auteur_api.modules.onboarding.schemas import LearningRequestRecord, RequestState
 from auteur_api.modules.onboarding.service import stage_failure
 from auteur_api.modules.proposals import prompts
@@ -68,7 +68,7 @@ def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[s
 
 
 async def generate_proposals(
-    request_id: str, *, ai: AIClient, store: DemoStore
+    request_id: str, *, ai: AIClient, store: Store
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
     if record.state in (RequestState.PROPOSALS_READY, RequestState.PROPOSAL_SELECTED):
@@ -111,7 +111,7 @@ async def generate_proposals(
 
     out = result.parsed
     proposals = [
-        CourseProposal(id=new_id()[:8], **p.model_dump()) for p in out.proposals
+        CourseProposal(id=new_id(), **p.model_dump()) for p in out.proposals
     ]
     recommended_id = (
         proposals[out.recommended_proposal_index].id
@@ -133,7 +133,7 @@ async def generate_proposals(
 
 
 def select_proposal(
-    request_id: str, proposal_id: str, *, store: DemoStore
+    request_id: str, proposal_id: str, *, store: Store
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
     # BR-BLP-011: another proposal can be chosen while a Blueprint awaits approval

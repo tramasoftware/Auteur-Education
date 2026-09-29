@@ -47,8 +47,8 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** TEMPORAL
 - **Necesidad:** generar Blueprint y curso excede los tiempos razonables de una petición HTTP. `MVP.md §10` exige proceso asíncrono; la infraestructura está reservada a `ARCHITECTURE.md`.
-- **Decisión:** tareas en background dentro del proceso (`asyncio`) y consulta por polling (`GET`). Sin colas, workers ni base de datos. El estado se pierde al reiniciar el proceso.
-- **Impacto:** `core/background.py`, rutas de Blueprint y curso. Ejecutar Uvicorn sin `--reload` durante demostraciones.
+- **Decisión:** tareas en background dentro del proceso (`asyncio`) y consulta por polling (`GET`). Sin colas ni workers externos. El estado durable vive en Postgres cuando `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` están configurados (`docs/DATA_MODEL.md`); si no, permanece el `DemoStore` in-memory. Un proceso muerto no continúa el worker: al arrancar, la API retoma cursos no terminales (DEC-013).
+- **Impacto:** `core/background.py`, `core/postgres_store.py`, rutas de Blueprint y curso.
 
 ### DEC-005 — Exposición de información interna de generación
 
@@ -82,11 +82,39 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 ### DEC-010 — Registro de evidencia de la demo
 
 - **Estatus:** TEMPORAL
-- **Decisión:** la evidencia de tiempo y tokens se obtiene del endpoint de diagnósticos y de los logs del servidor. No se persiste en el repositorio.
+- **Decisión:** la evidencia de tiempo y tokens se obtiene del endpoint de diagnósticos y de los logs del servidor. Las trazas se persisten en `generation_traces` cuando hay Postgres; no se copian al repositorio.
+
+### DEC-011 — Identidad demo mientras el login de producto está fuera de alcance
+
+- **Estatus:** TEMPORAL
+- **Necesidad:** cada fila de dominio requiere `user_id` → `profiles` y RLS owner-only. `AGENTS.md §12` sigue excluyendo autenticación de producto.
+- **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user`. Si no hay JWT y `APP_ENV != production`, se atribuye el perfil sembrado `DEMO_USER_ID` (`00000000-0000-0000-0000-000000000001`). En producción el JWT es obligatorio. Quitar el bypass antes del MVP comercial.
+- **Impacto:** `core/auth.py`, `core/config.py`, migraciones de `profiles`.
+
+### DEC-012 — FastAPI como único plano de datos del generador
+
+- **Estatus:** TEMPORAL
+- **Necesidad:** el navegador no debe usar `service_role` ni leer `blueprint_versions.internal` / borradores por PostgREST.
+- **Decisión:** el frontend llama solo a FastAPI. El backend escribe con `service_role` tras comprobar el dueño. No hay cliente PostgREST en `apps/web`.
+- **Impacto:** `apps/web/src/lib/api.ts`, políticas RLS (defensa en profundidad).
+
+### DEC-013 — Reanudación de builds incompletos al arrancar la API
+
+- **Estatus:** TEMPORAL
+- **Necesidad:** `--reload` o un proceso muerto deja módulos `published` y el resto en pipeline. Postgres no ejecuta el worker.
+- **Decisión:** al lifespan de FastAPI, si hay Postgres y clave OpenAI, `ensure_started` reprograma cursos cuyo estado no es `complete`/`failed` y que aún tienen módulos construibles (no `published` ni `not_built`).
+- **Impacto:** `main.py`, `modules/generation/build.py`.
+
+### DEC-014 — Identificadores UUID con guiones
+
+- **Estatus:** TEMPORAL
+- **Necesidad:** Postgres `uuid` y el demo in-memory usaban hex sin guiones y ids recortados.
+- **Decisión:** `new_id()` devuelve `str(uuid.uuid4())`. Rompe ids viejos del DemoStore (aceptable: no hay datos de producto).
+- **Impacto:** `core/store.py`, contratos de `id: string`.
 
 ## Pendientes sin decisión
 
-- `DATA_MODEL.md`: modelo de persistencia real, expiración de la sesión anónima (`BR-ONB-009`).
+- Expiración de la sesión anónima (`BR-ONB-009`) si se mantiene el bypass demo.
 - `INTEGRATIONS.md`: contratos definitivos con OpenAI, ElevenLabs, Stripe y email.
 - `ARCHITECTURE.md`: distribución de responsabilidades, jobs, observabilidad.
 - `PENDING-CLIENT-01..06` de `AI_GENERATION.md`.

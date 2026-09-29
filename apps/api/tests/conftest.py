@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+import auteur_api.main as main_module
 from auteur_api.ai.client import (
     Citation,
     GenerationError,
@@ -25,6 +26,8 @@ from auteur_api.ai.tracing import TokenUsage
 from auteur_api.core.background import ImmediateTaskRunner, get_task_runner
 from auteur_api.core.store import get_store, store
 from auteur_api.main import app
+
+main_module.startup_resume_enabled = False
 
 Payload = dict[str, Any] | Callable[[str], dict[str, Any]] | Exception
 

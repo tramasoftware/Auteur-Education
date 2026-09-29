@@ -162,6 +162,7 @@ class ObjectiveVersion(BaseModel):
 
 class LearningRequestRecord(BaseModel):
     id: str
+    user_id: str = ""
     created_at: datetime
     state: RequestState
     inputs: LearningRequestInputs

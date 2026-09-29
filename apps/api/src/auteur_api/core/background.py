@@ -1,7 +1,8 @@
 """In-process background execution for long generation (DEC-004).
 
-Not a job system. Tasks run inside the API process with asyncio; they are lost
-if the process restarts. Tests replace the runner with an immediate one.
+Not a job system. Tasks run inside the API process with asyncio. Durable
+course state lives in Postgres when configured; incomplete builds are
+resumed on API startup (DEC-013). Tests replace the runner with an immediate one.
 """
 
 from __future__ import annotations

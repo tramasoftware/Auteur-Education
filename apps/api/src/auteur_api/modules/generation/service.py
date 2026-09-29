@@ -9,7 +9,7 @@ from __future__ import annotations
 from auteur_api.ai.tracing import now, summarize
 from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
-from auteur_api.core.store import DemoStore, new_id
+from auteur_api.core.store import Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
@@ -29,7 +29,7 @@ from auteur_api.modules.generation.schemas import (
 
 
 def create_course_for_blueprint(
-    blueprint: BlueprintRecord, version: BlueprintVersion, *, store: DemoStore
+    blueprint: BlueprintRecord, version: BlueprintVersion, *, store: Store
 ) -> CourseRecord:
     visible = version.visible
     criteria_by_title = {
@@ -38,7 +38,7 @@ def create_course_for_blueprint(
     }
     modules = [
         ModuleRecord(
-            id=new_id()[:10],
+            id=new_id(),
             index=m_index,
             title=planned.title,
             function=planned.function,
@@ -47,7 +47,7 @@ def create_course_for_blueprint(
             qa_criteria=criteria_by_title.get(planned.title.strip().lower(), []),
             lessons=[
                 LessonRecord(
-                    id=new_id()[:10],
+                    id=new_id(),
                     index=l_index,
                     title=lesson.title,
                     purpose=lesson.purpose,
@@ -63,6 +63,7 @@ def create_course_for_blueprint(
             module.state = ModuleState.NOT_BUILT
     course = CourseRecord(
         id=new_id(),
+        user_id=blueprint.user_id,
         request_id=blueprint.request_id,
         blueprint_id=blueprint.id,
         blueprint_version=version.version,
@@ -204,7 +205,7 @@ def lesson_view(
 
 
 def diagnostics_view(
-    course: CourseRecord, *, store: DemoStore
+    course: CourseRecord, *, store: Store
 ) -> CourseDiagnosticsResponse:
     blueprint = store.get_blueprint(course.blueprint_id)
     version = next(

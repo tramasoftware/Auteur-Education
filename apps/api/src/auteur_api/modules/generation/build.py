@@ -16,7 +16,7 @@ from auteur_api.ai.stages import StageFailed, run_stage
 from auteur_api.ai.tracing import now
 from auteur_api.core.background import TaskRunner
 from auteur_api.core.config import settings
-from auteur_api.core.store import DemoStore
+from auteur_api.core.store import Store
 from auteur_api.modules.generation import prompts, validators
 from auteur_api.modules.generation.prompts import BuildContext
 from auteur_api.modules.generation.schemas import (
@@ -43,19 +43,43 @@ MAX_RESEARCH_ROUNDS = 2
 _active_builds: set[str] = set()
 
 
-async def ensure_started(
-    course_id: str, *, ai: AIClient, store: DemoStore, runner: TaskRunner
+async def resume_incomplete_builds(
+    *, ai: AIClient, store: Store, runner: TaskRunner
 ) -> None:
-    """Start the build once (BR-GEN-012). Safe to call repeatedly."""
+    """Re-schedule non-terminal builds after process restart (DEC-013)."""
+    for course_id in store.list_incomplete_course_ids():
+        try:
+            await ensure_started(course_id, ai=ai, store=store, runner=runner)
+        except Exception:
+            logger.exception("startup_resume_failed course=%s", course_id)
+
+
+async def ensure_started(
+    course_id: str, *, ai: AIClient, store: Store, runner: TaskRunner
+) -> None:
+    """Start or resume the build once (BR-GEN-012). Safe to call repeatedly."""
     course = store.get_course(course_id)
-    if course.state != CourseState.QUEUED or course_id in _active_builds:
+    if course_id in _active_builds or not course_needs_build(course):
         return
     _active_builds.add(course_id)
     await runner.schedule(run_build(course_id, ai=ai, store=store))
 
 
-async def run_build(course_id: str, *, ai: AIClient, store: DemoStore) -> None:
+def course_needs_build(course: CourseRecord) -> bool:
+    """True when unpublished, buildable modules remain (DEC-013)."""
+    if course.state in {CourseState.COMPLETE, CourseState.FAILED}:
+        return False
+    return any(
+        module.state not in {ModuleState.PUBLISHED, ModuleState.NOT_BUILT}
+        for module in course.modules
+    )
+
+
+async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
     course = store.get_course(course_id)
+    if course.started_at is None:
+        course.started_at = now()
+        store.save_course(course)
     ctx = _build_context(course, store)
     try:
         for module in course.modules:
@@ -69,6 +93,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: DemoStore) -> None:
                     course,
                     f"Module {module.index} ({module.title}) could not be completed: "
                     f"{module.failure}. Everything already published was kept.",
+                    store,
                 )
                 return
             course.state = CourseState.PARTIALLY_AVAILABLE  # BR-GEN-005
@@ -86,18 +111,19 @@ async def run_build(course_id: str, *, ai: AIClient, store: DemoStore) -> None:
 
         await _finish_course(course, ctx, ai=ai, store=store)
     except StageFailed as exc:
-        _fail_course(course, _safe_stage_message(exc))
+        _fail_course(course, _safe_stage_message(exc), store)
     except Exception:
         logger.exception("build_crashed course=%s", course_id)
         _fail_course(
             course,
             "An unexpected error interrupted the build. Published modules were kept.",
+            store,
         )
     finally:
         _active_builds.discard(course_id)
 
 
-def _build_context(course: CourseRecord, store: DemoStore) -> BuildContext:
+def _build_context(course: CourseRecord, store: Store) -> BuildContext:
     blueprint = store.get_blueprint(course.blueprint_id)
     version = next(
         v for v in blueprint.versions if v.version == course.blueprint_version
@@ -128,11 +154,11 @@ def _set_activity(
     store.save_course(course)
 
 
-def _fail_course(course: CourseRecord, message: str) -> None:
+def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
     course.state = CourseState.FAILED
     course.failure = message
     course.current_activity = None
-    # store reference is the shared in-memory object; nothing else to persist.
+    store.save_course(course)
 
 
 def _safe_stage_message(exc: StageFailed) -> str:
@@ -156,7 +182,7 @@ async def _build_module(
     ctx: BuildContext,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
 ) -> bool:
     for lesson in module.lessons:
         if lesson.state == LessonState.APPROVED:
@@ -250,7 +276,7 @@ async def _build_lesson(
     ctx: BuildContext,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
 ) -> bool:
     scope = course.request_id
     await _research(course, module, lesson, ctx, ai=ai, store=store, focus=None)
@@ -359,7 +385,7 @@ async def _research(
     ctx: BuildContext,
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
     focus: list[str] | None,
 ) -> None:
     lesson.state = LessonState.RESEARCHING
@@ -421,22 +447,22 @@ async def _research(
 
 
 def _mark_qa(
-    store: DemoStore, scope: str, lesson_id: str, attempt: int, result: str
+    store: Store, scope: str, lesson_id: str, attempt: int, result: str
 ) -> None:
-    for trace in reversed(store.get_traces(scope)):
-        if (
-            trace.stage == "AI-STG-10/11"
-            and trace.target == f"lesson:{lesson_id}:attempt{attempt}"
-        ):
-            trace.qa_result = result
-            break
+    store.set_trace_qa_result(
+        scope,
+        stage="AI-STG-10/11",
+        target=f"lesson:{lesson_id}:attempt{attempt}",
+        attempt=attempt,
+        qa_result=result,
+    )
 
 
 # --- Course completion ---
 
 
 async def _finish_course(
-    course: CourseRecord, ctx: BuildContext, *, ai: AIClient, store: DemoStore
+    course: CourseRecord, ctx: BuildContext, *, ai: AIClient, store: Store
 ) -> None:
     course.current_activity = "Writing final synthesis"
     store.save_course(course)

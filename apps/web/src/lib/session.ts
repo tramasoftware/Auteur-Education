@@ -1,7 +1,9 @@
 /**
  * Temporary demo-only resume support (UF-05): remember the current learning
  * request in the browser so a reload returns to the last persisted step.
- * Not an authentication or persistence mechanism.
+ * Course and Blueprint URLs resume from the API (Postgres when configured).
+ * Not an authentication mechanism. Optional JWT: localStorage key
+ * `auteur.demo.accessToken` is sent as Bearer when present.
  */
 
 const KEY = "auteur.demo.learningRequestId";

@@ -105,6 +105,7 @@ class BlueprintVersion(BaseModel):
 
 class BlueprintRecord(BaseModel):
     id: str
+    user_id: str = ""
     request_id: str
     proposal_id: str
     objective_version: int

@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,11 +14,42 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
+logger = logging.getLogger("auteur_api")
+
+# Tests disable this so TestClient startup does not resume real or leftover builds.
+startup_resume_enabled = True
+
+
+@asynccontextmanager
+async def lifespan(_application: FastAPI):
+    if startup_resume_enabled:
+        await _resume_incomplete_builds()
+    yield
+
+
+async def _resume_incomplete_builds() -> None:
+    if not settings.supabase_configured or not settings.has_openai_api_key:
+        return
+    from auteur_api.ai.client import get_ai_client
+    from auteur_api.core.background import get_task_runner
+    from auteur_api.core.store import get_store
+    from auteur_api.modules.generation.build import resume_incomplete_builds
+
+    try:
+        await resume_incomplete_builds(
+            ai=get_ai_client(),
+            store=get_store(),
+            runner=get_task_runner(),
+        )
+    except Exception:
+        logger.exception("startup_resume_failed")
+
 
 def create_app() -> FastAPI:
     application = FastAPI(
         title="Auteur Education API",
         version="0.1.0",
+        lifespan=lifespan,
     )
     application.add_middleware(
         CORSMiddleware,

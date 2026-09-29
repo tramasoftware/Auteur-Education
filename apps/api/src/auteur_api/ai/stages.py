@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from auteur_api.ai.client import AIClient, GenerationError, StructuredResult
 from auteur_api.ai.tracing import StageTrace, TokenUsage, now
-from auteur_api.core.store import DemoStore
+from auteur_api.core.store import Store
 
 logger = logging.getLogger("auteur_api.ai.stages")
 
@@ -43,7 +43,7 @@ class StageFailed(Exception):
 async def run_stage[T: BaseModel](
     *,
     ai: AIClient,
-    store: DemoStore,
+    store: Store,
     scope_id: str,
     stage: str,
     target: str,
