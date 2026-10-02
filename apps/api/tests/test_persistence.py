@@ -189,6 +189,26 @@ def test_library_is_empty_without_courses(client) -> None:
     assert response.json() == {"courses": []}
 
 
+def test_read_retries_when_the_connection_drops() -> None:
+    import httpx
+
+    from auteur_api.core.postgres_store import PostgresStore
+
+    attempts = 0
+
+    class Query:
+        def execute(self) -> object:
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise httpx.RemoteProtocolError("Server disconnected")
+            return {"ok": True}
+
+    result = PostgresStore(None)._read(lambda: Query())  # type: ignore[arg-type]
+    assert result == {"ok": True}
+    assert attempts == 3
+
+
 def test_course_needs_build_skips_demo_limit_remainder(client, fake_ai) -> None:
     course_id = approved_course(client, fake_ai, modules=2, lessons=2)
     course = store.get_course(course_id)

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
+import httpx
 from supabase import Client, create_client
 
 from auteur_api.ai.tracing import StageTrace, TokenUsage
@@ -71,8 +73,22 @@ class PostgresStore:
     def _table(self, name: str):
         return self._client.table(name)
 
+    def _read(self, build: Callable[[], Any]) -> Any:
+        """Retry a read when the HTTP connection drops before a response."""
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                return build().execute()
+            except httpx.TransportError as exc:
+                last_error = exc
+                if attempt == 2:
+                    raise
+        raise last_error  # pragma: no cover
+
     def _one(self, table: str, id_: str) -> dict[str, Any] | None:
-        response = self._table(table).select("*").eq("id", id_).limit(1).execute()
+        response = self._read(
+            lambda: self._table(table).select("*").eq("id", id_).limit(1)
+        )
         rows = response.data or []
         return rows[0] if rows else None
 
@@ -225,21 +241,21 @@ class PostgresStore:
             raise not_found("Course")
         assert_owner(row["user_id"], user_id)
         module_rows = (
-            self._table("modules")
-            .select("*")
-            .eq("course_id", course_id)
-            .order("index")
-            .execute()
-            .data
+            self._read(
+                lambda: self._table("modules")
+                .select("*")
+                .eq("course_id", course_id)
+                .order("index")
+            ).data
             or []
         )
         lesson_rows = (
-            self._table("lessons")
-            .select("*")
-            .eq("course_id", course_id)
-            .order("index")
-            .execute()
-            .data
+            self._read(
+                lambda: self._table("lessons")
+                .select("*")
+                .eq("course_id", course_id)
+                .order("index")
+            ).data
             or []
         )
         lessons_by_module: dict[str, list[dict[str, Any]]] = {}

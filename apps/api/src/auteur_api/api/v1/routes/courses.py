@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from auteur_api.ai.client import AIClient, get_ai_client
 from auteur_api.core.auth import CurrentUserId
-from auteur_api.core.background import TaskRunner, get_task_runner
+from auteur_api.core.background import TaskRunner, bind_request_tasks, get_task_runner
 from auteur_api.core.config import settings
 from auteur_api.core.errors import not_found
 from auteur_api.core.store import Store as StoreBackend
@@ -85,7 +85,12 @@ def get_lesson(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def retry_course(
-    course_id: str, store: Store, ai: AI, runner: Runner, user_id: CurrentUserId
+    course_id: str,
+    store: Store,
+    ai: AI,
+    runner: Runner,
+    user_id: CurrentUserId,
+    _: Annotated[None, Depends(bind_request_tasks)],
 ) -> CourseResponse:
     """UF-14: one explicit retry from the same Blueprint. Published modules stay."""
     store.get_course(course_id, user_id=user_id)

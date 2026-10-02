@@ -93,11 +93,17 @@ function CourseCreationNavLink({ pathname }: { pathname: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    resolveCreationNavTarget().then((next) => {
-      if (!cancelled) {
-        setTarget(next);
-      }
-    });
+    resolveCreationNavTarget()
+      .then((next) => {
+        if (!cancelled) {
+          setTarget(next);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTarget(null);
+        }
+      });
     return () => {
       cancelled = true;
     };

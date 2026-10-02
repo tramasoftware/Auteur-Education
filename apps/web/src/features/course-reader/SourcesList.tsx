@@ -7,8 +7,8 @@ export function SourcesList({ sources }: { sources: SourceView[] }) {
   }
   return (
     <ol className="flex flex-col gap-2 text-sm">
-      {sources.map((source) => (
-        <li key={source.ref} className="leading-6">
+      {sources.map((source, index) => (
+        <li key={`${source.ref}:${source.url}:${index}`} className="leading-6">
           <span className="font-mono text-xs text-muted">{source.ref}</span>{" "}
           <a
             href={source.url}
