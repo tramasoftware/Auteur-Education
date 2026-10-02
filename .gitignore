@@ -17,6 +17,7 @@ apps/web/out/
 
 # Environment
 .env
+.env.*
 .env.local
 .env.*.local
 !.env.example
@@ -38,3 +39,6 @@ dist/
 build/
 coverage/
 .turbo/
+.vercel
+.env*
+!.env.example

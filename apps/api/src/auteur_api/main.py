@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,9 +21,16 @@ logger = logging.getLogger("auteur_api")
 startup_resume_enabled = True
 
 
+def resume_on_startup() -> bool:
+    """DEC-013 needs one long-lived process. A Vercel cold start is not that."""
+    if not startup_resume_enabled:
+        return False
+    return not os.environ.get("VERCEL")
+
+
 @asynccontextmanager
 async def lifespan(_application: FastAPI):
-    if startup_resume_enabled:
+    if resume_on_startup():
         await _resume_incomplete_builds()
     yield
 

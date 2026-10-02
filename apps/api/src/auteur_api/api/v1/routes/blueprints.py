@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from auteur_api.ai.client import AIClient, get_ai_client
 from auteur_api.core.auth import CurrentUserId
-from auteur_api.core.background import TaskRunner, get_task_runner
+from auteur_api.core.background import TaskRunner, bind_request_tasks, get_task_runner
 from auteur_api.core.store import Store as StoreBackend
 from auteur_api.core.errors import invalid_state
 from auteur_api.core.store import get_store
@@ -37,7 +37,12 @@ class ApproveBlueprintResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def start_blueprint(
-    request_id: str, store: Store, ai: AI, runner: Runner, user_id: CurrentUserId
+    request_id: str,
+    store: Store,
+    ai: AI,
+    runner: Runner,
+    user_id: CurrentUserId,
+    _: Annotated[None, Depends(bind_request_tasks)],
 ) -> BlueprintResponse:
     """UF-04: start Blueprint generation in the background; poll GET for state."""
     store.get_learning_request(request_id, user_id=user_id)
@@ -72,6 +77,7 @@ async def revise_blueprint(
     ai: AI,
     runner: Runner,
     user_id: CurrentUserId,
+    _: Annotated[None, Depends(bind_request_tasks)],
 ) -> BlueprintResponse:
     """BR-BLP-009: a change request produces a new complete version."""
     store.get_blueprint(blueprint_id, user_id=user_id)
@@ -93,6 +99,7 @@ async def approve_blueprint(
     ai: AI,
     runner: Runner,
     user_id: CurrentUserId,
+    _: Annotated[None, Depends(bind_request_tasks)],
 ) -> ApproveBlueprintResponse:
     """BR-BLP-010 / BR-GEN-001: approve the exact version and start one build."""
     store.get_blueprint(blueprint_id, user_id=user_id)
