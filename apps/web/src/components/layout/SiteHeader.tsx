@@ -1,16 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
+
+import { BlueprintNavIcon } from "@/components/icons/BlueprintNavIcon";
+import { resolveCreationNavTarget, type CreationNavTarget } from "@/lib/activeBuild";
+import {
+  isCourseFlowPath,
+  rememberCourseFlowPath,
+  resolvePlanningStage,
+  type CourseFlowStage,
+} from "@/lib/session";
 
 const navItems = [
-  { href: "/onboarding", label: "Onboarding", icon: "book" },
-  { href: "/proposals", label: "Proposals", icon: "paths" },
   { href: "/library", label: "Library", icon: "library" },
   { href: "/account", label: "Account", icon: "user" },
   { href: "/admin", label: "Admin", icon: "shield" },
 ] as const;
+
+type NavIconName =
+  | (typeof navItems)[number]["icon"]
+  | "create"
+  | "onboarding"
+  | "proposals"
+  | "blueprint"
+  | "generating";
+
+const PLANNING_NAV: Record<
+  CourseFlowStage,
+  { label: string; icon: NavIconName }
+> = {
+  create: { label: "Create a course", icon: "create" },
+  onboarding: { label: "Onboarding", icon: "onboarding" },
+  proposals: { label: "Select direction", icon: "proposals" },
+  blueprint: { label: "Draft Blueprint", icon: "blueprint" },
+};
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -26,6 +51,19 @@ export function SiteHeader() {
         Education
       </Link>
       <nav className="mt-8 flex flex-col gap-1 text-sm">
+        <Suspense
+          fallback={
+            <CourseCreationNavLinkPresentation
+              href="/onboarding"
+              label={PLANNING_NAV.create.label}
+              icon={PLANNING_NAV.create.icon}
+              current={false}
+              generating={false}
+            />
+          }
+        >
+          <CourseCreationNavLink pathname={pathname} />
+        </Suspense>
         {navItems.map((item) => {
           const current = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -47,28 +85,139 @@ export function SiteHeader() {
   );
 }
 
-function NavIcon({ name }: { name: (typeof navItems)[number]["icon"] }) {
+function CourseCreationNavLink({ pathname }: { pathname: string }) {
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const [target, setTarget] = useState<CreationNavTarget | null>(null);
+  const onPlanningFlow = isCourseFlowPath(pathname);
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveCreationNavTarget().then((next) => {
+      if (!cancelled) {
+        setTarget(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, search]);
+
+  useEffect(() => {
+    if (!onPlanningFlow || target?.mode === "generating") {
+      return;
+    }
+    const path = search ? `${pathname}?${search}` : pathname;
+    rememberCourseFlowPath(path);
+    setTarget((prev) =>
+      prev?.mode === "planning"
+        ? {
+            ...prev,
+            href: path,
+            stage: resolvePlanningStage(pathname, search, prev.stage),
+          }
+        : prev,
+    );
+  }, [onPlanningFlow, pathname, search, target?.mode]);
+
+  const href = target?.href ?? "/onboarding";
+
+  const planningStage: CourseFlowStage =
+    target?.mode === "planning"
+      ? resolvePlanningStage(pathname, search, target.stage)
+      : "create";
+
+  const { label, icon } =
+    target?.mode === "generating"
+      ? { label: "Generating course", icon: "generating" as const }
+      : PLANNING_NAV[planningStage];
+
+  const onGeneratingCourse =
+    target?.mode === "generating" &&
+    (pathname === `/courses/${target.courseId}` ||
+      pathname.startsWith(`/courses/${target.courseId}/`));
+  const current = onGeneratingCourse || (onPlanningFlow && target?.mode === "planning");
+
+  return (
+    <CourseCreationNavLinkPresentation
+      href={href}
+      label={label}
+      icon={icon}
+      current={current}
+      generating={target?.mode === "generating"}
+    />
+  );
+}
+
+function CourseCreationNavLinkPresentation({
+  href,
+  label,
+  icon,
+  current,
+  generating,
+}: {
+  href: string;
+  label: string;
+  icon: NavIconName;
+  current: boolean;
+  generating: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={current ? "page" : undefined}
+      className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors ${
+        current ? "font-medium text-foreground" : "text-muted hover:text-foreground"
+      } ${generating ? "text-foreground" : ""}`}
+    >
+      <NavIcon name={icon} />
+      {label}
+    </Link>
+  );
+}
+
+function NavIcon({ name }: { name: NavIconName }) {
+  if (name === "blueprint") {
+    return <BlueprintNavIcon />;
+  }
+
   const common = {
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: 1.5,
     "aria-hidden": true as const,
-    className: "size-4 shrink-0",
+    className: "size-5 shrink-0",
   };
-  const paths: Record<(typeof navItems)[number]["icon"], ReactNode> = {
-    book: (
+  const paths: Record<Exclude<NavIconName, "blueprint">, ReactNode> = {
+    create: <path d="M12 5v14M5 12h14" strokeLinecap="round" />,
+    onboarding: (
       <>
-        <path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H8.5A2.5 2.5 0 0 0 6 17V4.5Z" />
-        <path d="M6 17a2.5 2.5 0 0 1 2.5-2.5H18" />
+        <path d="M8 6h8M8 10h8M8 14h5" strokeLinecap="round" />
+        <path d="M6 4h12a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2-3-2V6a2 2 0 0 1 2-2Z" />
       </>
     ),
-    paths: (
+    proposals: (
       <>
-        <circle cx="6" cy="7" r="1.5" />
-        <circle cx="18" cy="12" r="1.5" />
-        <circle cx="8" cy="17" r="1.5" />
-        <path d="M7.5 7.8 16.5 11.2M16.6 13.2 9.4 16.2" />
+        <path d="M12 19V13" strokeLinecap="round" />
+        <path
+          d="M12 13 6.5 6.5M6.5 6.5 8.75 7.15M6.5 6.5 7.15 8.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 13 17.5 6.5M17.5 6.5 15.25 7.15M17.5 6.5 16.85 8.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+    generating: (
+      <>
+        <path
+          d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"
+          strokeLinecap="round"
+        />
       </>
     ),
     library: (
@@ -84,5 +233,5 @@ function NavIcon({ name }: { name: (typeof navItems)[number]["icon"] }) {
     ),
     shield: <path d="M12 3.5 18.5 6v5.2c0 3.6-2.5 6.4-6.5 8.3-4-1.9-6.5-4.7-6.5-8.3V6L12 3.5Z" />,
   };
-  return <svg {...common}>{paths[name]}</svg>;
+  return <svg {...common}>{paths[name as Exclude<NavIconName, "blueprint">]}</svg>;
 }

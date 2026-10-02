@@ -221,6 +221,19 @@ export type ModuleSummary = {
 
 export type CourseSynthesis = { body: string; new_questions: string[] };
 
+export type LibraryCourse = {
+  id: string;
+  title: string;
+  subtitle: string;
+  objective_statement: string;
+  state: CourseState;
+  updated_at: string;
+};
+
+export type CourseList = {
+  courses: LibraryCourse[];
+};
+
 export type Course = {
   id: string;
   request_id: string;

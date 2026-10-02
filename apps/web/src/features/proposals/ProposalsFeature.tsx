@@ -15,6 +15,7 @@ import {
   StatusBadge,
   outlineButtonClass,
 } from "@/components/ui";
+import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { learningRequests } from "@/lib/api";
 import { recallRequestId, rememberRequestId } from "@/lib/session";
 import type { CourseProposal, LearningRequest } from "@/types/generator";
@@ -44,6 +45,7 @@ async function loadProposalsForRequest(requestId: string): Promise<LearningReque
 export function ProposalsFeature() {
   const router = useRouter();
   const params = useSearchParams();
+  const blockingActiveBuild = useRedirectIfActiveBuild();
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -111,6 +113,10 @@ export function ProposalsFeature() {
     }
   };
 
+  if (blockingActiveBuild) {
+    return <p className="text-sm text-muted">Checking generation status…</p>;
+  }
+
   if (missing) {
     return (
       <Notice tone="info" title="No learning request yet">
@@ -119,7 +125,7 @@ export function ProposalsFeature() {
           className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface no-underline cursor-pointer hover:bg-foreground/85"
         >
           <span aria-hidden>+</span>
-          New course
+          Create a course
         </Link>
       </Notice>
     );

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, get_args
+
+from auteur_api.modules.generation.schemas import QaCheckName
 
 
 def compatibility(
@@ -190,10 +192,10 @@ def research(urls: list[str] | None = None) -> dict[str, Any]:
     }
 
 
-def section(kind: str, words: int = 300) -> dict[str, Any]:
+def section(words: int = 300, *, heading: str | None = None) -> dict[str, Any]:
+    """One model-facing prose movement. No pedagogical kind."""
     return {
-        "kind": kind,
-        "heading": kind.replace("_", " ").title(),
+        "heading": heading,
         "body": " ".join(["word"] * words),
     }
 
@@ -218,30 +220,13 @@ def lesson_write(refs: list[str] | None = None, words: int = 300) -> dict[str, A
         },
         "draft": {
             "title": "The Fiscal Crisis",
-            "sections": [
-                section("problem", words),
-                section("argument", words),
-                section("example", words),
-                section("synthesis", words),
-                section("bridge", words),
-            ],
+            "sections": [section(words) for _ in range(5)],
             "sources_used_refs": refs,
         },
     }
 
 
-CHECKS = [
-    "structure",
-    "objective_fidelity",
-    "level_fit",
-    "progression",
-    "source_traceability",
-    "claim_accuracy",
-    "specificity_depth",
-    "coherence",
-    "audio_fitness",
-    "safety",
-]
+CHECKS: list[str] = list(get_args(QaCheckName))
 
 
 def review(result: str = "Pass", *, claim_status: str = "Supported") -> dict[str, Any]:
@@ -286,7 +271,11 @@ def knowledge_check(
                 "options": [
                     {
                         "text": f"Option {q}.{o}",
-                        "is_correct": o < correct,
+                        "is_correct": (
+                            o < correct
+                            if correct > 1
+                            else o == (q % options)
+                        ),
                         "explanation": "Because.",
                     }
                     for o in range(options)

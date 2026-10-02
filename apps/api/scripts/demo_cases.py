@@ -87,13 +87,43 @@ CASES: dict[str, DemoCase] = {
             key="practical-reframable",
             purpose="Solicitud práctica reformulable",
             body={
-                "initial_intent": "I want to learn to paint in oils like the Dutch masters.",
+                "initial_intent": (
+                    "I want to understand the visual decisions, materials, and "
+                    "purpose of Dutch still-life painting."
+                ),
                 "experience_level": "Basic",
                 "prior_knowledge": "I visit museums often.",
-                "expected_outcome": "Paint a convincing still life.",
+                "expected_outcome": (
+                    "Explain what those paintings argue. I am not asking to "
+                    "learn to paint."
+                ),
             },
-            expected_compatibility=("Allowed with reframing",),
-            rubric=("reframing is honest about what text/audio cannot deliver",),
+            expected_compatibility=("Allowed", "Allowed with reframing"),
+            expects_precision=False,
+            rubric=(
+                "objective is intellectual",
+                "does not promise the ability to paint",
+            ),
+        ),
+        DemoCase(
+            key="practical-performance",
+            purpose="Resultado práctico manual o procedimental",
+            body={
+                "initial_intent": "I want to learn how to make a pizza",
+                "experience_level": "Basic",
+                "prior_knowledge": "I made a burger one time",
+                "expected_outcome": (
+                    "I want to be able to make the most delicious pizza ever made"
+                ),
+            },
+            expected_compatibility=("Incompatible",),
+            expects_precision=False,
+            rubric=(
+                "state is incompatible",
+                "no precision options",
+                "no objective",
+                "practical result is not promised",
+            ),
         ),
         DemoCase(
             key="incompatible-visual",

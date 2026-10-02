@@ -21,6 +21,7 @@ from auteur_api.modules.blueprints.schemas import (
 )
 from auteur_api.modules.generation.schemas import (
     CourseAuditOutput,
+    CourseListItem,
     CourseRecord,
     CourseState,
     CourseSynthesisOutput,
@@ -376,6 +377,30 @@ class PostgresStore:
                         "failure": lesson.failure,
                     }
                 ).execute()
+
+    def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
+        rows = (
+            self._table("courses")
+            .select(
+                "id,title,subtitle,objective_statement,state,updated_at,created_at"
+            )
+            .eq("user_id", user_id)
+            .order("updated_at", desc=True)
+            .execute()
+            .data
+            or []
+        )
+        return [
+            CourseListItem(
+                id=row["id"],
+                title=row["title"],
+                subtitle=row["subtitle"],
+                objective_statement=row["objective_statement"],
+                state=CourseState(row["state"]),
+                updated_at=_dt(row.get("updated_at") or row["created_at"]),
+            )
+            for row in rows
+        ]
 
     def add_trace(self, scope_id: str, trace: StageTrace) -> None:
         request = self._one("learning_requests", scope_id)

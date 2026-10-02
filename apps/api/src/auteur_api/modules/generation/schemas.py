@@ -123,6 +123,8 @@ class LessonSpecOutput(BaseModel):
     acceptance_criteria: list[str]
 
 
+# Legacy kinds remain so drafts already stored still validate. New lessons
+# persist "prose": the pedagogical roles live on LessonSpec, not as headings.
 SectionKind = Literal[
     "problem",
     "central_idea",
@@ -132,13 +134,31 @@ SectionKind = Literal[
     "limit_or_contrast",
     "synthesis",
     "bridge",
+    "prose",
 ]
 
 
 class LessonSectionOutput(BaseModel):
+    """Stored and API-visible section. `kind` is not a heading."""
+
     kind: SectionKind
     heading: str
     body: str
+
+
+class LessonMovementOutput(BaseModel):
+    """One stretch of prose the model writes. No pedagogical classification."""
+
+    heading: str | None
+    body: str
+
+
+class LessonDraftWriteOutput(BaseModel):
+    """Draft shape sent to the model. It must not list section roles."""
+
+    title: str
+    sections: list[LessonMovementOutput]
+    sources_used_refs: list[str]
 
 
 class LessonDraftOutput(BaseModel):
@@ -147,17 +167,35 @@ class LessonDraftOutput(BaseModel):
     sources_used_refs: list[str]
 
 
+def stored_lesson_draft(draft: LessonDraftWriteOutput) -> LessonDraftOutput:
+    """Map a model draft onto the persisted section contract."""
+    return LessonDraftOutput(
+        title=draft.title,
+        sections=[
+            LessonSectionOutput(
+                kind="prose",
+                heading=(movement.heading or "").strip(),
+                body=movement.body,
+            )
+            for movement in draft.sections
+        ],
+        sources_used_refs=draft.sources_used_refs,
+    )
+
+
 class LessonWriteOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "lesson_write_v1"
+    SCHEMA_VERSION: ClassVar[str] = "lesson_write_v2"
 
     spec: LessonSpecOutput
-    draft: LessonDraftOutput
+    draft: LessonDraftWriteOutput
 
 
 ClaimStatus = Literal["Supported", "Needs revision", "Needs research", "Remove"]
 ReviewResult = Literal["Pass", "Revise", "Research again", "Block"]
 QaCheckName = Literal[
     "structure",
+    "editorial_continuity",
+    "rhetorical_patterns",
     "objective_fidelity",
     "level_fit",
     "progression",
@@ -188,7 +226,7 @@ class QaCheckOutput(BaseModel):
 
 
 class LessonReviewOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "lesson_review_v1"
+    SCHEMA_VERSION: ClassVar[str] = "lesson_review_v2"
 
     claims: list[ClaimAuditItemOutput]
     checks: list[QaCheckOutput]
@@ -337,6 +375,25 @@ class CourseResponse(BaseModel):
     final_synthesis: CourseSynthesisOutput | None
     failure: str | None
     module_limit: int | None
+
+
+class CourseListItem(BaseModel):
+    """One generated course in the private library (BR-LIB-001..003).
+
+    Custom title, level and learning progress are not stored on `courses`.
+    `updated_at` is the last build activity used for BR-LIB-002 ordering.
+    """
+
+    id: str
+    title: str
+    subtitle: str
+    objective_statement: str
+    state: CourseState
+    updated_at: datetime
+
+
+class CourseListResponse(BaseModel):
+    courses: list[CourseListItem]
 
 
 class LessonSummary(BaseModel):
