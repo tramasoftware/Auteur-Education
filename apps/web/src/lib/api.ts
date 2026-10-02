@@ -5,6 +5,7 @@ import type {
   Blueprint,
   Course,
   CourseDiagnostics,
+  CourseList,
   CourseModule,
   CreateLearningRequest,
   ErrorCode,
@@ -22,20 +23,6 @@ function accessToken(): string | null {
   }
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
 }
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
-  const token = accessToken();
-  try {
-    response = await fetch(`${API_URL}/api/v1${path}`, {
-      cache: "no-store",
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(init?.headers ?? {}),
-      },
-    });
 
 export class ApiError extends Error {
   code: ErrorCode | "network_error";
@@ -60,12 +47,14 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
+  const token = accessToken();
   try {
     response = await fetch(`${API_URL}/api/v1${path}`, {
       cache: "no-store",
       ...init,
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -154,7 +143,13 @@ export const blueprints = {
 
 // --- Courses (UF-06, UF-07) ---
 
+export type ActiveGeneration = {
+  course_id: string | null;
+};
+
 export const courses = {
+  list: () => request<CourseList>("/courses"),
+  activeGeneration: () => request<ActiveGeneration>("/courses/active-generation"),
   get: (courseId: string) => request<Course>(`/courses/${courseId}`),
   getModule: (courseId: string, moduleId: string) =>
     request<CourseModule>(`/courses/${courseId}/modules/${moduleId}`),
@@ -164,4 +159,5 @@ export const courses = {
     ),
   getDiagnostics: (courseId: string) =>
     request<CourseDiagnostics>(`/courses/${courseId}/diagnostics`),
+  retry: (courseId: string) => post<Course>(`/courses/${courseId}/retry`),
 };

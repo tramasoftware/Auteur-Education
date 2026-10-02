@@ -7,17 +7,44 @@ PostgresStore writes to auteur-education-dev. DATA_MODEL.md describes the schema
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Protocol
 
 from auteur_api.ai.tracing import StageTrace
 from auteur_api.core.errors import not_found
 from auteur_api.modules.blueprints.schemas import BlueprintRecord
-from auteur_api.modules.generation.schemas import CourseRecord
+from auteur_api.modules.generation.schemas import CourseListItem, CourseRecord
 from auteur_api.modules.onboarding.schemas import LearningRequestRecord
 
 
 def new_id() -> str:
     return str(uuid.uuid4())
+
+
+def course_list_item(
+    course: CourseRecord, *, updated_at: datetime | None = None
+) -> CourseListItem:
+    return CourseListItem(
+        id=course.id,
+        title=course.title,
+        subtitle=course.subtitle,
+        objective_statement=course.objective_statement,
+        state=course.state,
+        updated_at=updated_at or _last_activity(course),
+    )
+
+
+def _last_activity(course: CourseRecord) -> datetime:
+    """DemoStore has no updated_at column. Postgres uses courses.updated_at."""
+    stamps = [course.created_at]
+    if course.started_at is not None:
+        stamps.append(course.started_at)
+    if course.completed_at is not None:
+        stamps.append(course.completed_at)
+    for module in course.modules:
+        if module.published_at is not None:
+            stamps.append(module.published_at)
+    return max(stamps)
 
 
 def assert_owner(record_user_id: str | None, user_id: str | None) -> None:
@@ -43,6 +70,8 @@ class Store(Protocol):
     ) -> CourseRecord: ...
 
     def save_course(self, record: CourseRecord) -> None: ...
+
+    def list_courses_for_user(self, user_id: str) -> list[CourseListItem]: ...
 
     def add_trace(self, scope_id: str, trace: StageTrace) -> None: ...
 
@@ -106,6 +135,15 @@ class DemoStore:
 
     def save_course(self, record: CourseRecord) -> None:
         self.courses[record.id] = record
+
+    def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
+        items = [
+            course_list_item(course)
+            for course in self.courses.values()
+            if course.user_id == user_id
+        ]
+        items.sort(key=lambda item: item.updated_at, reverse=True)
+        return items
 
     def add_trace(self, scope_id: str, trace: StageTrace) -> None:
         self.traces.setdefault(scope_id, []).append(trace)

@@ -7,9 +7,10 @@ from auteur_api.ai.client import AIClient, get_ai_client
 from auteur_api.ai.tracing import StageTrace, TraceSummary, summarize
 from auteur_api.core.auth import CurrentUserId
 from auteur_api.core.config import settings
-from auteur_api.core.errors import not_found
+from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.core.store import Store as StoreBackend
 from auteur_api.core.store import get_store
+from auteur_api.modules.generation.service import active_build_course_id
 from auteur_api.modules.onboarding import service as onboarding
 from auteur_api.modules.onboarding.schemas import (
     ConfirmObjectiveRequest,
@@ -36,6 +37,12 @@ async def create_learning_request(
 ) -> LearningRequestResponse:
     """UF-01/UF-02: create the request, classify compatibility, decide precision
     and, when no precision is needed, formulate the objective."""
+    active_id = active_build_course_id(store, user_id)
+    if active_id is not None:
+        raise invalid_state(
+            "A course is already being generated. Follow that build before "
+            "starting another."
+        )
     record = await onboarding.create_learning_request(
         payload, ai=ai, store=store, user_id=user_id
     )

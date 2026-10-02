@@ -29,7 +29,7 @@ export default async function Home() {
           href="/onboarding"
           className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
         >
-          Start a learning request
+          Create a course
         </Link>
       </div>
     </main>

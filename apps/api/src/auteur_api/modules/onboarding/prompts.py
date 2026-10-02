@@ -28,7 +28,7 @@ Non-negotiable rules:
 - All visible text must be in clear English.
 """
 
-ANALYZE_REQUEST_V1 = "analyze_request_v1"
+ANALYZE_REQUEST_V2 = "analyze_request_v2"
 
 ANALYZE_REQUEST_INSTRUCTIONS = (
     SHARED_RULES
@@ -44,15 +44,33 @@ Task: analyze a new learning request in one pass.
    direction broad enough for the objective step to refine it. Do not design a
    curriculum, modules, lessons or sources.
 
-3. Compatibility (choose exactly one):
-   - "Allowed": can be honestly achieved through theory in text and audio.
-   - "Allowed with reframing": the request has a practical, visual or procedural
-     core, but a theoretical, historical, critical, conceptual or methodological
-     dimension can honestly be taught. Provide safe_reframing describing that
-     theoretical objective and state clearly what cannot be delivered.
-   - "Incompatible": the desired result depends essentially on demonstration,
-     physical action or unsafe personalized instruction. Explain why; offer a safe
-     theoretical alternative in safe_reframing only if one genuinely exists.
+3. Compatibility. Judge the result the learner wants to walk away able to do.
+   Choose exactly one. Do not choose the class that lets a practical request continue.
+
+   - "Incompatible": the intention or the expected outcome is to perform, produce,
+     or master a skill that needs visual, bodily, manual, or procedural
+     demonstration. Cooking or making a dish, painting or drawing the picture,
+     playing an instrument or a sport, performing a movement, building an object,
+     or operating a tool or software by doing it are this class. Text and audio
+     cannot honestly produce that result.
+     Examples that are Incompatible: "I want to learn how to make a pizza" with
+     "be able to make the most delicious pizza"; "learn to paint in oils" with
+     "paint a convincing still life"; "teach me a handstand and a backflip".
+     Do not rescue these by inventing a history, a science, or a set of criteria
+     and then continuing. A nearby theoretical topic is a different intention.
+     Set needs_precision=false and options=[]. Explain the limit in plain
+     language. Put a different theoretical question in safe_reframing only as an
+     example they would have to submit as a new intention, never as this
+     request's next step, and never as equivalent to the practical result.
+   - "Allowed": the result is an intellectual capability (understand, distinguish,
+     explain, compare, analyze, evaluate) that text and audio can deliver on
+     their own. Example: "understand the history of pizza in Naples".
+   - "Allowed with reframing": the learner is already asking to understand a
+     subject, and some wording still implies a practical, visual, or procedural
+     result that must be refused. Keep the intellectual aim. safe_reframing is
+     that theoretical objective, and the explanation states what cannot be
+     delivered. Do not use this class when the result they want is performing
+     the skill.
    Set risk_category (e.g. "health", "law", "finance", "security", "weapons") when the
    request touches a sensitive domain; otherwise null.
 
@@ -63,7 +81,8 @@ Task: analyze a new learning request in one pass.
    tradition), each with a short explanation and how it relates to the original
    intention. Options must not be full course proposals and must not repeat each
    other. Set allows_free_text=true when a learner-written narrowing is reasonable.
-   If the request is Incompatible, needs_precision must be false.
+   If the request is Incompatible, needs_precision must be false and options=[].
+   Never narrow a practical skill into techniques, recipes, styles, or steps.
 """
 )
 

@@ -17,13 +17,22 @@ import {
   Notice,
   StatusBadge,
   inputClass,
+  textareaClass,
 } from "@/components/ui";
+import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { ApiError, learningRequests } from "@/lib/api";
 import { requestStateLabel } from "@/lib/labels";
-import { forgetRequestId, recallRequestId, rememberRequestId } from "@/lib/session";
+import {
+  forgetCourseFlowPath,
+  forgetRequestId,
+  recallRequestId,
+  rememberRequestId,
+} from "@/lib/session";
 import type { ExperienceLevel, LearningRequest } from "@/types/generator";
 
 const LEVELS: ExperienceLevel[] = ["None", "Basic", "Intermediate", "Advanced"];
+/** Matches API `max_free_text_chars`; not a product rule. */
+const MAX_FREE_TEXT_CHARS = 4000;
 
 /**
  * UF-01/UF-02 in a single screen (DEC-006): intention form, compatibility,
@@ -32,6 +41,7 @@ const LEVELS: ExperienceLevel[] = ["None", "Basic", "Intermediate", "Advanced"];
 export function OnboardingFeature() {
   const router = useRouter();
   const params = useSearchParams();
+  const blockingActiveBuild = useRedirectIfActiveBuild();
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -108,10 +118,15 @@ export function OnboardingFeature() {
 
   const resetFromScratch = () => {
     forgetRequestId();
+    forgetCourseFlowPath();
     // Full navigation resets client state; client routing alone left stale onboarding UI.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
     window.location.assign("/onboarding");
   };
+
+  if (blockingActiveBuild) {
+    return <p className="text-sm text-muted">Checking generation status…</p>;
+  }
 
   if (!request) {
     return (
@@ -130,10 +145,7 @@ export function OnboardingFeature() {
       <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
 
       {request.state === "incompatible" ? (
-        <Notice tone="info" title="This request cannot continue">
-          Auteur teaches theory through text and audio. Consider a theoretical
-          reframing above, then start over with a new intention.
-        </Notice>
+        <IncompatibleIntention onStartOver={resetFromScratch} request={request} />
       ) : null}
 
       {request.state === "precision_required" ? (
@@ -220,9 +232,10 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       >
         <textarea
           id="intent"
-          className={inputClass}
+          className={textareaClass}
           rows={3}
           required
+          maxLength={MAX_FREE_TEXT_CHARS}
           value={intent}
           onChange={(e) => setIntent(e.target.value)}
           aria-invalid={intentError ? true : undefined}
@@ -245,8 +258,9 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       >
         <textarea
           id="prior"
-          className={inputClass}
+          className={textareaClass}
           rows={2}
+          maxLength={MAX_FREE_TEXT_CHARS}
           value={prior}
           onChange={(e) => setPrior(e.target.value)}
         />
@@ -258,9 +272,10 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       >
         <textarea
           id="outcome"
-          className={inputClass}
+          className={textareaClass}
           rows={2}
           required
+          maxLength={MAX_FREE_TEXT_CHARS}
           value={outcome}
           onChange={(e) => setOutcome(e.target.value)}
         />
@@ -370,6 +385,38 @@ function YourIntentionSection({
   );
 }
 
+function IncompatibleIntention({
+  request,
+  onStartOver,
+}: {
+  request: LearningRequest;
+  onStartOver: () => void;
+}) {
+  const { explanation, safe_reframing: alternative } = request.compatibility;
+
+  return (
+    <section className="flex flex-col gap-4">
+      <Notice tone="info" title="This intention is incompatible">
+        <p>
+          Auteur teaches through written text and narrated audio. This request
+          asks for a practical result that those formats cannot teach, so it
+          cannot continue.
+        </p>
+        {explanation.trim() ? <p className="mt-2">{explanation}</p> : null}
+        {alternative ? (
+          <p className="mt-2">
+            A related idea can be a new intention. It is not the same as the
+            practical result. {alternative}
+          </p>
+        ) : null}
+      </Notice>
+      <Button type="button" className="self-start" onClick={onStartOver}>
+        Write a new intention
+      </Button>
+    </section>
+  );
+}
+
 type PrecisionPanelProps = {
   request: LearningRequest;
   busy: boolean;
@@ -418,6 +465,7 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
           <input
             id="free-text"
             className={inputClass}
+            maxLength={MAX_FREE_TEXT_CHARS}
             value={freeText}
             onChange={(e) => {
               setFreeText(e.target.value);
@@ -506,8 +554,9 @@ function ObjectivePanel({
           >
             <textarea
               id="objective-feedback"
-              className={inputClass}
+              className={textareaClass}
               rows={3}
+              maxLength={MAX_FREE_TEXT_CHARS}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
             />
@@ -544,8 +593,9 @@ function ObjectivePanel({
           <div className="mt-2 flex flex-col gap-2">
             <textarea
               aria-label="What should change?"
-              className={inputClass}
+              className={textareaClass}
               rows={3}
+              maxLength={MAX_FREE_TEXT_CHARS}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
             />

@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from auteur_api.core.config import settings
 
@@ -137,6 +137,13 @@ class BlueprintResponse(BaseModel):
 
 class ReviseBlueprintRequest(BaseModel):
     feedback: str = Field(min_length=1, max_length=settings.max_free_text_chars)
+
+    @field_validator("feedback", mode="before")
+    @classmethod
+    def strip_feedback(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class ApproveBlueprintRequest(BaseModel):

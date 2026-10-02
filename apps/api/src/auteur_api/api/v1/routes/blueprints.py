@@ -7,8 +7,10 @@ from auteur_api.ai.client import AIClient, get_ai_client
 from auteur_api.core.auth import CurrentUserId
 from auteur_api.core.background import TaskRunner, get_task_runner
 from auteur_api.core.store import Store as StoreBackend
+from auteur_api.core.errors import invalid_state
 from auteur_api.core.store import get_store
 from auteur_api.modules.blueprints import service as blueprints
+from auteur_api.modules.generation.service import active_build_course_id
 from auteur_api.modules.blueprints.schemas import (
     ApproveBlueprintRequest,
     BlueprintResponse,
@@ -39,6 +41,12 @@ async def start_blueprint(
 ) -> BlueprintResponse:
     """UF-04: start Blueprint generation in the background; poll GET for state."""
     store.get_learning_request(request_id, user_id=user_id)
+    active_id = active_build_course_id(store, user_id)
+    if active_id is not None:
+        raise invalid_state(
+            "A course is already being generated. Follow that build before "
+            "starting another."
+        )
     record = await blueprints.start_blueprint(
         request_id, ai=ai, store=store, runner=runner
     )

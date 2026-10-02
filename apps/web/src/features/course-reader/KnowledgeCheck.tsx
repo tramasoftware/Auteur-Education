@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui";
+import { Button, RetryIcon } from "@/components/ui";
 import type { KnowledgeCheck as KnowledgeCheckData } from "@/types/generator";
 
 /**
@@ -38,14 +38,14 @@ export function KnowledgeCheck({ check }: { check: KnowledgeCheckData }) {
                 return (
                   <label
                     key={oi}
-                    className={`flex cursor-pointer gap-3 rounded-xl border bg-surface p-3 text-sm ${
+                    className={`flex cursor-pointer gap-3 rounded-xl border p-3 text-sm ${
                       showState && option.is_correct
-                        ? "border-emerald-500"
+                        ? "border-emerald-500 bg-emerald-100"
                         : showState && chosen
-                          ? "border-red-500"
+                          ? "border-red-500 bg-red-100"
                           : chosen
-                            ? "border-foreground"
-                            : "border-line"
+                            ? "border-foreground bg-[#eceae4]"
+                            : "border-line bg-surface"
                     }`}
                   >
                     <input
@@ -85,11 +85,15 @@ export function KnowledgeCheck({ check }: { check: KnowledgeCheckData }) {
           </Button>
         ) : (
           <>
-            <p className="text-sm" role="status">
-              {correct} of {check.questions.length} correct. This check is formative;
-              revisit the lessons and try again whenever you like.
+            <p className="text-sm leading-6" role="status">
+              <span className="text-base font-semibold">
+                {correct} of {check.questions.length} correct.
+              </span>{" "}
+              This check is formative; revisit the lessons and try again whenever you
+              like.
             </p>
-            <Button type="button" variant="secondary" onClick={reset}>
+            <Button type="button" className="gap-2" onClick={reset}>
+              <RetryIcon />
               Try again
             </Button>
           </>

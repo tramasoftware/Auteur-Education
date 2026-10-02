@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from auteur_api.core.config import settings
 from auteur_api.modules.proposals.schemas import ProposalSetRecord, ProposalSetResponse
@@ -45,16 +45,34 @@ Compatibility = Literal["Allowed", "Allowed with reframing", "Incompatible"]
 _MAX = settings.max_free_text_chars
 
 
+def _strip_text(value: object) -> object:
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
 class CreateLearningRequest(BaseModel):
     initial_intent: str = Field(min_length=1, max_length=_MAX)
     experience_level: ExperienceLevel
     prior_knowledge: str | None = Field(default=None, max_length=_MAX)
     expected_outcome: str = Field(min_length=1, max_length=_MAX)
 
+    @field_validator(
+        "initial_intent", "expected_outcome", "prior_knowledge", mode="before"
+    )
+    @classmethod
+    def strip_free_text(cls, value: object) -> object:
+        return _strip_text(value)
+
 
 class PrecisionSelectionRequest(BaseModel):
     option_id: str | None = None
     free_text: str | None = Field(default=None, min_length=1, max_length=_MAX)
+
+    @field_validator("option_id", "free_text", mode="before")
+    @classmethod
+    def strip_precision_fields(cls, value: object) -> object:
+        return _strip_text(value)
 
 
 class ConfirmObjectiveRequest(BaseModel):
@@ -63,6 +81,11 @@ class ConfirmObjectiveRequest(BaseModel):
 
 class ReviseObjectiveRequest(BaseModel):
     feedback: str = Field(min_length=1, max_length=_MAX)
+
+    @field_validator("feedback", mode="before")
+    @classmethod
+    def strip_feedback(cls, value: object) -> object:
+        return _strip_text(value)
 
 
 # --- Model outputs (strict schema: all fields required, use `| None`) ---

@@ -16,6 +16,7 @@ from auteur_api.ai.stages import StageFailed, run_stage
 from auteur_api.ai.tracing import now
 from auteur_api.core.background import TaskRunner
 from auteur_api.core.config import settings
+from auteur_api.core.errors import invalid_state
 from auteur_api.core.store import Store
 from auteur_api.modules.generation import prompts, validators
 from auteur_api.modules.generation.prompts import BuildContext
@@ -35,6 +36,7 @@ from auteur_api.modules.generation.schemas import (
     ModuleState,
     ModuleSynthesisOutput,
     ResearchOutput,
+    stored_lesson_draft,
 )
 
 logger = logging.getLogger("auteur_api.build")
@@ -55,14 +57,40 @@ async def resume_incomplete_builds(
 
 
 async def ensure_started(
-    course_id: str, *, ai: AIClient, store: Store, runner: TaskRunner
+    course_id: str,
+    *,
+    ai: AIClient,
+    store: Store,
+    runner: TaskRunner,
+    force: bool = False,
 ) -> None:
     """Start or resume the build once (BR-GEN-012). Safe to call repeatedly."""
     course = store.get_course(course_id)
-    if course_id in _active_builds or not course_needs_build(course):
+    if course_id in _active_builds or course.state == CourseState.COMPLETE:
+        return
+    if not force and not course_needs_build(course):
         return
     _active_builds.add(course_id)
     await runner.schedule(run_build(course_id, ai=ai, store=store))
+
+
+async def retry_failed_build(
+    course_id: str, *, ai: AIClient, store: Store, runner: TaskRunner
+) -> CourseRecord:
+    """Start one new generation of the unfinished course from the same Blueprint.
+
+    Published modules are kept (BR-GEN-010). A second call while the build is
+    running does not create another course (BR-GEN-012).
+    """
+    course = store.get_course(course_id)
+    if course.state == CourseState.COMPLETE:
+        raise invalid_state("This course is already complete. Open it to keep reading.")
+    if course.state != CourseState.FAILED:
+        return course
+    prepare_retry(course)
+    store.save_course(course)
+    await ensure_started(course_id, ai=ai, store=store, runner=runner, force=True)
+    return store.get_course(course_id)
 
 
 def course_needs_build(course: CourseRecord) -> bool:
@@ -89,12 +117,23 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
                 continue  # never rebuilt (BR-GEN-012)
             published = await _build_module(course, module, ctx, ai=ai, store=store)
             if not published:
-                _fail_course(
-                    course,
-                    f"Module {module.index} ({module.title}) could not be completed: "
-                    f"{module.failure}. Everything already published was kept.",
-                    store,
-                )
+                if module.failure and "audit" in module.failure.lower():
+                    reason = "the module did not pass review."
+                else:
+                    lesson = next(
+                        (
+                            item
+                            for item in module.lessons
+                            if item.state == LessonState.FAILED
+                        ),
+                        None,
+                    )
+                    reason = (
+                        _lesson_stop_reason(lesson)
+                        if lesson is not None
+                        else "the module could not be completed."
+                    )
+                _fail_course(course, _learner_failure(course, module, reason), store)
                 return
             course.state = CourseState.PARTIALLY_AVAILABLE  # BR-GEN-005
             store.save_course(course)
@@ -111,12 +150,26 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
 
         await _finish_course(course, ctx, ai=ai, store=store)
     except StageFailed as exc:
-        _fail_course(course, _safe_stage_message(exc), store)
+        logger.warning(
+            "build_failed course=%s stage=%s kind=%s",
+            course_id,
+            exc.stage,
+            exc.kind,
+        )
+        _fail_course(
+            course,
+            _learner_failure(course, _module_in_progress(course), _stage_reason(exc)),
+            store,
+        )
     except Exception:
         logger.exception("build_crashed course=%s", course_id)
         _fail_course(
             course,
-            "An unexpected error interrupted the build. Published modules were kept.",
+            _learner_failure(
+                course,
+                _module_in_progress(course),
+                "something interrupted the build.",
+            ),
             store,
         )
     finally:
@@ -161,16 +214,101 @@ def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
     store.save_course(course)
 
 
-def _safe_stage_message(exc: StageFailed) -> str:
-    if exc.kind in ("provider", "unconfigured"):
+def _preserved_sentence(course: CourseRecord) -> str:
+    """BR-GEN-010: say what remains readable. Unpublished modules stay closed."""
+    published = [m for m in course.modules if m.state == ModuleState.PUBLISHED]
+    if not published:
+        return "No incomplete module was published."
+    if len(published) == 1:
         return (
-            "The generation service became unavailable during the build. Published "
-            "modules were kept; the build can be retried later."
+            f"Module {published[0].index} is published and can be read. "
+            "It was not removed."
         )
-    return (
-        f"Stage {exc.stage} did not produce a valid result for {exc.target} after the "
-        "allowed attempts. Published modules were kept."
-    )
+    indexes = [str(m.index) for m in published]
+    if len(indexes) == 2:
+        listed = f"{indexes[0]} and {indexes[1]}"
+    else:
+        listed = ", ".join(indexes[:-1]) + f", and {indexes[-1]}"
+    return f"Modules {listed} are published and can be read. They were not removed."
+
+
+def _learner_failure(
+    course: CourseRecord, module: ModuleRecord | None, what: str
+) -> str:
+    if module is not None:
+        lead = f"We could not finish module {module.index}: {what}"
+    else:
+        lead = f"We could not finish the course: {what}"
+    return f"{lead} {_preserved_sentence(course)}"
+
+
+def _module_in_progress(course: CourseRecord) -> ModuleRecord | None:
+    for module in course.modules:
+        if module.state not in {ModuleState.PUBLISHED, ModuleState.NOT_BUILT}:
+            return module
+    return None
+
+
+def _stage_reason(exc: StageFailed) -> str:
+    if exc.kind in ("provider", "unconfigured"):
+        return "the generation service became unavailable."
+    reasons = {
+        "AI-STG-06/07": (
+            "the research did not leave sources we can write from honestly."
+        ),
+        "AI-STG-08/09": "the lesson could not be written in a form we can publish.",
+        "AI-STG-10/11": "the lesson did not pass review.",
+        "AI-STG-12": "the module synthesis could not be completed.",
+        "AI-STG-13": "the knowledge check could not be completed.",
+        "AI-STG-14": "the module did not pass review.",
+        "AI-STG-15": "the final synthesis could not be completed.",
+        "AI-STG-16": "the course did not pass review.",
+    }
+    return reasons.get(exc.stage, "the build could not be completed.")
+
+
+def _lesson_stop_reason(lesson: LessonRecord) -> str:
+    text = lesson.failure or ""
+    if "insufficient" in text.lower() or "evidence" in text.lower():
+        return "the research did not leave sources we can write from honestly."
+    if "blocked" in text.lower():
+        return "the lesson could not be published as an honest account of the subject."
+    if "review" in text.lower():
+        return "the lesson did not reach the standard required to publish it."
+    return "the lesson could not be completed."
+
+
+def _reset_unpublished_module(module: ModuleRecord) -> None:
+    """Drop an unfinished module's generation so a retry starts it again."""
+    module.state = ModuleState.QUEUED
+    module.synthesis = None
+    module.knowledge_check = None
+    module.audit = None
+    module.published_at = None
+    module.failure = None
+    for lesson in module.lessons:
+        lesson.state = LessonState.QUEUED
+        lesson.attempts = 0
+        lesson.research_rounds = 0
+        lesson.evidence = []
+        lesson.research_questions = []
+        lesson.unresolved_claims = []
+        lesson.spec = None
+        lesson.draft = None
+        lesson.word_count = 0
+        lesson.review = None
+        lesson.failure = None
+
+
+def prepare_retry(course: CourseRecord) -> None:
+    """Reset unpublished modules on a failed course. Published modules stay."""
+    for module in course.modules:
+        if module.state in {ModuleState.PUBLISHED, ModuleState.NOT_BUILT}:
+            continue
+        _reset_unpublished_module(module)
+    course.state = CourseState.QUEUED
+    course.failure = None
+    course.current_activity = None
 
 
 # --- Module ---
@@ -305,7 +443,7 @@ async def _build_lesson(
             max_attempts=settings.generation_max_attempts,
         )
         out: LessonWriteOutput = written.parsed
-        draft = out.draft
+        draft = stored_lesson_draft(out.draft)
         words = validators.word_count(draft)
 
         lesson.state = LessonState.REVIEWING

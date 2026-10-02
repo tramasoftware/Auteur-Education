@@ -10,6 +10,8 @@ import type { Lesson } from "@/types/generator";
 import { Prose } from "./Prose";
 import { SourcesList } from "./SourcesList";
 
+const lessonNavLinkClass = "underline-offset-4 hover:underline";
+
 type LessonReaderProps = { courseId: string; moduleId: string; lessonId: string };
 
 /** UF-07 reading mode. Audio is out of demo scope. */
@@ -37,11 +39,8 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
 
   return (
     <article className="flex flex-col gap-8">
-      <Link
-        href={moduleHref}
-        className={outlineButtonClass}
-      >
-        ← Module
+      <Link href={moduleHref} className={outlineButtonClass}>
+        ← Back to module
       </Link>
 
       <header className="flex flex-col gap-2">
@@ -51,15 +50,21 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
         <p className="text-xs text-muted">~{lesson.word_count} words</p>
       </header>
 
-      <div className="flex flex-col gap-8">
-        {lesson.sections.map((section, i) => (
-          <section key={i} className="flex flex-col gap-3">
-            {section.heading ? (
-              <h3 className="font-serif text-lg font-semibold">{section.heading}</h3>
-            ) : null}
-            <Prose text={section.body} />
-          </section>
-        ))}
+      <div className="flex flex-col gap-5">
+        {lesson.sections.map((section, i) => {
+          const heading = section.heading.trim();
+          return (
+            <section
+              key={i}
+              className={heading ? "mt-4 flex flex-col gap-3" : undefined}
+            >
+              {heading ? (
+                <h3 className="font-serif text-lg font-semibold">{heading}</h3>
+              ) : null}
+              <Prose text={section.body} />
+            </section>
+          );
+        })}
       </div>
 
       <section className="flex flex-col gap-3 border-t border-line pt-6">
@@ -71,7 +76,7 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
         {lesson.previous_lesson_id ? (
           <Link
             href={`${moduleHref}/lessons/${lesson.previous_lesson_id}`}
-            className={outlineButtonClass}
+            className={lessonNavLinkClass}
           >
             ← Previous lesson
           </Link>
@@ -81,12 +86,12 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
         {lesson.next_lesson_id ? (
           <Link
             href={`${moduleHref}/lessons/${lesson.next_lesson_id}`}
-            className="underline-offset-4 hover:underline"
+            className={lessonNavLinkClass}
           >
             Next lesson →
           </Link>
         ) : (
-          <Link href={moduleHref} className="underline-offset-4 hover:underline">
+          <Link href={moduleHref} className={lessonNavLinkClass}>
             Module synthesis and Knowledge Check →
           </Link>
         )}

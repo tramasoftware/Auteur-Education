@@ -11,10 +11,14 @@ from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.core.store import Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
+from auteur_api.modules.generation.build import course_needs_build
+from auteur_api.modules.generation.validators import shuffle_knowledge_check_options
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
+    CourseListResponse,
     CourseRecord,
     CourseResponse,
+    CourseState,
     LessonDiagnostics,
     LessonRecord,
     LessonResponse,
@@ -26,6 +30,41 @@ from auteur_api.modules.generation.schemas import (
     ModuleSummary,
     SourceView,
 )
+
+_BUILD_IDLE = frozenset({CourseState.COMPLETE, CourseState.FAILED})
+
+
+def course_build_is_active(course: CourseRecord) -> bool:
+    """Whether generation still blocks starting another course (BR-GEN-002)."""
+    if course.state in _BUILD_IDLE:
+        return False
+    if course_needs_build(course):
+        return True
+    if course.state == CourseState.PARTIALLY_AVAILABLE:
+        # DEC-007: demo cap leaves planned modules as not_built; build is finished.
+        if course.module_limit is not None and any(
+            module.state == ModuleState.NOT_BUILT for module in course.modules
+        ):
+            return False
+        buildable = [
+            module
+            for module in course.modules
+            if module.state != ModuleState.NOT_BUILT
+        ]
+        if buildable and all(
+            module.state == ModuleState.PUBLISHED for module in buildable
+        ):
+            return course.final_synthesis is None
+    return True
+
+
+def active_build_course_id(store: Store, user_id: str) -> str | None:
+    """BR-GEN-002: at most one non-terminal build per user."""
+    for item in store.list_courses_for_user(user_id):
+        course = store.get_course(item.id, user_id=user_id)
+        if course_build_is_active(course):
+            return course.id
+    return None
 
 
 def create_course_for_blueprint(
@@ -79,6 +118,11 @@ def create_course_for_blueprint(
 
 
 # --- Views ---
+
+
+def list_courses_for_user(store: Store, user_id: str) -> CourseListResponse:
+    """BR-LIB-001/002: the caller's courses, most recent activity first."""
+    return CourseListResponse(courses=store.list_courses_for_user(user_id))
 
 
 def course_view(course: CourseRecord) -> CourseResponse:
@@ -169,7 +213,11 @@ def module_view(course: CourseRecord, module: ModuleRecord) -> ModuleResponse:
             for lesson in module.lessons
         ],
         synthesis=module.synthesis,
-        knowledge_check=module.knowledge_check,
+        knowledge_check=(
+            shuffle_knowledge_check_options(module.knowledge_check, seed=module.id)
+            if module.knowledge_check is not None
+            else None
+        ),
         sources=_sources(module.lessons),
         published_at=module.published_at,
     )

@@ -176,7 +176,17 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
     if not settings.demo_commercial_bypass_enabled:
         raise invalid_state("Course generation requires an active subscription.")
 
-    from auteur_api.modules.generation.service import create_course_for_blueprint
+    from auteur_api.modules.generation.service import (
+        active_build_course_id,
+        create_course_for_blueprint,
+    )
+
+    other_active = active_build_course_id(store, blueprint.user_id)
+    if other_active is not None:
+        raise invalid_state(
+            "A course is already being generated. Follow that build before "
+            "starting another."
+        )
 
     course = create_course_for_blueprint(blueprint, current, store=store)
     blueprint.state = BlueprintState.APPROVED

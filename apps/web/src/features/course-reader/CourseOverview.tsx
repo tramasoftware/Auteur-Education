@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { ErrorNotice, Notice, StatusBadge } from "@/components/ui";
+import {
+  ArrowRightIcon,
+  Button,
+  ErrorNotice,
+  Notice,
+  outlineButtonClass,
+  RetryIcon,
+  StatusBadge,
+} from "@/components/ui";
 import { courses } from "@/lib/api";
 import { courseStateLabel, moduleStateLabel } from "@/lib/labels";
 import { usePolling } from "@/lib/usePolling";
@@ -18,6 +26,10 @@ const BUILDING: Course["state"][] = [
   "writing",
   "reviewing",
 ];
+
+const COURSE_PAGE_PLACEHOLDER_TITLE = "Course";
+const COURSE_PAGE_PLACEHOLDER_DESCRIPTION =
+  "Modules are published one at a time once they pass review. The state shown is the real state of the build.";
 
 function BuildingDots() {
   const [count, setCount] = useState(0);
@@ -55,6 +67,17 @@ function BuildingHeading() {
   );
 }
 
+function failureForLearner(failure: string): string {
+  const internal =
+    /AI-STG-\d|lesson:[0-9a-f-]{8,}|round\d+|after the allowed attempts/i.test(
+      failure,
+    );
+  if (!internal) {
+    return failure;
+  }
+  return "We stopped before this part was ready to read. Modules that were already published are still available.";
+}
+
 function moduleTone(state: ModuleState) {
   switch (state) {
     case "published":
@@ -74,6 +97,7 @@ function moduleTone(state: ModuleState) {
 export function CourseOverview({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(
     () =>
@@ -101,9 +125,25 @@ export function CourseOverview({ courseId }: { courseId: string }) {
 
   usePolling(load, building, 5000);
 
+  async function retry() {
+    setRetrying(true);
+    setError(null);
+    try {
+      setCourse(await courses.retry(courseId));
+    } catch (err: unknown) {
+      setError(err);
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   if (!course) {
     return (
       <div className="flex flex-col gap-3">
+        <h1 className="font-display text-[1.75rem] font-semibold tracking-tight">
+          {COURSE_PAGE_PLACEHOLDER_TITLE}
+        </h1>
+        <p className="text-muted">{COURSE_PAGE_PLACEHOLDER_DESCRIPTION}</p>
         <p className="text-sm text-muted">Loading…</p>
         <ErrorNotice error={error} />
       </div>
@@ -119,6 +159,11 @@ export function CourseOverview({ courseId }: { courseId: string }) {
           ? "active"
           : "neutral";
 
+  const visibleModules =
+    course.state === "failed"
+      ? course.modules.filter((module) => module.state === "published")
+      : course.modules;
+
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-2">
@@ -128,7 +173,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
             Blueprint v{course.blueprint_version}
           </span>
         </div>
-        <h2 className="font-serif text-2xl font-semibold tracking-tight">{course.title}</h2>
+        <h1 className="font-serif text-2xl font-semibold tracking-tight">{course.title}</h1>
         <p className="text-lg text-muted">{course.subtitle}</p>
         <p className="text-sm leading-6">{course.objective_statement}</p>
       </section>
@@ -147,18 +192,23 @@ export function CourseOverview({ courseId }: { courseId: string }) {
         </Notice>
       ) : null}
 
-      {course.failure ? (
-        <Notice tone="error" title="The build stopped">
-          {course.failure}
+      {course.state === "failed" && course.failure ? (
+        <Notice tone="error" title="This part of the course could not be finished">
+          <p>{failureForLearner(course.failure)}</p>
+          <Button type="button" className="mt-3 gap-2" busy={retrying} onClick={retry}>
+            <RetryIcon />
+            Retry this course
+          </Button>
         </Notice>
       ) : null}
 
       <ErrorNotice error={error} />
 
+      {visibleModules.length > 0 ? (
       <section className="flex flex-col gap-3">
         <h3 className="text-lg font-semibold">Modules</h3>
         <ol className="flex flex-col gap-3">
-          {course.modules.map((module) => (
+          {visibleModules.map((module) => (
             <li
               key={module.id}
               className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4"
@@ -183,15 +233,17 @@ export function CourseOverview({ courseId }: { courseId: string }) {
               {module.state === "published" ? (
                 <Link
                   href={`/courses/${course.id}/modules/${module.id}`}
-                  className="text-sm font-medium underline-offset-4 hover:underline"
+                  className={`${outlineButtonClass} gap-2`}
                 >
                   Read this module
+                  <ArrowRightIcon />
                 </Link>
               ) : null}
             </li>
           ))}
         </ol>
       </section>
+      ) : null}
 
       {course.final_synthesis ? (
         <section className="flex flex-col gap-3">

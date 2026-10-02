@@ -31,3 +31,5 @@ export function Field({ id, label, hint, error, children }: FieldProps) {
 
 export const inputClass =
   "w-full rounded-xl border border-line bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted focus:outline-2 focus:outline-offset-1 focus:outline-foreground";
+
+export const textareaClass = `${inputClass} textarea-scroll`;

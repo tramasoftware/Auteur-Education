@@ -142,7 +142,7 @@ async def create_learning_request(
             scope_id=request_id,
             stage="AI-STG-01/02",
             target=f"learning_request:{request_id}",
-            prompt_version=prompts.ANALYZE_REQUEST_V1,
+            prompt_version=prompts.ANALYZE_REQUEST_V2,
             instructions=prompts.ANALYZE_REQUEST_INSTRUCTIONS,
             input=prompts.analyze_request_input(inputs),
             schema=RequestAnalysisOutput,

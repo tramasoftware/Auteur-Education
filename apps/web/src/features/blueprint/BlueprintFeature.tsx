@@ -15,16 +15,19 @@ import {
   GenerationStatus,
   Notice,
   StatusBadge,
-  inputClass,
+  textareaClass,
 } from "@/components/ui";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
+import { forgetCourseFlowPath, forgetRequestId } from "@/lib/session";
 import { usePolling } from "@/lib/usePolling";
+import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import type { Blueprint } from "@/types/generator";
 
 /** UF-04: review the visible Blueprint, request changes, approve the exact version. */
 export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   const router = useRouter();
+  const blockingActiveBuild = useRedirectIfActiveBuild();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -73,6 +76,8 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
     setError(null);
     try {
       const result = await blueprints.approve(blueprintId, blueprint.current_version);
+      forgetRequestId();
+      forgetCourseFlowPath();
       router.push(`/courses/${result.course_id}`);
     } catch (err) {
       setError(err);
@@ -80,6 +85,10 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
       load();
     }
   };
+
+  if (blockingActiveBuild) {
+    return <p className="text-sm text-muted">Checking generation status…</p>;
+  }
 
   if (!blueprint) {
     return (
@@ -271,8 +280,9 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
                   <Field id="blueprint-feedback" label="What should change in the Blueprint?">
                     <textarea
                       id="blueprint-feedback"
-                      className={inputClass}
+                      className={textareaClass}
                       rows={4}
+                      maxLength={4000}
                       value={feedback}
                       onChange={(e) => setFeedback(e.target.value)}
                     />

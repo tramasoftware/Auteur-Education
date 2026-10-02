@@ -12,7 +12,11 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "development"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # Browsers treat these as different origins even though both are this machine.
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     # AI provider (server-side only; never exposed to the frontend). BR-SEC-001.
     openai_api_key: SecretStr | None = None

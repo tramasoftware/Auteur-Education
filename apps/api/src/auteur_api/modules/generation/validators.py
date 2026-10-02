@@ -6,6 +6,7 @@ retrieved when it appears among the search citations of the same call.
 
 from __future__ import annotations
 
+import random
 import re
 from collections.abc import Callable
 from typing import get_args
@@ -143,6 +144,7 @@ def make_write_validator(
             codes.append("spec_claims_without_evidence")  # AI-QA-06
         if not out.draft.sections:
             codes.append("lesson_empty")
+        # Model sections are prose movements (heading + body). Kind is not a field.
         for section in out.draft.sections:
             if len(section.body.split()) < 20:
                 codes.append("lesson_section_too_short")
@@ -207,6 +209,18 @@ def _related_title_matches_lesson(related: str, lesson_titles: set[str]) -> bool
     return False
 
 
+def shuffle_knowledge_check_options(
+    check: KnowledgeCheckOutput, *, seed: str
+) -> KnowledgeCheckOutput:
+    """Stable per-module shuffle so the correct option is not always first."""
+    shuffled = check.model_copy(deep=True)
+    for index, question in enumerate(shuffled.questions):
+        options = list(question.options)
+        random.Random(f"{seed}:{index}").shuffle(options)
+        question.options = options
+    return shuffled
+
+
 def make_knowledge_check_validator(
     lesson_titles: set[str],
 ) -> Callable[[StructuredResult[KnowledgeCheckOutput]], list[str]]:
@@ -223,6 +237,10 @@ def make_knowledge_check_validator(
         questions = {q.question.strip().lower() for q in out.questions}
         if len(questions) != len(out.questions):
             codes.append("knowledge_check_questions_duplicated")
+        if out.questions and all(
+            q.options and q.options[0].is_correct for q in out.questions
+        ):
+            codes.append("knowledge_check_correct_position_bias")
         for q in out.questions:
             if len(q.options) != 4:
                 codes.append("knowledge_check_option_count")
