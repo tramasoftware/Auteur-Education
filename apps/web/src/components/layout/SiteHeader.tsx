@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BlueprintNavIcon } from "@/components/icons/BlueprintNavIcon";
 import { resolveCreationNavTarget, type CreationNavTarget } from "@/lib/activeBuild";
@@ -39,53 +39,180 @@ const PLANNING_NAV: Record<
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    function onChange() {
+      if (media.matches) {
+        setMenuOpen(false);
+      }
+    }
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      menuButtonRef.current?.focus();
+    };
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-line bg-surface px-4 py-6">
-      <Link
-        href="/"
-        className="px-2 text-sm font-semibold uppercase leading-tight tracking-tight text-foreground"
-      >
-        Auteur
-        <br />
-        Education
-      </Link>
-      <nav className="mt-8 flex flex-col gap-1 text-sm">
-        <Suspense
-          fallback={
-            <CourseCreationNavLinkPresentation
-              href="/onboarding"
-              label={PLANNING_NAV.create.label}
-              icon={PLANNING_NAV.create.icon}
-              current={false}
-              generating={false}
-            />
-          }
+    <>
+      <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-4 md:hidden">
+        <BrandLink />
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className="inline-flex size-10 items-center justify-center rounded-lg text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          aria-controls="site-menu"
+          onClick={() => setMenuOpen(true)}
         >
-          <CourseCreationNavLink pathname={pathname} />
-        </Suspense>
-        {navItems.map((item) => {
-          const current = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={current ? "page" : undefined}
-              className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors ${
-                current ? "text-foreground" : "text-muted hover:text-foreground"
-              }`}
+          <MenuIcon />
+        </button>
+      </header>
+
+      <div
+        className={`fixed inset-0 z-40 md:hidden ${menuOpen ? "" : "pointer-events-none"}`}
+        inert={!menuOpen}
+      >
+        <button
+          type="button"
+          className={`absolute inset-0 bg-foreground/30 transition-opacity duration-200 ${
+            menuOpen ? "opacity-100" : "opacity-0"
+          }`}
+          aria-label="Close menu"
+          tabIndex={menuOpen ? 0 : -1}
+          onClick={closeMenu}
+        />
+        <aside
+          id="site-menu"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          className={`absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col border-l border-line bg-surface px-4 py-4 transition-transform duration-200 ease-out ${
+            menuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex justify-end">
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className="inline-flex size-10 items-center justify-center rounded-lg text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+              aria-label="Close menu"
+              onClick={closeMenu}
             >
-              <NavIcon name={item.icon} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+              <CloseIcon />
+            </button>
+          </div>
+          <SiteNav pathname={pathname} onNavigate={closeMenu} className="mt-2" />
+        </aside>
+      </div>
+
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 md:flex">
+        <BrandLink className="px-2" />
+        <SiteNav pathname={pathname} />
+      </aside>
+    </>
   );
 }
 
-function CourseCreationNavLink({ pathname }: { pathname: string }) {
+function BrandLink({ className = "" }: { className?: string }) {
+  return (
+    <Link
+      href="/"
+      className={`text-sm font-semibold uppercase leading-tight tracking-tight text-foreground ${className}`}
+    >
+      Auteur
+      <br />
+      Education
+    </Link>
+  );
+}
+
+function SiteNav({
+  pathname,
+  onNavigate,
+  className = "mt-8",
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  className?: string;
+}) {
+  return (
+    <nav className={`flex flex-col gap-1 text-sm ${className}`}>
+      <Suspense
+        fallback={
+          <CourseCreationNavLinkPresentation
+            href="/onboarding"
+            label={PLANNING_NAV.create.label}
+            icon={PLANNING_NAV.create.icon}
+            current={false}
+            generating={false}
+            onNavigate={onNavigate}
+          />
+        }
+      >
+        <CourseCreationNavLink pathname={pathname} onNavigate={onNavigate} />
+      </Suspense>
+      {navItems.map((item) => {
+        const current = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={current ? "page" : undefined}
+            onClick={onNavigate}
+            className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors ${
+              current ? "text-foreground" : "text-muted hover:text-foreground"
+            }`}
+          >
+            <NavIcon name={item.icon} />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function CourseCreationNavLink({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const [target, setTarget] = useState<CreationNavTarget | null>(null);
@@ -151,6 +278,7 @@ function CourseCreationNavLink({ pathname }: { pathname: string }) {
       icon={icon}
       current={current}
       generating={target?.mode === "generating"}
+      onNavigate={onNavigate}
     />
   );
 }
@@ -161,17 +289,20 @@ function CourseCreationNavLinkPresentation({
   icon,
   current,
   generating,
+  onNavigate,
 }: {
   href: string;
   label: string;
   icon: NavIconName;
   current: boolean;
   generating: boolean;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
+      onClick={onNavigate}
       className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors ${
         current ? "font-medium text-foreground" : "text-muted hover:text-foreground"
       } ${generating ? "text-foreground" : ""}`}
@@ -179,6 +310,36 @@ function CourseCreationNavLinkPresentation({
       <NavIcon name={icon} />
       {label}
     </Link>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className="size-5"
+    >
+      <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className="size-5"
+    >
+      <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+    </svg>
   );
 }
 
