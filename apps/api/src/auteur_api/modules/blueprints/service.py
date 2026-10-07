@@ -218,12 +218,13 @@ async def _generate_version(
             scope_id=request.id,
             stage="AI-STG-05",
             target=f"blueprint:{blueprint.id}:v{len(blueprint.versions) + 1}",
-            prompt_version=prompts.GENERATE_BLUEPRINT_V1,
+            prompt_version=prompts.GENERATE_BLUEPRINT_V2,
             instructions=prompts.GENERATE_BLUEPRINT_INSTRUCTIONS,
             input=prompts.generate_blueprint_input(
                 request.inputs,
                 request.current_objective.objective,
                 proposal,
+                learning_orientation=request.interpretation.learning_orientation,
                 previous_visible_json=(
                     previous.visible.model_dump_json(indent=1) if previous else None
                 ),

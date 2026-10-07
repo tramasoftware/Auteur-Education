@@ -413,6 +413,7 @@ class SourceView(BaseModel):
     source_type: SourceType
     role: SourceRole
     verification: Verification
+    limits: str | None = None
 
 
 class ModuleResponse(BaseModel):

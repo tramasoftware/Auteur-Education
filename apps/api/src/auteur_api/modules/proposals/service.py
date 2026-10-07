@@ -85,7 +85,7 @@ async def generate_proposals(
             scope_id=record.id,
             stage="AI-STG-04",
             target=f"learning_request:{record.id}",
-            prompt_version=prompts.GENERATE_PROPOSALS_V1,
+            prompt_version=prompts.GENERATE_PROPOSALS_V2,
             instructions=prompts.GENERATE_PROPOSALS_INSTRUCTIONS,
             input=prompts.generate_proposals_input(
                 record.inputs,
@@ -95,7 +95,9 @@ async def generate_proposals(
                     if record.selected_precision
                     else None
                 ),
-                materialist_hint=True,
+                learning_orientation=record.interpretation.learning_orientation,
+                materialist_hint=record.interpretation.learning_orientation
+                != "applied",
             ),
             schema=ProposalSetOutput,
             validate=validate_proposal_set,

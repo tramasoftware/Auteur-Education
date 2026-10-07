@@ -3,7 +3,8 @@
 Business rules enforced here (server-side, BR-*):
 - BR-ONB-001/002: non-English input is rejected, nothing is persisted.
 - BR-OBJ-001: compatibility is classified before anything else.
-- BR-OBJ-004: an incompatible request cannot continue.
+- BR-OBJ-004 / DEC-016: an incompatible request cannot continue. Medium
+  incompatibility may offer three new intentions; weapons and security do not.
 - BR-OBJ-006/007: precision only when needed, 2-5 options.
 - BR-OBJ-008/009: the objective expresses an intellectual capability and invents no
   deliverables.
@@ -45,6 +46,9 @@ CAPABILITY_VERBS = (
     "analyze",
     "analyse",
     "evaluate",
+    "judge",
+    "formulate",
+    "decide",
     "recognize",
     "recognise",
     "interpret",
@@ -103,6 +107,35 @@ def validate_analysis(result: StructuredResult[RequestAnalysisOutput]) -> list[s
         codes.append("reframing_missing")
     if not out.compatibility.explanation.strip():
         codes.append("compatibility_explanation_missing")
+    codes.extend(_recovery_alternative_codes(out))
+    return codes
+
+
+# DEC-016. Weapons and security stay a hard rejection (BR-OBJ-005).
+_RECOVERY_BLOCKED_RISKS = frozenset({"weapons", "security"})
+
+
+def _recovery_alternative_codes(out: RequestAnalysisOutput) -> list[str]:
+    alternatives = out.compatibility.recovery_alternatives
+    risk = (out.compatibility.risk_category or "").strip().lower()
+    blocked = risk in _RECOVERY_BLOCKED_RISKS
+    if out.compatibility.classification != "Incompatible" or blocked:
+        if alternatives:
+            return ["recovery_alternatives_not_allowed"]
+        return []
+    codes: list[str] = []
+    if len(alternatives) != 3:
+        codes.append("recovery_alternatives_count")
+    titles = {item.title.strip().lower() for item in alternatives}
+    if len(titles) != len(alternatives):
+        codes.append("recovery_alternatives_duplicated")
+    if any(
+        not item.title.strip()
+        or not item.explanation.strip()
+        or not item.suggested_intent.strip()
+        for item in alternatives
+    ):
+        codes.append("recovery_alternatives_incomplete")
     return codes
 
 
@@ -142,7 +175,7 @@ async def create_learning_request(
             scope_id=request_id,
             stage="AI-STG-01/02",
             target=f"learning_request:{request_id}",
-            prompt_version=prompts.ANALYZE_REQUEST_V2,
+            prompt_version=prompts.ANALYZE_REQUEST_V4,
             instructions=prompts.ANALYZE_REQUEST_INSTRUCTIONS,
             input=prompts.analyze_request_input(inputs),
             schema=RequestAnalysisOutput,
@@ -173,6 +206,7 @@ async def create_learning_request(
             explicitly_stated=analysis.explicitly_stated,
             reasonably_inferred=analysis.reasonably_inferred,
             ambiguities=analysis.ambiguities,
+            learning_orientation=analysis.learning_orientation,
         ),
         compatibility=analysis.compatibility,
         precision=PrecisionResult(
@@ -312,7 +346,7 @@ async def _formulate_objective(
             scope_id=record.id,
             stage="AI-STG-03",
             target=f"learning_request:{record.id}",
-            prompt_version=prompts.FORMULATE_OBJECTIVE_V1,
+            prompt_version=prompts.FORMULATE_OBJECTIVE_V2,
             instructions=prompts.FORMULATE_OBJECTIVE_INSTRUCTIONS,
             input=prompts.formulate_objective_input(
                 record.inputs,
@@ -323,6 +357,7 @@ async def _formulate_objective(
                     if record.selected_precision
                     else None
                 ),
+                learning_orientation=record.interpretation.learning_orientation,
                 previous_statement=previous.objective.statement if previous else None,
                 feedback=feedback,
             ),

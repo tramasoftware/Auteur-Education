@@ -1,7 +1,9 @@
 """Programmatic validators for build outputs. They return stable codes.
 
-They never trust model-reported verification (BR-SRC-007): a URL only counts as
-retrieved when it appears among the search citations of the same call.
+They never trust model-reported verification (BR-SRC-007): a URL is published
+only when this search returned it. A different path on a host this search did
+return becomes that host's site home. An invented host is not published.
+Titles are not used to choose a URL.
 """
 
 from __future__ import annotations
@@ -9,10 +11,10 @@ from __future__ import annotations
 import random
 import re
 from collections.abc import Callable
-from typing import get_args
+from typing import NamedTuple, get_args
 from urllib.parse import urlsplit, urlunsplit
 
-from auteur_api.ai.client import StructuredResult
+from auteur_api.ai.client import Citation, StructuredResult
 from auteur_api.modules.generation.schemas import (
     KnowledgeCheckOutput,
     LessonDraftOutput,
@@ -21,6 +23,7 @@ from auteur_api.modules.generation.schemas import (
     ModuleSynthesisOutput,
     QaCheckName,
     ResearchOutput,
+    Verification,
 )
 
 # --- Strict thresholds (BR-SRC-003) — kept for easy restore after demo testing ---
@@ -50,6 +53,49 @@ def normalize_url(url: str) -> str:
 def is_http_url(url: str) -> bool:
     parts = urlsplit(url.strip())
     return parts.scheme in ("http", "https") and bool(parts.netloc)
+
+
+# Shown when the paper page was not in the search results (DEC-002).
+SITE_HOME_LIMIT = (
+    "This link is the source site. The exact page was not in the search results."
+)
+
+
+class ResolvedSourceUrl(NamedTuple):
+    url: str
+    verification: Verification
+    used_site_home: bool
+
+
+def _host_key(url: str) -> str:
+    return urlsplit(url.strip()).netloc.lower().removeprefix("www.")
+
+
+def _site_home(url: str) -> str:
+    parts = urlsplit(url.strip())
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), "/", "", ""))
+
+
+def reconcile_source_url(
+    url: str, citations: list[Citation]
+) -> ResolvedSourceUrl | None:
+    """Publish a search URL, or the site home of a host this search returned.
+
+    An exact citation is kept, including its path: that is the original page.
+    Any other path on a host this search returned becomes https://host/. A host
+    this search did not return is dropped. Titles never select a URL.
+    """
+    http_citations = [citation for citation in citations if is_http_url(citation.url)]
+    if is_http_url(url):
+        wanted = normalize_url(url)
+        for citation in http_citations:
+            if normalize_url(citation.url) == wanted:
+                return ResolvedSourceUrl(citation.url, "retrieved", False)
+        key = _host_key(url)
+        for citation in http_citations:
+            if _host_key(citation.url) == key:
+                return ResolvedSourceUrl(_site_home(citation.url), "retrieved", True)
+    return None
 
 
 def word_count(draft: LessonDraftOutput) -> int:

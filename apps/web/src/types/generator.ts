@@ -46,6 +46,12 @@ export type CreateLearningRequest = {
   expected_outcome: string;
 };
 
+export type RecoveryAlternative = {
+  title: string;
+  explanation: string;
+  suggested_intent: string;
+};
+
 export type CompatibilityAssessment = {
   classification: Compatibility;
   explanation: string;
@@ -53,6 +59,7 @@ export type CompatibilityAssessment = {
   unreachable_aspects: string[];
   safe_reframing: string | null;
   risk_category: string | null;
+  recovery_alternatives: RecoveryAlternative[];
 };
 
 export type PrecisionOption = {
@@ -114,10 +121,13 @@ export type ProposalSet = {
   recommendation_reason: string | null;
 };
 
+export type LearningOrientation = "theoretical" | "applied";
+
 export type LearningRequest = {
   id: string;
   state: RequestState;
   inputs: CreateLearningRequest;
+  learning_orientation: LearningOrientation;
   compatibility: CompatibilityAssessment;
   precision: PrecisionResult;
   selected_precision: SelectedPrecision | null;
@@ -267,6 +277,7 @@ export type SourceView = {
   source_type: string;
   role: string;
   verification: "retrieved" | "unverified";
+  limits: string | null;
 };
 
 export type KnowledgeCheckOption = {

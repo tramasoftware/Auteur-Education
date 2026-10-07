@@ -13,9 +13,11 @@ from tests.fixtures import (
 )
 from tests.test_blueprints import script_full_build, selected_request
 
-from auteur_api.ai.client import Citation
+from auteur_api.ai.client import Citation, StructuredResult
+from auteur_api.ai.tracing import TokenUsage
 from auteur_api.core.config import settings
 from auteur_api.modules.blueprints.schemas import BlueprintOutput
+from auteur_api.modules.generation import prompts, validators
 from auteur_api.modules.generation.schemas import (
     CourseAuditOutput,
     KnowledgeCheckOutput,
@@ -354,3 +356,168 @@ def test_diagnostics_expose_traces_and_internal_blueprint(client, fake_ai) -> No
     } <= stages
     qa = [t["qa_result"] for t in diagnostics["traces"] if t["stage"] == "AI-STG-10/11"]
     assert qa == ["Pass", "Pass"]
+
+
+OXFORD_LISTING = "https://academic.oup.com/pq/pages"
+OXFORD_LIMIT = (
+    "The exact paper is not directly openable; "
+    "this link is the Oxford Academic listing."
+)
+
+
+def _publish_with_research(
+    client,
+    fake_ai,
+    payload: dict,
+    citations: list[Citation],
+    *,
+    write_refs: list[str] | None = None,
+):
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(
+        BlueprintOutput,
+        blueprint(modules=2, lessons=2, deviation_reason="demo"),
+    )
+    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
+    script_full_build(fake_ai)
+    if write_refs is not None:
+        fake_ai.default(LessonWriteOutput, lesson_write(write_refs))
+    fake_ai.citations = citations
+    fake_ai.default(ResearchOutput, payload)
+    course_id = client.post(
+        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
+    ).json()["course_id"]
+    course = client.get(f"/api/v1/courses/{course_id}").json()
+    module_id = course["modules"][0]["id"]
+    module = client.get(f"/api/v1/courses/{course_id}/modules/{module_id}").json()
+    return course, module
+
+
+def test_research_prompt_requires_an_accessible_retrieved_link() -> None:
+    assert prompts.RESEARCH_V1 == "research_lesson_v4"
+    text = prompts.RESEARCH_INSTRUCTIONS
+    assert "never invent a url" in text
+    assert "its title resembles" in text
+    assert "site home" in text
+    assert "https://academic.oup.com/" in text
+
+
+def test_reconcile_keeps_the_exact_page_search_returned() -> None:
+    resolved = validators.reconcile_source_url(
+        "https://academic.oup.com/pq/article/10.1093/pq/pqaa001",
+        [
+            Citation(
+                url="https://academic.oup.com/pq/article/10.1093/pq/pqaa001",
+                title="French Fiscal Crisis",
+            ),
+            Citation(
+                url=OXFORD_LISTING, title="French Fiscal Crisis | Oxford Academic"
+            ),
+        ],
+    )
+    assert resolved is not None
+    assert resolved.url == "https://academic.oup.com/pq/article/10.1093/pq/pqaa001"
+    assert resolved.verification == "retrieved"
+    assert resolved.used_site_home is False
+
+
+def test_reconcile_uses_site_home_instead_of_a_title_match() -> None:
+    resolved = validators.reconcile_source_url(
+        "https://academic.oup.com/pq/article/invented",
+        [
+            Citation(
+                url=OXFORD_LISTING, title="French Fiscal Crisis | Oxford Academic"
+            )
+        ],
+    )
+    assert resolved is not None
+    assert resolved.url == "https://academic.oup.com/"
+    assert resolved.verification == "retrieved"
+    assert resolved.used_site_home is True
+
+
+def test_reconcile_drops_a_host_search_did_not_return() -> None:
+    resolved = validators.reconcile_source_url(
+        "https://fake.example/invented",
+        [Citation(url="https://example.org/b", title="French Fiscal Crisis")],
+    )
+    assert resolved is None
+
+
+def test_demo_validator_still_accepts_one_uncited_source() -> None:
+    # Demo mode must not fail the build because a URL is absent from citations.
+    validator = validators.make_research_validator(require_retrieved=True)
+    parsed = ResearchOutput.model_validate(research(["https://fake.example/only"]))
+    codes = validator(
+        StructuredResult(
+            parsed=parsed,
+            usage=TokenUsage(),
+            model="fake",
+            duration_ms=1,
+            citations=[],
+        )
+    )
+    assert "evidence_url_invalid" not in codes
+    assert "evidence_insufficient" not in codes
+
+
+def test_missing_paper_page_links_the_site_home(client, fake_ai) -> None:
+    payload = research(
+        [
+            "https://academic.oup.com/pq/article/invented",
+            "https://example.org/b",
+            "https://example.org/c",
+        ]
+    )
+    payload["evidence"][0]["title"] = "French Fiscal Crisis"
+    payload["evidence"][0]["limits"] = OXFORD_LIMIT
+    course, module = _publish_with_research(
+        client,
+        fake_ai,
+        payload,
+        [
+            Citation(
+                url=OXFORD_LISTING, title="French Fiscal Crisis | Oxford Academic"
+            ),
+            Citation(url="https://example.org/b", title="B"),
+            Citation(url="https://example.org/c", title="C"),
+        ],
+    )
+    assert course["state"] == "partially_available"
+    by_ref = {source["ref"]: source for source in module["sources"]}
+    assert by_ref["S1"]["url"] == "https://academic.oup.com/"
+    assert by_ref["S1"]["verification"] == "retrieved"
+    assert by_ref["S1"]["limits"] == validators.SITE_HOME_LIMIT
+    assert OXFORD_LISTING not in {source["url"] for source in module["sources"]}
+    assert by_ref["S2"]["url"] == "https://example.org/b"
+    assert by_ref["S2"]["verification"] == "retrieved"
+    research_calls = [
+        call for call in fake_ai.calls if call["schema"] == "ResearchOutput"
+    ]
+    assert research_calls
+    assert all("evidence_insufficient" not in call["input"] for call in research_calls)
+    assert all("evidence_url_invalid" not in call["input"] for call in research_calls)
+
+
+def test_invented_host_is_omitted_and_build_still_publishes(client, fake_ai) -> None:
+    invented = "https://fake.example/invented"
+    course, module = _publish_with_research(
+        client,
+        fake_ai,
+        research([invented, "https://example.org/b", "https://example.org/c"]),
+        [
+            Citation(url="https://example.org/b", title="B"),
+            Citation(url="https://example.org/c", title="C"),
+        ],
+        write_refs=["S2", "S3"],
+    )
+    assert course["state"] == "partially_available"
+    by_ref = {source["ref"]: source for source in module["sources"]}
+    assert "S1" not in by_ref
+    assert invented not in {source["url"] for source in module["sources"]}
+    assert by_ref["S2"]["url"] == "https://example.org/b"
+    research_calls = [
+        call for call in fake_ai.calls if call["schema"] == "ResearchOutput"
+    ]
+    assert all("evidence_insufficient" not in call["input"] for call in research_calls)
+    assert all("evidence_url_invalid" not in call["input"] for call in research_calls)

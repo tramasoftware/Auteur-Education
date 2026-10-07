@@ -33,8 +33,8 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** TEMPORAL
 - **Necesidad:** `MVP.md §12` y `AI-STG-06/07` exigen investigar antes de redactar. El mecanismo concreto estaba reservado a `ARCHITECTURE.md`.
-- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. Las URLs devueltas por el modelo solo se consideran `retrieved` si aparecen en las citas de la búsqueda; el resto se marca `unverified` y no cuenta como evidencia sustantiva.
-- **Impacto:** `modules/generation/research.py`, `modules/blueprints` (orientación).
+- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. Si la URL del modelo es una cita de esa búsqueda, se publica esa URL completa. Si no lo es, pero la búsqueda sí devolvió otra página del mismo sitio, se publica solo el inicio de ese sitio (`https://host/`) y el texto de `limits` lo dice. No se elige una URL por parecido de título. Una URL cuyo sitio no apareció en la búsqueda no se publica. El build de la demo no falla por una URL descartada.
+- **Impacto:** `modules/generation/build.py`, `modules/generation/prompts.py`, `modules/blueprints` (orientación).
 
 ### DEC-003 — Bypass de precondiciones comerciales en la demo
 
@@ -111,6 +111,22 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Necesidad:** Postgres `uuid` y el demo in-memory usaban hex sin guiones y ids recortados.
 - **Decisión:** `new_id()` devuelve `str(uuid.uuid4())`. Rompe ids viejos del DemoStore (aceptable: no hay datos de producto).
 - **Impacto:** `core/store.py`, contratos de `id: string`.
+
+### DEC-015 — Orientación de la intención y fundamentos aplicados
+
+- **Estatus:** APROBADA para los prompts del generador
+- **Necesidad:** el clasificador rechazaba materias como personal branding por “incompatibles”, y la redacción empujaba cualquier tema hacia una indagación de ciencias sociales. El reclamo del cliente (octubre 2026) pide reconocer si la intención es más teórica o más de fundamentos aplicados, y no tratar esa segunda vía como un tutorial.
+- **Decisión:** `AI-STG-01` registra `learning_orientation` (`theoretical` | `applied`) y la arrastran el objetivo, las propuestas, el Blueprint y la redacción. `applied` enseña criterios, juicio y decisiones explicables en texto y audio. Sigue siendo `Incompatible` el resultado que depende de ver, hacer u operar una herramienta. `Allowed with reframing` conserva el núcleo de la materia pedida y no lo convierte en su filosofía. La voz editorial y el criterio materialista siguen esa orientación: en un curso aplicado el materialismo parte de `Not applicable` salvo que el tema lo vuelva útil (`BR-EPI-002`).
+- **Impacto:** prompts de onboarding, propuestas, Blueprint y generación. El campo viaja en la respuesta de la solicitud para poder observarlo; no hay una pantalla nueva.
+- **Límite:** no agrega modalidades de aprendizaje ni autoriza procedimientos físicos o tutoriales de software.
+
+### DEC-016 — Alternativas de recuperación tras una intención incompatible
+
+- **Estatus:** APROBADA (pedido del cliente, octubre 2026)
+- **Necesidad:** rechazar una intención incompatible y pedir otra de inmediato resulta demasiado abrupto. La persona necesita direcciones cercanas a lo que pidió, enseñables por texto y audio, sin tratar la solicitud original como realizable.
+- **Decisión:** si `AI-STG-01` clasifica la solicitud como `Incompatible` y el riesgo no es `weapons` ni `security`, el mismo análisis devuelve exactamente tres alternativas (`title`, `explanation`, `suggested_intent`). Cada una es una intención nueva, relacionada con la pedido, y se queda en el `learning_orientation` ya elegido (`DEC-015`). `applied` no se rescata como historia o filosofía del tema; `theoretical` no se convierte en un procedimiento. Elegir una vuelve al formulario de onboarding con solo la intención inicial autocompletada. Nivel, conocimientos previos y resultado esperado los completa la persona. Enviar crea una solicitud nueva, que se clasifica de nuevo. La solicitud incompatible no produce objetivo, propuestas de curso, Blueprint ni checkout (`BR-OBJ-004`). Si el riesgo es `weapons` o `security`, no hay alternativas. Salud, derecho y finanzas pueden recibir tres alternativas de alfabetización segura.
+- **Impacto:** `UF-03` variante D, `BR-OBJ-004`, `AI-STG-01`, `MVP.md` §3, análisis de onboarding y la pantalla de incompatibilidad.
+- **Límite:** no son propuestas de curso (`AI-STG-04`). No cambian `Allowed with reframing` ni el arrastre de `learning_orientation`. No se muestra la orientación en la tarjeta.
 
 ## Pendientes sin decisión
 

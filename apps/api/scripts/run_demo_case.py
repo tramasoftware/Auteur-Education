@@ -106,6 +106,13 @@ def run(api: Api, case_key: str, until: str, evidence: dict[str, Any]) -> None:
     print(
         f"  expected compatibility {case.expected_compatibility}: {'OK' if ok_comp else 'DIFFERS'}"
     )
+    if case.expected_orientation is not None:
+        got = req.get("learning_orientation")
+        ok_orient = got == case.expected_orientation
+        print(
+            f"  orientation: {got} "
+            f"(expected {case.expected_orientation}: {'OK' if ok_orient else 'DIFFERS'})"
+        )
     if case.expects_precision is not None:
         ok_prec = req["precision"]["needs_precision"] == case.expects_precision
         print(

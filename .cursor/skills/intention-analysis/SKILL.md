@@ -99,6 +99,8 @@ In particular, respect the MVP limitation that the first version focuses on lear
 
 Do not expand the product scope to accommodate an incompatible request.
 
+When the limit is the medium (the result needs seeing, doing, or operating a tool) and the risk is not security or weapons, offer exactly three related intentions that text and audio can teach. Keep the `learning_orientation` already chosen: applied alternatives stay in the working foundations of that subject and are not rescued as its history or philosophy; theoretical alternatives stay an inquiry into the field and do not become a how-to. Each alternative is a new intention, not a continuation of the rejected request and not a course proposal. Security and weapons requests are rejected without alternatives.
+
 ### 6. Produce a structured interpretation
 
 The result should contain, conceptually:

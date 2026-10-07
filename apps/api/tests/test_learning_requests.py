@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from tests.fixtures import REQUEST_BODY, analysis, objective
+from tests.fixtures import REQUEST_BODY, analysis, objective, recovery_alternatives
 
+from auteur_api.modules.onboarding.prompts import ANALYZE_REQUEST_INSTRUCTIONS
 from auteur_api.modules.onboarding.schemas import (
+    CompatibilityAssessment,
+    Interpretation,
     LearningObjectiveOutput,
     RequestAnalysisOutput,
 )
@@ -32,6 +35,7 @@ def test_specific_intent_skips_precision_and_formulates_objective(
     assert body["objective"]["version"] == 1
     assert body["objective"]["confirmed"] is False
     assert body["compatibility"]["classification"] == "Allowed"
+    assert body["learning_orientation"] == "theoretical"
 
 
 def test_invalid_level_is_rejected(client) -> None:
@@ -55,17 +59,86 @@ def test_non_english_input_is_rejected_and_not_persisted(client, fake_ai) -> Non
 
 
 def test_incompatible_request_cannot_continue(client, fake_ai) -> None:
-    # BR-OBJ-004
+    # BR-OBJ-004 / DEC-016: the rejected request does not continue, and offers
+    # three new intentions instead.
     response = create(client, fake_ai, classification="Incompatible")
     assert response.status_code == 201
     body = response.json()
     assert body["state"] == "incompatible"
     assert body["objective"] is None
+    alternatives = body["compatibility"]["recovery_alternatives"]
+    assert len(alternatives) == 3
+    assert alternatives[0]["title"]
+    assert alternatives[0]["explanation"]
+    assert alternatives[0]["suggested_intent"]
     precision = client.post(
         f"/api/v1/learning-requests/{body['id']}/precision",
         json={"option_id": "x"},
     )
     assert precision.status_code == 409
+
+
+def test_recovery_alternative_count_is_retried(client, fake_ai) -> None:
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(classification="Incompatible", alternatives=recovery_alternatives(2)),
+    )
+    fake_ai.enqueue(RequestAnalysisOutput, analysis(classification="Incompatible"))
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    assert len(response.json()["compatibility"]["recovery_alternatives"]) == 3
+    assert "recovery_alternatives_count" in fake_ai.calls[1]["input"]
+
+
+def test_allowed_request_with_recovery_alternatives_is_retried(client, fake_ai) -> None:
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(alternatives=recovery_alternatives(1)),
+    )
+    fake_ai.enqueue(RequestAnalysisOutput, analysis())
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    assert response.json()["compatibility"]["recovery_alternatives"] == []
+    assert "recovery_alternatives_not_allowed" in fake_ai.calls[1]["input"]
+
+
+def test_weapons_incompatible_has_no_recovery_alternatives(client, fake_ai) -> None:
+    # BR-OBJ-005: weapons and security stay a hard rejection.
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(
+            classification="Incompatible",
+            risk="weapons",
+            alternatives=recovery_alternatives(),
+        ),
+    )
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(classification="Incompatible", risk="weapons"),
+    )
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["state"] == "incompatible"
+    assert body["objective"] is None
+    assert body["compatibility"]["risk_category"] == "weapons"
+    assert body["compatibility"]["recovery_alternatives"] == []
+    assert "recovery_alternatives_not_allowed" in fake_ai.calls[1]["input"]
+
+
+def test_saved_compatibility_without_recovery_alternatives_defaults_empty() -> None:
+    loaded = CompatibilityAssessment.model_validate(
+        {
+            "classification": "Incompatible",
+            "explanation": "The result needs a demonstration.",
+            "compatible_aspects": [],
+            "unreachable_aspects": ["performing the skill"],
+            "safe_reframing": None,
+            "risk_category": None,
+        }
+    )
+    assert loaded.recovery_alternatives == []
 
 
 def test_ambiguous_intent_requires_precision_then_objective(client, fake_ai) -> None:
@@ -163,6 +236,35 @@ def test_get_returns_persisted_state(client, fake_ai) -> None:
     fetched = client.get(f"/api/v1/learning-requests/{body['id']}")
     assert fetched.status_code == 200
     assert fetched.json() == body
+
+
+def test_applied_orientation_is_stored_and_returned(client, fake_ai) -> None:
+    response = create(client, fake_ai, orientation="applied")
+    assert response.status_code == 201
+    assert response.json()["learning_orientation"] == "applied"
+
+
+def test_saved_interpretation_without_orientation_stays_theoretical() -> None:
+    loaded = Interpretation.model_validate(
+        {
+            "interpreted_intention": "Understand a field.",
+            "learning_domain": "History",
+            "explicitly_stated": [],
+            "reasonably_inferred": [],
+            "ambiguities": [],
+        }
+    )
+    assert loaded.learning_orientation == "theoretical"
+
+
+def test_compatibility_prompt_treats_applied_foundations_as_allowed() -> None:
+    text = ANALYZE_REQUEST_INSTRUCTIONS
+    assert "personal branding" in text
+    assert "Photoshop" in text
+    assert "learning_orientation" in text
+    assert "recovery_alternatives" in text
+    assert "Do not rescue an applied request as the history" in text
+    assert "Do not choose the class that lets a practical request continue" not in text
 
 
 def test_provider_failure_is_safe(client, fake_ai) -> None:

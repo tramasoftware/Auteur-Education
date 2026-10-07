@@ -25,6 +25,9 @@ export function SourcesList({ sources }: { sources: SourceView[] }) {
             · {source.source_type.replace("_", " ")} · {source.role.replace("_", " ")}
             {source.verification === "unverified" ? " · not verified by search" : ""}
           </span>
+          {source.limits ? (
+            <span className="mt-1 block text-muted">{source.limits}</span>
+          ) : null}
         </li>
       ))}
     </ol>

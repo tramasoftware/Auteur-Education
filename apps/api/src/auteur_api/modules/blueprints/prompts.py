@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from auteur_api.ai.stages import untrusted
-from auteur_api.modules.onboarding.prompts import SHARED_RULES
+from auteur_api.modules.onboarding.prompts import SHARED_RULES, orientation_block
 from auteur_api.modules.onboarding.schemas import (
     LearningObjectiveOutput,
     LearningRequestInputs,
 )
 from auteur_api.modules.proposals.schemas import CourseProposal
 
-GENERATE_BLUEPRINT_V1 = "generate_blueprint_v1"
+GENERATE_BLUEPRINT_V2 = "generate_blueprint_v2"
 
 GENERATE_BLUEPRINT_INSTRUCTIONS = (
     SHARED_RULES
@@ -19,9 +19,12 @@ Task: turn the confirmed objective and the selected learning direction into a
 BLUEPRINT: a justifiable, revisable pedagogical contract (AI-STG-05). It is the plan
 for learning, not the course content. Do not write lesson prose.
 
-The Blueprint must answer: "What intellectual journey are we going to take, and why is
-this structure appropriate for this learner and objective?" — not merely "what topics
-can we put into a course?".
+The Blueprint must answer: "What journey through this learner's subject are we
+going to take, and why is this structure appropriate for this learner and
+objective?" — not merely "what topics can we put into a course?". Obey the
+ORIENTATION block. Organize the subject the learner asked for. Authors, history,
+and a philosophical frame enter only when the intention asks for them or a
+foundation cannot be understood without a short subordinate frame.
 
 VISIBLE part (the learner reviews and approves it):
 - title, subtitle; objective_statement and expected_outcome (faithful to the
@@ -37,7 +40,8 @@ VISIBLE part (the learner reviews and approves it):
   not yet introduced;
 - order_justification and length_justification (why this structure is the minimum
   sufficient journey — no filler, no artificial fragmentation);
-- estimates: modules, lessons, words (~1500-2000 per lesson), study_hours;
+- estimates: modules, lessons, words (about 1500-2000 per lesson is a reference,
+  not a quota to fill with adjacent theory), study_hours;
 - guiding_sources_or_traditions (real authors, works, institutions or traditions the
   course will draw on; do not invent);
 - relevant_controversies; risks_and_limitations (including what text and audio
@@ -57,7 +61,9 @@ INTERNAL part (used for generation and QA, never shown as product content):
   explanations through mechanisms, material conditions, institutions, resources,
   scales, causality and mediations, and distinguishes explanation from description and
   interpretation. Classify honestly: it is Not applicable when it would not improve
-  understanding or would interfere with the discipline's own methods. It is never a
+  understanding or would interfere with the discipline's own methods. For an applied
+  orientation, start from "Not applicable" and move away from that only when the
+  subject or the learner's intention makes the criterion useful. It is never a
   doctrinal label for the learner;
 - qa_criteria_per_module: concrete, checkable acceptance criteria for each module,
   derived from the objective's achievement criteria.
@@ -79,6 +85,7 @@ def generate_blueprint_input(
     objective: LearningObjectiveOutput,
     proposal: CourseProposal,
     *,
+    learning_orientation: str,
     previous_visible_json: str | None,
     feedback: str | None,
 ) -> str:
@@ -111,6 +118,8 @@ def generate_blueprint_input(
         f"experience_level: {inputs.experience_level.value}",
         f"prior_knowledge: {inputs.prior_knowledge or '(not provided)'}",
         f"expected_outcome: {inputs.expected_outcome}",
+        f"learning_orientation: {learning_orientation}",
+        orientation_block(learning_orientation),
     ]
     if previous_visible_json:
         parts += [

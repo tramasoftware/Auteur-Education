@@ -186,7 +186,16 @@ Una etapa puede dividirse técnicamente en varias invocaciones, pero no debe cam
 
 ### Objetivo
 
-Determinar si la intención puede abordarse honestamente mediante educación teórica en texto y audio.
+Determinar si la intención puede abordarse honestamente mediante texto y audio, y si el recorrido es teórico o de fundamentos aplicados.
+
+El análisis registra `learning_orientation`:
+
+- `theoretical`: la persona quiere comprender un campo (conceptos, historia, debates, comparación).
+- `applied`: la persona quiere los fundamentos de trabajo de una materia — criterios, juicio y decisiones explicables en palabras, como una clase universitaria de una carrera orientada a la práctica. No es un procedimiento físico ni un tutorial de una herramienta.
+
+Personal branding, entendido como posicionamiento, audiencia y voz, es compatible con orientación `applied`. Operar un software, cocinar o ejecutar un movimiento sigue siendo `Incompatible`.
+
+`Allowed with reframing` conserva el núcleo enseñable de la materia pedida. No lo sustituye por la historia o la filosofía de ese tema.
 
 ### Salida requerida: `CompatibilityAssessment`
 
@@ -196,11 +205,16 @@ Determinar si la intención puede abordarse honestamente mediante educación te�
 - aspectos no alcanzables por el medio;
 - reformulación segura, si corresponde;
 - categoría de riesgo, si corresponde;
+- hasta tres alternativas de recuperación cuando la clasificación es `Incompatible` por el medio: título, explicación y texto de intención para una solicitud nueva;
 - siguiente acción permitida.
+
+`learning_orientation` no cambia de definición. `DEC-016` está subordinada a `DEC-015`: las alternativas de una solicitud `applied` siguen en los fundamentos de esa materia y no la convierten en su historia o su filosofía; las de una solicitud `theoretical` siguen siendo comprensión del campo.
 
 ### Validaciones
 
-- `Incompatible` no puede producir propuestas ni avanzar al checkout.
+- `Incompatible` no puede producir propuestas de curso ni avanzar al checkout. La solicitud original no continúa.
+- Si el riesgo no es `weapons` ni `security`, `Incompatible` devuelve exactamente tres alternativas distintas, en la orientación ya elegida, sin prometer el resultado práctico original. Si el riesgo es `weapons` o `security`, la lista queda vacía.
+- Cualquier otra clasificación devuelve la lista de alternativas vacía.
 - `Allowed with reframing` debe conservar la intención de fondo sin prometer equivalencia práctica.
 - Salud, derecho, finanzas, seguridad, armas y otros ámbitos sensibles se limitan a alfabetización general segura o se rechazan.
 - La clasificación debe repetirse si cambia sustantivamente la solicitud.
@@ -248,7 +262,7 @@ Transformar la información confirmada en una capacidad intelectual concreta y a
 
 ### Validaciones
 
-- Debe expresar capacidades como comprender, distinguir, explicar, comparar, analizar o evaluar.
+- Debe expresar capacidades como comprender, distinguir, explicar, comparar, analizar o evaluar. En orientación `applied` también puede expresar juzgar, aplicar criterios, formular o comparar decisiones, sin prometer el uso de una herramienta ni un procedimiento físico.
 - Debe conservar intención, resultado esperado, nivel y precisión.
 - No puede inventar ensayos, proyectos, portfolios, presentaciones, cargas o productos no soportados.
 - Debe poder utilizarse posteriormente como criterio de QA.
@@ -468,8 +482,10 @@ Producir contenido educativo final, continuo, riguroso y apto para lectura y nar
 - No debe contener instrucciones internas, notas de trabajo, placeholders ni texto truncado.
 - Texto y futura narración deben sostener la misma tesis y evidencia sustantiva.
 - El contenido visible se genera en inglés.
-- La voz corresponde a un profesor-autor que conduce una investigación, no a un asistente que enumera o resume información.
-- La prosa debe ser rigurosa sin exhibicionismo académico, clara sin dilución intelectual, sobria, continua, argumentativa y apta para ser escuchada.
+- La voz sigue la orientación registrada en el análisis. No importa un marco de ciencias sociales o de filosofía salvo que la intención lo pida o una idea no se entienda sin un marco breve y subordinado.
+- En orientación teórica, la voz corresponde a un profesor-autor que conduce una indagación del campo pedido, no a un asistente que enumera o resume información. La prosa es argumentativa.
+- En orientación aplicada, la voz corresponde a los fundamentos de trabajo de esa materia: criterios, distinciones de oficio y juicio sobre casos explicables en palabras. No abre con la filosofía o la historia del campo para dar profundidad, y no enseña el procedimiento de una herramienta. No alarga la lección con teoría adyacente para cubrir una banda de palabras.
+- La prosa debe ser rigurosa sin exhibicionismo académico, clara sin dilución intelectual, sobria, continua y apta para ser escuchada.
 - Puede formular una posición cuando la evidencia la justifica, distinguiendo hechos, inferencias, interpretaciones y valoraciones.
 - No utiliza tono de autoayuda, entusiasmo genérico, grandilocuencia, halagos ni promesas de transformación personal.
 - Los tecnicismos se explican cuando sean necesarios para que el nivel definido pueda comprenderlos.

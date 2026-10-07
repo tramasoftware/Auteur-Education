@@ -19,6 +19,7 @@ class DemoCase:
     # Acceptable compatibility classifications for this case.
     expected_compatibility: tuple[str, ...] = ("Allowed",)
     # None = either outcome is acceptable (the model decides; we only observe).
+    expected_orientation: str | None = None
     expects_precision: bool | None = None
     notes: str = ""
     # Extra observations to make by hand after the run (rubric).
@@ -103,6 +104,32 @@ CASES: dict[str, DemoCase] = {
             rubric=(
                 "objective is intellectual",
                 "does not promise the ability to paint",
+            ),
+        ),
+        DemoCase(
+            key="applied-compatible",
+            purpose="Fundamentos aplicados compatibles (personal branding)",
+            body={
+                "initial_intent": (
+                    "I want to learn personal branding for my work as an independent "
+                    "designer: how to position myself, for whom, and with what voice."
+                ),
+                "experience_level": "Basic",
+                "prior_knowledge": (
+                    "I have a portfolio but I have not studied branding."
+                ),
+                "expected_outcome": (
+                    "Judge whether a personal position is clear, who it is for, and "
+                    "what voice it uses. I am not asking for a Photoshop tutorial."
+                ),
+            },
+            expected_compatibility=("Allowed",),
+            expected_orientation="applied",
+            expects_precision=False,
+            rubric=(
+                "stays on personal branding as a design subject",
+                "does not turn the course into a philosophy of the self",
+                "does not promise a tool tutorial",
             ),
         ),
         DemoCase(

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from auteur_api.modules.onboarding.prompts import SHARED_RULES
+from auteur_api.modules.onboarding.prompts import SHARED_RULES, orientation_block
 from auteur_api.modules.onboarding.schemas import (
     LearningObjectiveOutput,
     LearningRequestInputs,
 )
 
-GENERATE_PROPOSALS_V1 = "generate_proposals_v1"
+GENERATE_PROPOSALS_V2 = "generate_proposals_v2"
 
 GENERATE_PROPOSALS_INSTRUCTIONS = (
     SHARED_RULES
@@ -16,9 +16,13 @@ GENERATE_PROPOSALS_INSTRUCTIONS = (
 Task: propose between 1 and 5 genuinely different LEARNING DIRECTIONS that all serve
 the confirmed learning objective (AI-STG-04).
 
-Each proposal is a distinct intellectual trajectory: a different way of organizing
-the journey toward the same objective. It is NOT a course structure. Do not list
-modules, lessons, sources or Knowledge Checks (that belongs to the Blueprint).
+Each proposal is a distinct trajectory through the learner's subject: a different
+way of organizing the journey toward the same objective. It is NOT a course
+structure. Do not list modules, lessons, sources or Knowledge Checks (that
+belongs to the Blueprint). Stay inside the learner's subject and the ORIENTATION
+block. Do not add a philosophical, historical, or social-theory frame unless the
+objective asks for it or one foundation cannot be understood without a short
+subordinate frame.
 
 Differentiation (mandatory):
 - Every pair of proposals must differ in at least three of these dimensions:
@@ -42,8 +46,10 @@ declared level, expected outcome and prior knowledge, set recommended_proposal_i
 and give a concrete recommendation_reason. Never rank, score or declare a proposal
 objectively superior. Otherwise leave both null.
 
-Do not propose directions that drift from the confirmed objective or that require
-practical demonstration.
+Do not propose directions that drift from the confirmed objective, that require
+performing a physical procedure, or that teach how to operate a tool or software.
+Authors, history, and philosophical frames belong only when the intention asks
+for them or a necessary foundation cannot be understood without them.
 """
 )
 
@@ -53,6 +59,7 @@ def generate_proposals_input(
     objective: LearningObjectiveOutput,
     *,
     learning_object: str | None,
+    learning_orientation: str,
     materialist_hint: bool,
 ) -> str:
     parts = [
@@ -69,6 +76,8 @@ def generate_proposals_input(
         f"experience_level: {inputs.experience_level.value}",
         f"prior_knowledge: {inputs.prior_knowledge or '(not provided)'}",
         f"expected_outcome: {inputs.expected_outcome}",
+        f"learning_orientation: {learning_orientation}",
+        orientation_block(learning_orientation),
     ]
     if learning_object:
         parts.append(f"selected_learning_object: {learning_object}")

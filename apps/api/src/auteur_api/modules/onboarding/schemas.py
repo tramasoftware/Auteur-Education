@@ -38,6 +38,7 @@ class RequestState(StrEnum):
 
 
 Compatibility = Literal["Allowed", "Allowed with reframing", "Incompatible"]
+LearningOrientation = Literal["theoretical", "applied"]
 
 
 # --- API requests ---
@@ -91,6 +92,14 @@ class ReviseObjectiveRequest(BaseModel):
 # --- Model outputs (strict schema: all fields required, use `| None`) ---
 
 
+class RecoveryAlternative(BaseModel):
+    """A new intention offered when the request itself cannot continue (DEC-016)."""
+
+    title: str
+    explanation: str
+    suggested_intent: str
+
+
 class CompatibilityAssessment(BaseModel):
     classification: Compatibility
     explanation: str
@@ -98,6 +107,8 @@ class CompatibilityAssessment(BaseModel):
     unreachable_aspects: list[str]
     safe_reframing: str | None
     risk_category: str | None
+    # Default keeps rows saved before DEC-016 readable.
+    recovery_alternatives: list[RecoveryAlternative] = Field(default_factory=list)
 
 
 class PrecisionOptionOutput(BaseModel):
@@ -114,12 +125,13 @@ class PrecisionResultOutput(BaseModel):
 
 
 class RequestAnalysisOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "request_analysis_v1"
+    SCHEMA_VERSION: ClassVar[str] = "request_analysis_v3"
 
     input_is_english: bool
     detected_language: str
     interpreted_intention: str
     learning_domain: str
+    learning_orientation: LearningOrientation
     explicitly_stated: list[str]
     reasonably_inferred: list[str]
     ambiguities: list[str]
@@ -156,6 +168,8 @@ class Interpretation(BaseModel):
     explicitly_stated: list[str]
     reasonably_inferred: list[str]
     ambiguities: list[str]
+    # Default keeps rows saved before orientation existed readable.
+    learning_orientation: LearningOrientation = "theoretical"
 
 
 class PrecisionOption(PrecisionOptionOutput):
@@ -216,6 +230,7 @@ class LearningRequestResponse(BaseModel):
     id: str
     state: RequestState
     inputs: LearningRequestInputs
+    learning_orientation: LearningOrientation
     compatibility: CompatibilityAssessment
     precision: PrecisionResult
     selected_precision: SelectedPrecision | None
@@ -248,6 +263,7 @@ def to_response(record: LearningRequestRecord) -> LearningRequestResponse:
         id=record.id,
         state=record.state,
         inputs=record.inputs,
+        learning_orientation=record.interpretation.learning_orientation,
         compatibility=record.compatibility,
         precision=record.precision,
         selected_precision=record.selected_precision,

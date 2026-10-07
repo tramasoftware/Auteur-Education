@@ -101,3 +101,25 @@ export function forgetRequestId(): void {
     window.localStorage.removeItem(KEY);
   }
 }
+
+/** Suggested intention from an incompatible recovery card (DEC-016). */
+const DRAFT_INTENT_KEY = "auteur.demo.draftIntent";
+
+export function rememberDraftIntent(intent: string): void {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(DRAFT_INTENT_KEY, intent);
+  }
+}
+
+export function recallDraftIntent(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.sessionStorage.getItem(DRAFT_INTENT_KEY);
+}
+
+export function forgetDraftIntent(): void {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.removeItem(DRAFT_INTENT_KEY);
+  }
+}

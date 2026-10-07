@@ -22,6 +22,7 @@ from auteur_api.modules.generation.prompts import (
     lesson_reading_text,
     review_lesson_input,
     write_lesson_input,
+    write_lesson_instructions,
 )
 from auteur_api.modules.generation.schemas import (
     LessonDraftOutput,
@@ -74,6 +75,7 @@ def _context() -> BuildContext:
         prior_knowledge="Read one narrative history.",
         objective_statement=parsed.visible.objective_statement,
         achievement_criteria=["Distinguish causes from triggers."],
+        learning_orientation="theoretical",
         visible=parsed.visible,
         internal=parsed.internal,
     )
@@ -298,13 +300,30 @@ def test_previous_lessons_carry_concepts_not_full_text() -> None:
     assert "UNIQUE_PREVIOUS_BODY" not in block
 
 
+def test_writing_prompt_follows_orientation_and_materialist_class() -> None:
+    applied = write_lesson_instructions("applied", "Not applicable")
+    assert "ORIENTATION: applied" in applied
+    assert "MATERIALIST ANALYTICAL CRITERION" not in applied
+    assert "philosophy, genealogy, or history" in applied
+
+    theoretical = write_lesson_instructions("theoretical", "Central")
+    assert "ORIENTATION: theoretical" in theoretical
+    assert "MATERIALIST ANALYTICAL CRITERION" in theoretical
+
+    without_criterion = write_lesson_instructions("theoretical", "Not applicable")
+    assert "MATERIALIST ANALYTICAL CRITERION" not in without_criterion
+
+    assert "philosophy, genealogy, or social theory" in REVIEW_LESSON_INSTRUCTIONS
+    assert "tool, camera" in REVIEW_LESSON_INSTRUCTIONS
+
+
 def test_synthesis_prompts_reject_a_table_of_contents() -> None:
     assert "Lesson 1 showed" in MODULE_SYNTHESIS_INSTRUCTIONS
     assert "ideas bear on one another" in MODULE_SYNTHESIS_INSTRUCTIONS
     assert "Lesson 1 showed" in COURSE_SYNTHESIS_INSTRUCTIONS
     assert "Module 1" in COURSE_SYNTHESIS_INSTRUCTIONS
-    assert WRITE_LESSON_V1 == "write_lesson_v2"
-    assert REVIEW_LESSON_V1 == "review_lesson_v2"
+    assert WRITE_LESSON_V1 == "write_lesson_v3"
+    assert REVIEW_LESSON_V1 == "review_lesson_v3"
     assert LessonWriteOutput.SCHEMA_VERSION == "lesson_write_v2"
     assert LessonReviewOutput.SCHEMA_VERSION == "lesson_review_v2"
 

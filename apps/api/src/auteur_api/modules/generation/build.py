@@ -189,6 +189,7 @@ def _build_context(course: CourseRecord, store: Store) -> BuildContext:
         prior_knowledge=request.inputs.prior_knowledge,
         objective_statement=objective.objective.statement,
         achievement_criteria=objective.objective.achievement_criteria,
+        learning_orientation=request.interpretation.learning_orientation,
         visible=version.visible,
         internal=version.internal,
     )
@@ -434,7 +435,10 @@ async def _build_lesson(
             stage="AI-STG-08/09",
             target=f"lesson:{lesson.id}:attempt{attempt}",
             prompt_version=prompts.WRITE_LESSON_V1,
-            instructions=prompts.WRITE_LESSON_INSTRUCTIONS,
+            instructions=prompts.write_lesson_instructions(
+                ctx.learning_orientation,
+                ctx.internal.materialist_classification,
+            ),
             input=prompts.write_lesson_input(
                 ctx, module, lesson, previous_draft=draft, review=review
             ),
@@ -551,21 +555,24 @@ async def _research(
         max_attempts=settings.generation_max_attempts,
     )
     out: ResearchOutput = result.parsed
-    cited = {validators.normalize_url(c.url) for c in result.citations}
     retrieved_at = now()
     new_items: list[EvidenceItem] = []
     known_urls = {validators.normalize_url(e.url) for e in lesson.evidence}
     for item in out.evidence:
-        if not validators.is_http_url(item.url):
+        resolved = validators.reconcile_source_url(item.url, result.citations)
+        if resolved is None or not validators.is_http_url(resolved.url):
             continue
-        norm = validators.normalize_url(item.url)
+        norm = validators.normalize_url(resolved.url)
         if norm in known_urls:
             continue
         known_urls.add(norm)
+        limits = (
+            validators.SITE_HOME_LIMIT if resolved.used_site_home else item.limits
+        )
         new_items.append(
             EvidenceItem(
-                **item.model_dump(),
-                verification="retrieved" if norm in cited else "unverified",
+                **{**item.model_dump(), "url": resolved.url, "limits": limits},
+                verification=resolved.verification,
                 retrieved_at=retrieved_at,
             )
         )

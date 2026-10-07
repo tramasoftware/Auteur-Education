@@ -7,8 +7,23 @@ from typing import Any, get_args
 from auteur_api.modules.generation.schemas import QaCheckName
 
 
+def recovery_alternatives(count: int = 3) -> list[dict[str, str]]:
+    return [
+        {
+            "title": f"Direction {i}",
+            "explanation": f"A related intention that text and audio can teach ({i}).",
+            "suggested_intent": f"I want to understand the criteria behind topic {i}.",
+        }
+        for i in range(count)
+    ]
+
+
 def compatibility(
-    classification: str = "Allowed", *, reframing: str | None = None
+    classification: str = "Allowed",
+    *,
+    reframing: str | None = None,
+    risk: str | None = None,
+    alternatives: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return {
         "classification": classification,
@@ -16,7 +31,8 @@ def compatibility(
         "compatible_aspects": ["history", "concepts"],
         "unreachable_aspects": [],
         "safe_reframing": reframing,
-        "risk_category": None,
+        "risk_category": risk,
+        "recovery_alternatives": [] if alternatives is None else alternatives,
     }
 
 
@@ -27,16 +43,28 @@ def analysis(
     needs_precision: bool = False,
     options: int = 3,
     reframing: str | None = None,
+    orientation: str = "theoretical",
+    risk: str | None = None,
+    alternatives: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
+    if alternatives is None and classification == "Incompatible":
+        blocked = (risk or "").strip().lower() in {"weapons", "security"}
+        alternatives = [] if blocked else recovery_alternatives()
     return {
         "input_is_english": english,
         "detected_language": "English" if english else "Spanish",
         "interpreted_intention": "Understand the causes of the French Revolution.",
         "learning_domain": "Modern European history",
+        "learning_orientation": orientation,
         "explicitly_stated": ["subject: French Revolution"],
         "reasonably_inferred": ["interest in causation"],
         "ambiguities": [],
-        "compatibility": compatibility(classification, reframing=reframing),
+        "compatibility": compatibility(
+            classification,
+            reframing=reframing,
+            risk=risk,
+            alternatives=alternatives,
+        ),
         "precision": {
             "needs_precision": needs_precision,
             "reason": "Broad field" if needs_precision else "Specific enough",

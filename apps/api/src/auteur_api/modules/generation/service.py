@@ -12,7 +12,6 @@ from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.core.store import Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
 from auteur_api.modules.generation.build import course_needs_build
-from auteur_api.modules.generation.validators import shuffle_knowledge_check_options
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
     CourseListResponse,
@@ -30,6 +29,7 @@ from auteur_api.modules.generation.schemas import (
     ModuleSummary,
     SourceView,
 )
+from auteur_api.modules.generation.validators import shuffle_knowledge_check_options
 
 _BUILD_IDLE = frozenset({CourseState.COMPLETE, CourseState.FAILED})
 
@@ -173,6 +173,7 @@ def _sources(lessons: list[LessonRecord]) -> list[SourceView]:
                     source_type=item.source_type,
                     role=item.role,
                     verification=item.verification,
+                    limits=item.limits,
                 )
             )
     return views

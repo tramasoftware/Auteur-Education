@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
@@ -16,6 +16,7 @@ import {
   Select,
   Notice,
   StatusBadge,
+  ArrowRightIcon,
   inputClass,
   textareaClass,
 } from "@/components/ui";
@@ -24,8 +25,11 @@ import { ApiError, learningRequests } from "@/lib/api";
 import { requestStateLabel } from "@/lib/labels";
 import {
   forgetCourseFlowPath,
+  forgetDraftIntent,
   forgetRequestId,
+  recallDraftIntent,
   recallRequestId,
+  rememberDraftIntent,
   rememberRequestId,
 } from "@/lib/session";
 import type { ExperienceLevel, LearningRequest } from "@/types/generator";
@@ -64,6 +68,7 @@ export function OnboardingFeature() {
     setError(null);
     try {
       const next = await action();
+      forgetDraftIntent();
       rememberRequestId(next.id);
       setRequest(next);
       router.replace(`/onboarding?request=${next.id}`);
@@ -117,9 +122,19 @@ export function OnboardingFeature() {
   };
 
   const resetFromScratch = () => {
+    forgetDraftIntent();
     forgetRequestId();
     forgetCourseFlowPath();
     // Full navigation resets client state; client routing alone left stale onboarding UI.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
+    window.location.assign("/onboarding");
+  };
+
+  const useRecoveryIntention = (suggestedIntent: string) => {
+    rememberDraftIntent(suggestedIntent);
+    forgetRequestId();
+    forgetCourseFlowPath();
+    // Same full navigation as start-over: this page already holds the rejected request.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
     window.location.assign("/onboarding");
   };
@@ -145,7 +160,11 @@ export function OnboardingFeature() {
       <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
 
       {request.state === "incompatible" ? (
-        <IncompatibleIntention onStartOver={resetFromScratch} request={request} />
+        <IncompatibleIntention
+          onStartOver={resetFromScratch}
+          onUseIntention={useRecoveryIntention}
+          request={request}
+        />
       ) : null}
 
       {request.state === "precision_required" ? (
@@ -197,8 +216,18 @@ type IntentFormProps = {
   }) => void;
 };
 
+function subscribeDraftIntent(): () => void {
+  return () => {};
+}
+
+function readDraftIntent(): string {
+  return recallDraftIntent() ?? "";
+}
+
 function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
-  const [intent, setIntent] = useState("");
+  const draft = useSyncExternalStore(subscribeDraftIntent, readDraftIntent, () => "");
+  const [intent, setIntent] = useState<string | null>(null);
+  const intentValue = intent ?? draft;
   const [level, setLevel] = useState<ExperienceLevel>("Basic");
   const [prior, setPrior] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -215,7 +244,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit({
-      initial_intent: intent.trim(),
+      initial_intent: intentValue.trim(),
       experience_level: level,
       prior_knowledge: prior.trim() || null,
       expected_outcome: outcome.trim(),
@@ -236,7 +265,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
           rows={3}
           required
           maxLength={MAX_FREE_TEXT_CHARS}
-          value={intent}
+          value={intentValue}
           onChange={(e) => setIntent(e.target.value)}
           aria-invalid={intentError ? true : undefined}
           aria-describedby={intentError ? "intent-error" : "intent-hint"}
@@ -286,7 +315,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
         <ErrorNotice error={error} />
       ) : null}
       {!(error instanceof ApiError) && error ? <ErrorNotice error={error} /> : null}
-      <Button type="submit" busy={busy} disabled={!intent.trim() || !outcome.trim()}>
+      <Button type="submit" busy={busy} disabled={!intentValue.trim() || !outcome.trim()}>
         Analyze my intention
       </Button>
       {busy ? (
@@ -388,31 +417,94 @@ function YourIntentionSection({
 function IncompatibleIntention({
   request,
   onStartOver,
+  onUseIntention,
 }: {
   request: LearningRequest;
   onStartOver: () => void;
+  onUseIntention: (suggestedIntent: string) => void;
 }) {
   const { explanation, safe_reframing: alternative } = request.compatibility;
+  const alternatives = request.compatibility.recovery_alternatives ?? [];
+  const [selected, setSelected] = useState<number | null>(null);
+  const chosen = selected === null ? null : alternatives[selected];
+
+  if (alternatives.length === 0) {
+    return (
+      <section className="flex flex-col gap-4">
+        <Notice tone="info" title="This intention is incompatible">
+          <p>
+            Auteur teaches through written text and narrated audio. This request
+            asks for a result those formats cannot teach, so it cannot continue.
+          </p>
+          {explanation.trim() ? <p className="mt-2">{explanation}</p> : null}
+          {alternative ? (
+            <p className="mt-2">
+              A related idea can be a new intention. It is not the same as the
+              practical result. {alternative}
+            </p>
+          ) : null}
+        </Notice>
+        <Button type="button" className="self-start" onClick={onStartOver}>
+          Write a new intention
+        </Button>
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-4">
-      <Notice tone="info" title="This intention is incompatible">
+      <Notice tone="info" title="This intention cannot be taught as asked">
         <p>
           Auteur teaches through written text and narrated audio. This request
-          asks for a practical result that those formats cannot teach, so it
-          cannot continue.
+          asks for a result those formats cannot teach, so it cannot continue.
         </p>
         {explanation.trim() ? <p className="mt-2">{explanation}</p> : null}
-        {alternative ? (
-          <p className="mt-2">
-            A related idea can be a new intention. It is not the same as the
-            practical result. {alternative}
-          </p>
-        ) : null}
+        <p className="mt-2">
+          These related directions can be taught that way. Choosing one starts a
+          new intention. It is not the same result.
+        </p>
       </Notice>
-      <Button type="button" className="self-start" onClick={onStartOver}>
-        Write a new intention
-      </Button>
+      <h2 className="text-lg font-semibold">Choose one of these directions</h2>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="sr-only">Related directions</legend>
+        {alternatives.map((item, index) => (
+          <label
+            key={`${item.title}-${index}`}
+            className="flex cursor-pointer gap-3 rounded-xl border border-line bg-surface p-3 text-sm has-[:checked]:border-foreground"
+          >
+            <input
+              type="radio"
+              name="recovery-alternative"
+              value={String(index)}
+              checked={selected === index}
+              onChange={() => setSelected(index)}
+              className="mt-1"
+            />
+            <span className="flex flex-col gap-1">
+              <span className="font-medium">{item.title}</span>
+              <span className="text-muted">{item.explanation}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          className="gap-2 self-start"
+          disabled={!chosen}
+          onClick={() => {
+            if (chosen) {
+              onUseIntention(chosen.suggested_intent);
+            }
+          }}
+        >
+          Use this intention
+          <ArrowRightIcon />
+        </Button>
+        <Button type="button" variant="outline" className="self-start" onClick={onStartOver}>
+          Write a new intention
+        </Button>
+      </div>
     </section>
   );
 }

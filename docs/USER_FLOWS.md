@@ -186,12 +186,14 @@ La solicitud contiene intención, nivel, contexto opcional, resultado esperado, 
 
 1. El sistema clasifica la solicitud como `Incompatible`.
 2. Explica por qué el resultado depende de una demostración visual, corporal, manual, procedimental o insegura.
-3. Si existe una alternativa teórica segura y honesta, la ofrece sin presentarla como equivalente al resultado original.
-4. No genera propuestas ni permite avanzar al checkout con la solicitud incompatible.
+3. Si el límite es el medio y el riesgo no es seguridad ni armas, ofrece tres intenciones relacionadas. Cada una tiene título y explicación, se puede enseñar por texto y audio, conserva la orientación ya clasificada (`theoretical` o `applied`) y no se presenta como equivalente al resultado original.
+4. El visitante elige una. Vuelve al formulario inicial con esa intención autocompletada y completa nivel, conocimientos previos y resultado esperado. Enviar crea una solicitud nueva, que se clasifica de nuevo.
+5. Si el riesgo es seguridad o armas, o si el visitante prefiere escribir otra intención, el formulario vuelve en blanco.
+6. La solicitud incompatible no genera propuestas de curso ni permite avanzar al checkout.
 
 #### Resultado
 
-La solicitud vuelve a un camino compatible o finaliza sin propuestas y sin consumo comercial.
+La solicitud incompatible no continúa. Una intención nueva puede entrar en un camino compatible. No hay propuestas de curso ni consumo comercial sobre la solicitud rechazada.
 
 ### UF-04 Recibir, comparar y seleccionar propuestas
 
