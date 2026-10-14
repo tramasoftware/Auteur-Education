@@ -322,8 +322,8 @@ def test_synthesis_prompts_reject_a_table_of_contents() -> None:
     assert "ideas bear on one another" in MODULE_SYNTHESIS_INSTRUCTIONS
     assert "Lesson 1 showed" in COURSE_SYNTHESIS_INSTRUCTIONS
     assert "Module 1" in COURSE_SYNTHESIS_INSTRUCTIONS
-    assert WRITE_LESSON_V1 == "write_lesson_v3"
-    assert REVIEW_LESSON_V1 == "review_lesson_v3"
+    assert WRITE_LESSON_V1 == "write_lesson_v4"
+    assert REVIEW_LESSON_V1 == "review_lesson_v4"
     assert LessonWriteOutput.SCHEMA_VERSION == "lesson_write_v2"
     assert LessonReviewOutput.SCHEMA_VERSION == "lesson_review_v2"
 

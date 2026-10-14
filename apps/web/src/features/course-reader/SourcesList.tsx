@@ -3,7 +3,7 @@ import type { SourceView } from "@/types/generator";
 /** BR-SRC-008: the sources actually used, with their verification status. */
 export function SourcesList({ sources }: { sources: SourceView[] }) {
   if (sources.length === 0) {
-    return <p className="text-sm text-muted">No sources listed.</p>;
+    return null;
   }
   return (
     <ol className="flex flex-col gap-2 text-sm">

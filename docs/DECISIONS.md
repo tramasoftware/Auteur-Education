@@ -33,7 +33,7 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** TEMPORAL
 - **Necesidad:** `MVP.md §12` y `AI-STG-06/07` exigen investigar antes de redactar. El mecanismo concreto estaba reservado a `ARCHITECTURE.md`.
-- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. Si la URL del modelo es una cita de esa búsqueda, se publica esa URL completa. Si no lo es, pero la búsqueda sí devolvió otra página del mismo sitio, se publica solo el inicio de ese sitio (`https://host/`) y el texto de `limits` lo dice. No se elige una URL por parecido de título. Una URL cuyo sitio no apareció en la búsqueda no se publica. El build de la demo no falla por una URL descartada.
+- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. La llamada de búsqueda exige la herramienta (`tool_choice`), para que el modelo no responda de memoria. En este modelo la salida estructurada no trae las citas, así que la investigación hace primero una búsqueda en texto y lee `web_search_call.action.sources` y las anotaciones. Si esa búsqueda no trae páginas, se reintenta una vez. Esas URLs se pasan al modelo en un bloque `SEARCH PAGES` y son las que se publican. No se compara el título inventado con el de un artículo para elegir el enlace. Una URL que esa búsqueda no devolvió no se publica. Una URL de la búsqueda que responde 404 o 410 tampoco; un 403 u otro estado se conserva. Ediciones de archivo de la misma entrada (por ejemplo Stanford `/archives/<edición>/`) y parámetros de seguimiento cuentan como una sola obra, y el enlace publicado es la página canónica. Ese colapso ocurre antes del tope. Cada lección conserva como máximo las primeras seis obras distintas que siguen vivas, en el orden de la búsqueda (`BR-SRC-003`). La búsqueda se intenta dos veces. Si la segunda tampoco trae páginas, o falla el proveedor en esa llamada, la lección se redacta igual y el módulo sigue. Una revisión que pida investigar de nuevo no detiene la lección después de dos rondas: se publica el texto ya escrito. El build de la demo no falla por una URL descartada ni por una lista de fuentes vacía.
 - **Impacto:** `modules/generation/build.py`, `modules/generation/prompts.py`, `modules/blueprints` (orientación).
 
 ### DEC-003 — Bypass de precondiciones comerciales en la demo
@@ -84,12 +84,13 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Estatus:** TEMPORAL
 - **Decisión:** la evidencia de tiempo y tokens se obtiene del endpoint de diagnósticos y de los logs del servidor. Las trazas se persisten en `generation_traces` cuando hay Postgres; no se copian al repositorio.
 
-### DEC-011 — Identidad demo mientras el login de producto está fuera de alcance
+### DEC-011 — Identidad de producto con Supabase Auth
 
-- **Estatus:** TEMPORAL
-- **Necesidad:** cada fila de dominio requiere `user_id` → `profiles` y RLS owner-only. `AGENTS.md §12` sigue excluyendo autenticación de producto.
-- **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user`. Si no hay JWT y `APP_ENV != production`, se atribuye el perfil sembrado `DEMO_USER_ID` (`00000000-0000-0000-0000-000000000001`). En producción el JWT es obligatorio. Quitar el bypass antes del MVP comercial.
-- **Impacto:** `core/auth.py`, `core/config.py`, migraciones de `profiles`.
+- **Estatus:** Reemplaza el bypass temporal del usuario demo
+- **Necesidad:** `BR-AUT-004` a `BR-AUT-007` y `UF-06` exigen una cuenta real. El perfil sembrado compartía todas las filas de quien no enviaba un JWT.
+- **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user` en todos los entornos. Sin un JWT válido la respuesta es 401. El visitante es un usuario anónimo de Supabase, con su propio `id`. Al registrarse o iniciar sesión, esa solicitud pasa a la cuenta permanente. El usuario `00000000-0000-0000-0000-000000000001` fue eliminado. No hay `DEMO_USER_BYPASS`. Los tests sustituyen la dependencia solo en el arnés.
+- **Impacto:** `core/auth.py`, `apps/web` (cookies de sesión), migración que borra el usuario demo y revoca el Data API a `anon` y `authenticated`.
+- **Configuración de Auth que queda en el proyecto de Supabase:** confirmación de email ya obligatoria. Usuarios anónimos y manual linking hay que activarlos en el dashboard (el navegador de esta sesión no tenía la cuenta de Supabase abierta). Google sigue apagado hasta que existan client id y secret; el botón no se muestra mientras `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED` no sea `true`.
 
 ### DEC-012 — FastAPI como único plano de datos del generador
 

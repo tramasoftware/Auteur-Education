@@ -13,7 +13,7 @@ from supabase import Client, create_client
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
 from auteur_api.core.errors import not_found
-from auteur_api.core.store import assert_owner
+from auteur_api.core.store import CourseBuildSnapshot, assert_owner
 from auteur_api.modules.blueprints.schemas import (
     BlueprintInternal,
     BlueprintRecord,
@@ -418,6 +418,30 @@ class PostgresStore:
             for row in rows
         ]
 
+    def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
+        """BR-GEN-002: one read of course and module states. Lessons stay unread."""
+        response = self._read(
+            lambda: self._table("courses")
+            .select("id,state,module_limit,final_synthesis,modules(state)")
+            .eq("user_id", user_id)
+            .not_.in_("state", ["complete", "failed"])
+            .order("updated_at", desc=True)
+        )
+        rows = response.data or []
+        return [
+            CourseBuildSnapshot(
+                id=row["id"],
+                state=CourseState(row["state"]),
+                module_limit=row["module_limit"],
+                has_final_synthesis=row.get("final_synthesis") is not None,
+                module_states=tuple(
+                    ModuleState(module["state"])
+                    for module in (row.get("modules") or [])
+                ),
+            )
+            for row in rows
+        ]
+
     def add_trace(self, scope_id: str, trace: StageTrace) -> None:
         request = self._one("learning_requests", scope_id)
         if request is None:
@@ -485,6 +509,25 @@ class PostgresStore:
             or []
         )
         return [row["id"] for row in rows]
+
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
+        """Move one visitor's rows onto a permanent account (BR-AUT-005)."""
+        if from_user_id == to_user_id:
+            return
+        self._table("profiles").upsert({"id": to_user_id}, on_conflict="id").execute()
+        for table in (
+            "learning_requests",
+            "objective_versions",
+            "blueprints",
+            "blueprint_versions",
+            "courses",
+            "modules",
+            "lessons",
+            "generation_traces",
+        ):
+            self._table(table).update({"user_id": to_user_id}).eq(
+                "user_id", from_user_id
+            ).execute()
 
     def _insert_trace(self, scope_id: str, user_id: str, trace: StageTrace) -> None:
         self._table("generation_traces").insert(

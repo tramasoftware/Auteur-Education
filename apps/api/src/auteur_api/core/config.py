@@ -1,8 +1,6 @@
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-DEMO_USER_ID = "00000000-0000-0000-0000-000000000001"
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -35,7 +33,6 @@ class Settings(BaseSettings):
 
     supabase_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
-    demo_user_id: str = DEMO_USER_ID
 
     @field_validator("openai_api_key", "supabase_service_role_key", mode="before")
     @classmethod
@@ -63,11 +60,6 @@ class Settings(BaseSettings):
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
-
-    @property
-    def demo_user_bypass_enabled(self) -> bool:
-        # DEC-011: anonymous demo traffic is attributed to a seeded profile.
-        return not self.is_production
 
     @property
     def has_openai_api_key(self) -> bool:

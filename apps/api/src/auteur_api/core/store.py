@@ -7,18 +7,45 @@ PostgresStore writes to auteur-education-dev. DATA_MODEL.md describes the schema
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
 from auteur_api.ai.tracing import StageTrace
 from auteur_api.core.errors import not_found
 from auteur_api.modules.blueprints.schemas import BlueprintRecord
-from auteur_api.modules.generation.schemas import CourseListItem, CourseRecord
+from auteur_api.modules.generation.schemas import (
+    CourseListItem,
+    CourseRecord,
+    CourseState,
+    ModuleState,
+)
 from auteur_api.modules.onboarding.schemas import LearningRequestRecord
 
 
 def new_id() -> str:
     return str(uuid.uuid4())
+
+
+@dataclass(frozen=True)
+class CourseBuildSnapshot:
+    """Fields BR-GEN-002 needs. Module and lesson bodies stay out of this read."""
+
+    id: str
+    state: CourseState
+    module_limit: int | None
+    has_final_synthesis: bool
+    module_states: tuple[ModuleState, ...]
+
+
+def course_build_snapshot(course: CourseRecord) -> CourseBuildSnapshot:
+    return CourseBuildSnapshot(
+        id=course.id,
+        state=course.state,
+        module_limit=course.module_limit,
+        has_final_synthesis=course.final_synthesis is not None,
+        module_states=tuple(module.state for module in course.modules),
+    )
 
 
 def course_list_item(
@@ -73,6 +100,10 @@ class Store(Protocol):
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]: ...
 
+    def list_course_build_snapshots(
+        self, user_id: str
+    ) -> list[CourseBuildSnapshot]: ...
+
     def add_trace(self, scope_id: str, trace: StageTrace) -> None: ...
 
     def get_traces(self, scope_id: str) -> list[StageTrace]: ...
@@ -88,6 +119,8 @@ class Store(Protocol):
     ) -> None: ...
 
     def list_incomplete_course_ids(self) -> list[str]: ...
+
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None: ...
 
 
 class DemoStore:
@@ -145,6 +178,16 @@ class DemoStore:
         items.sort(key=lambda item: item.updated_at, reverse=True)
         return items
 
+    def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
+        idle = {CourseState.COMPLETE, CourseState.FAILED}
+        open_courses = [
+            course
+            for course in self.courses.values()
+            if course.user_id == user_id and course.state not in idle
+        ]
+        open_courses.sort(key=_last_activity, reverse=True)
+        return [course_build_snapshot(course) for course in open_courses]
+
     def add_trace(self, scope_id: str, trace: StageTrace) -> None:
         self.traces.setdefault(scope_id, []).append(trace)
 
@@ -174,6 +217,20 @@ class DemoStore:
 
         terminal = {CourseState.COMPLETE, CourseState.FAILED}
         return [c.id for c in self.courses.values() if c.state not in terminal]
+
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
+        """Move one visitor's rows onto a permanent account (BR-AUT-005)."""
+        if from_user_id == to_user_id:
+            return
+        for record in self.learning_requests.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
+        for record in self.blueprints.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
+        for record in self.courses.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
 
 
 store = DemoStore()

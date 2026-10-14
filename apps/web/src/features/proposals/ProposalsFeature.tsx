@@ -16,8 +16,10 @@ import {
   outlineButtonClass,
 } from "@/components/ui";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
+import { isAnonymousClaim } from "@/lib/auth/claims";
 import { learningRequests } from "@/lib/api";
 import { recallRequestId, rememberRequestId } from "@/lib/session";
+import { createClient } from "@/lib/supabase/browser";
 import type { CourseProposal, LearningRequest } from "@/types/generator";
 
 /** Dedupe concurrent generateProposals calls for the same request (React Strict Mode). */
@@ -105,6 +107,14 @@ export function ProposalsFeature() {
     setBusy(true);
     setError(null);
     try {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getClaims();
+      if (isAnonymousClaim(data?.claims as Record<string, unknown> | undefined)) {
+        const next = `/proposals?request=${request.id}`;
+        router.push(`/login?next=${encodeURIComponent(next)}`);
+        setBusy(false);
+        return;
+      }
       const blueprint = await learningRequests.startBlueprint(request.id);
       router.push(`/blueprints/${blueprint.id}`);
     } catch (err) {

@@ -55,6 +55,7 @@ async def run_stage[T: BaseModel](
     web_search: bool = False,
     search_context_size: str = "medium",
     max_attempts: int = 3,
+    nonfatal_codes: frozenset[str] = frozenset(),
 ) -> StructuredResult[T]:
     schema_version = getattr(schema, "SCHEMA_VERSION", "v1")
     diagnostic: str | None = None
@@ -107,6 +108,7 @@ async def run_stage[T: BaseModel](
             continue
 
         codes = validate(result) if validate else []
+        fatal = [code for code in codes if code not in nonfatal_codes]
         store.add_trace(
             scope_id,
             StageTrace(
@@ -119,7 +121,7 @@ async def run_stage[T: BaseModel](
                 started_at=started_at,
                 duration_ms=result.duration_ms,
                 usage=result.usage,
-                status="ok" if not codes else "invalid",
+                status="ok" if not fatal else "invalid",
                 validation_codes=codes,
                 web_search=web_search,
             ),
@@ -129,11 +131,11 @@ async def run_stage[T: BaseModel](
             stage,
             target,
             attempt,
-            "ok" if not codes else "invalid",
+            "ok" if not fatal else "invalid",
             result.duration_ms,
             result.usage.total_tokens,
         )
-        if not codes:
+        if not fatal:
             return result
         diagnostic = "Validation failed with codes: " + ", ".join(codes)
 

@@ -67,10 +67,12 @@ export function LessonReader({ courseId, moduleId, lessonId }: LessonReaderProps
         })}
       </div>
 
-      <section className="flex flex-col gap-3 border-t border-line pt-6">
-        <h3 className="text-lg font-semibold">Sources</h3>
-        <SourcesList sources={lesson.sources} />
-      </section>
+      {lesson.sources.length > 0 ? (
+        <section className="flex flex-col gap-3 border-t border-line pt-6">
+          <h3 className="text-lg font-semibold">Sources</h3>
+          <SourcesList sources={lesson.sources} />
+        </section>
+      ) : null}
 
       <nav className="flex flex-wrap justify-between gap-3 text-sm">
         {lesson.previous_lesson_id ? (

@@ -9,9 +9,8 @@ from __future__ import annotations
 from auteur_api.ai.tracing import now, summarize
 from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
-from auteur_api.core.store import Store, new_id
+from auteur_api.core.store import CourseBuildSnapshot, Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
-from auteur_api.modules.generation.build import course_needs_build
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
     CourseListResponse,
@@ -34,36 +33,39 @@ from auteur_api.modules.generation.validators import shuffle_knowledge_check_opt
 _BUILD_IDLE = frozenset({CourseState.COMPLETE, CourseState.FAILED})
 
 
-def course_build_is_active(course: CourseRecord) -> bool:
+def course_build_is_active(snapshot: CourseBuildSnapshot) -> bool:
     """Whether generation still blocks starting another course (BR-GEN-002)."""
-    if course.state in _BUILD_IDLE:
+    if snapshot.state in _BUILD_IDLE:
         return False
-    if course_needs_build(course):
+    if any(
+        state not in {ModuleState.PUBLISHED, ModuleState.NOT_BUILT}
+        for state in snapshot.module_states
+    ):
         return True
-    if course.state == CourseState.PARTIALLY_AVAILABLE:
+    if snapshot.state == CourseState.PARTIALLY_AVAILABLE:
         # DEC-007: demo cap leaves planned modules as not_built; build is finished.
-        if course.module_limit is not None and any(
-            module.state == ModuleState.NOT_BUILT for module in course.modules
+        if snapshot.module_limit is not None and any(
+            state == ModuleState.NOT_BUILT for state in snapshot.module_states
         ):
             return False
         buildable = [
-            module
-            for module in course.modules
-            if module.state != ModuleState.NOT_BUILT
+            state
+            for state in snapshot.module_states
+            if state != ModuleState.NOT_BUILT
         ]
-        if buildable and all(
-            module.state == ModuleState.PUBLISHED for module in buildable
-        ):
-            return course.final_synthesis is None
+        if buildable and all(state == ModuleState.PUBLISHED for state in buildable):
+            return not snapshot.has_final_synthesis
     return True
 
 
 def active_build_course_id(store: Store, user_id: str) -> str | None:
-    """BR-GEN-002: at most one non-terminal build per user."""
-    for item in store.list_courses_for_user(user_id):
-        course = store.get_course(item.id, user_id=user_id)
-        if course_build_is_active(course):
-            return course.id
+    """BR-GEN-002: at most one non-terminal build per user.
+
+    Reads course and module states only. Lesson bodies are not part of this check.
+    """
+    for snapshot in store.list_course_build_snapshots(user_id):
+        if course_build_is_active(snapshot):
+            return snapshot.id
     return None
 
 
@@ -155,12 +157,12 @@ def course_view(course: CourseRecord) -> CourseResponse:
 
 
 def _sources(lessons: list[LessonRecord]) -> list[SourceView]:
+    """Sources research kept: the pages web search returned for these lessons."""
     seen: set[str] = set()
     views: list[SourceView] = []
     for lesson in lessons:
-        used = set(lesson.draft.sources_used_refs) if lesson.draft else set()
         for item in lesson.evidence:
-            if item.ref not in used or item.url in seen:
+            if item.url in seen:
                 continue
             seen.add(item.url)
             views.append(

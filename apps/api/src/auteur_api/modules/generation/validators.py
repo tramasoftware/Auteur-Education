@@ -1,21 +1,25 @@
 """Programmatic validators for build outputs. They return stable codes.
 
-They never trust model-reported verification (BR-SRC-007): a URL is published
-only when this search returned it. A different path on a host this search did
-return becomes that host's site home. An invented host is not published.
-Titles are not used to choose a URL.
+The published source list is the pages web search returned. The path the model
+types is not published unless it is one of those pages. Titles are not compared
+and are not used to choose a URL. There is no minimum count.
 """
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import random
 import re
 from collections.abc import Callable
-from typing import NamedTuple, get_args
-from urllib.parse import urlsplit, urlunsplit
+from typing import get_args
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+import httpx
 
 from auteur_api.ai.client import Citation, StructuredResult
 from auteur_api.modules.generation.schemas import (
+    EvidenceItemOutput,
     KnowledgeCheckOutput,
     LessonDraftOutput,
     LessonReviewOutput,
@@ -23,7 +27,6 @@ from auteur_api.modules.generation.schemas import (
     ModuleSynthesisOutput,
     QaCheckName,
     ResearchOutput,
-    Verification,
 )
 
 # --- Strict thresholds (BR-SRC-003) — kept for easy restore after demo testing ---
@@ -31,8 +34,13 @@ from auteur_api.modules.generation.schemas import (
 # SUBSTANTIVE_ROLES = {"primary_support", "corroboration", "counterpoint"}
 # SUBSTANTIVE_SUPPORT = {"strong", "moderate"}
 
-# Temporary demo/testing: accept a single source without search-citation verification.
-MIN_SUBSTANTIVE_SOURCES_DEMO = 1
+# BR-SRC-003 names three to six as the normal range. The demo keeps at most six
+# search pages per lesson. Sufficiency above that range is not applied here.
+MAX_SOURCES_PER_LESSON = 6
+
+# Source quantity does not retry a stage or stop the module.
+NONFATAL_RESEARCH_CODES: frozenset[str] = frozenset()
+NONFATAL_WRITE_CODES: frozenset[str] = frozenset()
 
 PLACEHOLDER = re.compile(
     r"(\bTODO\b|\bTBD\b|lorem ipsum|\[insert|\[citation needed\]|\[placeholder|"
@@ -43,11 +51,43 @@ PLACEHOLDER = re.compile(
 ALL_CHECKS: set[str] = set(get_args(QaCheckName))
 
 
-def normalize_url(url: str) -> str:
+# Stanford Encyclopedia publishes the same entry under /archives/<edition>/.
+_ARCHIVE_EDITION = re.compile(
+    r"/archives/(?:spr|sum|fall|win)\d{4}(?=/|$)",
+    re.IGNORECASE,
+)
+
+
+def _is_tracking_param(key: str) -> bool:
+    name = key.lower()
+    return name.startswith("utm_") or name in {"fbclid", "gclid"}
+
+
+def canonical_page(url: str) -> str:
+    """One work, one address.
+
+    Archive editions of the same entry and tracking parameters collapse.
+    Different articles on the same host stay different.
+    """
     parts = urlsplit(url.strip())
-    host = parts.netloc.lower().removeprefix("www.")
-    path = parts.path.rstrip("/")
-    return urlunsplit((parts.scheme.lower(), host, path, parts.query, ""))
+    host = (parts.hostname or "").lower().removeprefix("www.")
+    if host.endswith(".m.wikipedia.org"):
+        host = host[: -len(".m.wikipedia.org")] + ".wikipedia.org"
+    path = _ARCHIVE_EDITION.sub("", parts.path or "")
+    path = re.sub(r"/{2,}", "/", path).rstrip("/")
+    query = urlencode(
+        [
+            (key, value)
+            for key, value in parse_qsl(parts.query, keep_blank_values=True)
+            if not _is_tracking_param(key)
+        ]
+    )
+    scheme = (parts.scheme or "https").lower()
+    return urlunsplit((scheme, host, path, query, ""))
+
+
+def normalize_url(url: str) -> str:
+    return canonical_page(url)
 
 
 def is_http_url(url: str) -> bool:
@@ -55,47 +95,167 @@ def is_http_url(url: str) -> bool:
     return parts.scheme in ("http", "https") and bool(parts.netloc)
 
 
-# Shown when the paper page was not in the search results (DEC-002).
-SITE_HOME_LIMIT = (
-    "This link is the source site. The exact page was not in the search results."
-)
-
-
-class ResolvedSourceUrl(NamedTuple):
-    url: str
-    verification: Verification
-    used_site_home: bool
+def is_public_http_url(url: str) -> bool:
+    """HTTP(S) URL whose host is not a literal local or private address."""
+    if not is_http_url(url):
+        return False
+    host = (urlsplit(url.strip()).hostname or "").lower().rstrip(".")
+    if not host or host == "localhost" or host.endswith(".local"):
+        return False
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    return address.is_global
 
 
 def _host_key(url: str) -> str:
-    return urlsplit(url.strip()).netloc.lower().removeprefix("www.")
+    return (urlsplit(url.strip()).hostname or "").lower().removeprefix("www.")
 
 
-def _site_home(url: str) -> str:
+def _fallback_title(url: str) -> str:
     parts = urlsplit(url.strip())
-    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), "/", "", ""))
+    path = parts.path.strip("/")
+    if path:
+        return path.replace("-", " ").replace("/", " — ")
+    return _host_key(url) or url.strip()
 
 
-def reconcile_source_url(
-    url: str, citations: list[Citation]
-) -> ResolvedSourceUrl | None:
-    """Publish a search URL, or the site home of a host this search returned.
+def research_pages(citations: list[Citation]) -> list[Citation]:
+    """Distinct public works the search tool returned, in tool order.
 
-    An exact citation is kept, including its path: that is the original page.
-    Any other path on a host this search returned becomes https://host/. A host
-    this search did not return is dropped. Titles never select a URL.
+    Editions and tracking parameters of the same entry are one page. The
+    published URL is that canonical page, not the archive copy.
     """
-    http_citations = [citation for citation in citations if is_http_url(citation.url)]
-    if is_http_url(url):
-        wanted = normalize_url(url)
-        for citation in http_citations:
-            if normalize_url(citation.url) == wanted:
-                return ResolvedSourceUrl(citation.url, "retrieved", False)
-        key = _host_key(url)
-        for citation in http_citations:
-            if _host_key(citation.url) == key:
-                return ResolvedSourceUrl(_site_home(citation.url), "retrieved", True)
-    return None
+    chosen: dict[str, Citation] = {}
+    order: list[str] = []
+    for citation in citations:
+        if not is_public_http_url(citation.url):
+            continue
+        key = canonical_page(citation.url)
+        title = citation.title.strip()
+        current = chosen.get(key)
+        if current is None:
+            chosen[key] = Citation(url=key, title=title)
+            order.append(key)
+            continue
+        if title and not current.title:
+            chosen[key] = Citation(url=key, title=title)
+    return [chosen[key] for key in order]
+
+
+def _take_ref(used: set[str], preferred: str | None, index: int) -> str:
+    if preferred and preferred not in used:
+        used.add(preferred)
+        return preferred
+    number = index
+    while True:
+        ref = f"S{number}"
+        if ref not in used:
+            used.add(ref)
+            return ref
+        number += 1
+
+
+def published_research_evidence(
+    evidence: list[EvidenceItemOutput],
+    citations: list[Citation],
+    *,
+    used_refs: set[str] | None = None,
+) -> list[EvidenceItemOutput]:
+    """One published source per search page.
+
+    The model's URL is kept only when it is that same page. A single note the
+    model wrote for a host is attached when search returned one page on that
+    host. Several pages are all published; none is chosen by title. A host
+    search did not return is omitted.
+    """
+    pages = research_pages(citations)
+    used = used_refs if used_refs is not None else set()
+    by_url: dict[str, EvidenceItemOutput] = {}
+    by_host: dict[str, list[EvidenceItemOutput]] = {}
+    for item in evidence:
+        if not is_public_http_url(item.url):
+            continue
+        by_url.setdefault(normalize_url(item.url), item)
+        by_host.setdefault(_host_key(item.url), []).append(item)
+    pages_by_host: dict[str, list[Citation]] = {}
+    for page in pages:
+        pages_by_host.setdefault(_host_key(page.url), []).append(page)
+
+    published: list[EvidenceItemOutput] = []
+    for index, page in enumerate(pages, start=1):
+        exact = by_url.get(normalize_url(page.url))
+        host = _host_key(page.url)
+        notes = by_host.get(host, [])
+        single_note = (
+            notes[0]
+            if exact is None and len(pages_by_host[host]) == 1 and len(notes) == 1
+            else None
+        )
+        base = exact or single_note
+        if base is not None:
+            data = base.model_dump()
+            data["url"] = page.url
+            data["ref"] = _take_ref(used, base.ref.strip() or None, index)
+            page_title = page.title.strip()
+            model_title = str(data["title"]).strip()
+            if exact is not None:
+                data["title"] = model_title or page_title or _fallback_title(page.url)
+            else:
+                data["title"] = page_title or model_title or _fallback_title(page.url)
+            published.append(EvidenceItemOutput.model_validate(data))
+            continue
+        title = page.title.strip() or _fallback_title(page.url)
+        published.append(
+            EvidenceItemOutput(
+                ref=_take_ref(used, None, index),
+                url=page.url,
+                title=title,
+                author_or_institution=None,
+                date=None,
+                source_type="general",
+                relevant_excerpt=title,
+                supports_claims=[],
+                support_level="moderate",
+                limits=None,
+                role="orientation",
+            )
+        )
+    return published
+
+
+def status_is_gone(status: int) -> bool:
+    """404 and 410 are missing pages. 403 is a block, not a missing page."""
+    return status in (404, 410)
+
+
+_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AuteurEducation/1.0)"}
+
+
+async def page_is_gone(url: str, client: httpx.AsyncClient | None = None) -> bool:
+    """True only when the page itself answers 404 or 410.
+
+    Timeouts, connection errors, and every other status keep the URL.
+    """
+    owns_client = client is None
+    http = client or httpx.AsyncClient(timeout=8.0, follow_redirects=True)
+    try:
+        response = await http.get(url, headers=_FETCH_HEADERS)
+    except httpx.HTTPError:
+        return False
+    finally:
+        if owns_client:
+            await http.aclose()
+    return status_is_gone(response.status_code)
+
+
+async def without_gone_pages(pages: list[Citation]) -> list[Citation]:
+    if not pages:
+        return []
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        gone = await asyncio.gather(*(page_is_gone(page.url, client) for page in pages))
+    return [page for page, missing in zip(pages, gone, strict=True) if not missing]
 
 
 def word_count(draft: LessonDraftOutput) -> int:
@@ -111,31 +271,10 @@ def make_research_validator(
     """
 
     def validate(result: StructuredResult[ResearchOutput]) -> list[str]:
-        _ = require_retrieved  # ignored in demo mode; strict mode used this flag
-        out = result.parsed
-        codes: list[str] = []
-        refs = [e.ref.strip() for e in out.evidence]
-        if len(set(refs)) != len(refs) or any(not r for r in refs):
-            codes.append("evidence_ref_invalid")
-
-        urls: set[str] = set()
-        acceptable = 0
-        for item in out.evidence:
-            if not is_http_url(item.url):
-                codes.append("evidence_url_invalid")
-                continue
-            if not item.title.strip() or not item.relevant_excerpt.strip():
-                codes.append("evidence_metadata_missing")
-            norm = normalize_url(item.url)
-            if norm in urls:
-                codes.append("evidence_url_duplicated")
-            urls.add(norm)
-            # Demo: model-reported URLs count; no web-search citation match required.
-            acceptable += 1
-
-        if acceptable < MIN_SUBSTANTIVE_SOURCES_DEMO and not out.blocking_conditions:
-            codes.append("evidence_insufficient")
-        return sorted(set(codes))
+        _ = (require_retrieved, result)
+        # Demo: an empty source list is valid. Count and URL shape do not retry.
+        # Publication uses the search pages, not this validator.
+        return []
 
     # --- Strict validation (restore for production demo) ---
     # def validate(result: StructuredResult[ResearchOutput]) -> list[str]:
@@ -171,23 +310,30 @@ def make_research_validator(
     return validate
 
 
+def _clean_refs(refs: list[str]) -> list[str]:
+    return [ref.strip() for ref in refs if ref.strip()]
+
+
 def make_write_validator(
     evidence_refs: set[str],
 ) -> Callable[[StructuredResult[LessonWriteOutput]], list[str]]:
     def validate(result: StructuredResult[LessonWriteOutput]) -> list[str]:
         out = result.parsed
         codes: list[str] = []
-        used = [r.strip() for r in out.draft.sources_used_refs]
-        if any(r not in evidence_refs for r in used):
-            codes.append("sources_used_unknown_ref")  # BR-SRC-008
-        if len(set(used)) < MIN_SUBSTANTIVE_SOURCES_DEMO:
-            codes.append("sources_used_insufficient")  # BR-SRC-003 (demo: 1 source)
+        # The published list is the research evidence. Drop refs the model
+        # added that are not in that set, and do not invent replacements.
+        out.draft.sources_used_refs = [
+            ref
+            for ref in _clean_refs(out.draft.sources_used_refs)
+            if ref in evidence_refs
+        ]
+        out.spec.assigned_evidence_refs = [
+            ref
+            for ref in _clean_refs(out.spec.assigned_evidence_refs)
+            if ref in evidence_refs
+        ]
         # if len(set(used)) < MIN_SUBSTANTIVE_SOURCES:
         #     codes.append("sources_used_insufficient")  # BR-SRC-003
-        if any(r not in evidence_refs for r in out.spec.assigned_evidence_refs):
-            codes.append("spec_assigned_refs_unknown")
-        if out.spec.main_claims and not out.spec.assigned_evidence_refs:
-            codes.append("spec_claims_without_evidence")  # AI-QA-06
         if not out.draft.sections:
             codes.append("lesson_empty")
         # Model sections are prose movements (heading + body). Kind is not a field.

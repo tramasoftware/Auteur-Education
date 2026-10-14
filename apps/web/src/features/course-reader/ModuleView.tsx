@@ -84,10 +84,12 @@ export function ModuleView({ courseId, moduleId }: ModuleViewProps) {
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-3">
-        <h3 className="text-lg font-semibold">Sources used in this module</h3>
-        <SourcesList sources={module.sources} />
-      </section>
+      {module.sources.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h3 className="text-lg font-semibold">Sources used in this module</h3>
+          <SourcesList sources={module.sources} />
+        </section>
+      ) : null}
 
       {module.knowledge_check ? (
         <section className="flex flex-col gap-3">

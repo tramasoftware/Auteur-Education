@@ -25,12 +25,20 @@ export default async function Home() {
           Turn an intention to understand something into a researched course
           with a clear path, sources, and a personal library.
         </p>
-        <Link
-          href="/onboarding"
-          className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
-        >
-          Create a course
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/onboarding"
+            className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
+          >
+            Create a course
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex w-fit items-center rounded-xl border border-line bg-surface px-5 py-2.5 text-sm font-medium text-foreground cursor-pointer hover:bg-[#eceae4]"
+          >
+            Sign in
+          </Link>
+        </div>
       </div>
     </main>
   );

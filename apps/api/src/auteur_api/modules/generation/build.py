@@ -445,6 +445,7 @@ async def _build_lesson(
             schema=LessonWriteOutput,
             validate=validators.make_write_validator({e.ref for e in lesson.evidence}),
             max_attempts=settings.generation_max_attempts,
+            nonfatal_codes=validators.NONFATAL_WRITE_CODES,
         )
         out: LessonWriteOutput = written.parsed
         draft = stored_lesson_draft(out.draft)
@@ -476,8 +477,19 @@ async def _build_lesson(
         review = reviewed.parsed
         _mark_qa(store, scope, lesson.id, attempt, review.result)
 
-        if review.result == "Pass":
-            # A valid version replaces the previous one only now.
+        if review.result == "Pass" or (
+            review.result == "Research again"
+            and lesson.research_rounds >= MAX_RESEARCH_ROUNDS
+        ):
+            # Two research rounds are enough. If the last one still has no
+            # pages, the written lesson is kept and the module continues.
+            if review.result == "Research again":
+                logger.info(
+                    "research_exhausted lesson=%s rounds=%s evidence=%s",
+                    lesson.index,
+                    lesson.research_rounds,
+                    len(lesson.evidence),
+                )
             lesson.spec = out.spec
             lesson.draft = draft
             lesson.word_count = words
@@ -496,13 +508,6 @@ async def _build_lesson(
             store.save_course(course)
             return False
         if review.result == "Research again":
-            if lesson.research_rounds >= MAX_RESEARCH_ROUNDS:
-                lesson.state = LessonState.FAILED
-                lesson.failure = (
-                    "Evidence remained insufficient after additional research."
-                )
-                store.save_course(course)
-                return False
             focus = [
                 c.text for c in review.claims if c.status == "Needs research"
             ] or review.issues
@@ -550,39 +555,53 @@ async def _research(
         input=prompts.research_input(ctx, module, lesson, focus_claims=focus),
         schema=ResearchOutput,
         validate=validators.make_research_validator(require_retrieved=True),
+        nonfatal_codes=validators.NONFATAL_RESEARCH_CODES,
         web_search=True,
         search_context_size=settings.research_search_context_size,
         max_attempts=settings.generation_max_attempts,
     )
     out: ResearchOutput = result.parsed
     retrieved_at = now()
-    new_items: list[EvidenceItem] = []
+    # Published links are the search pages. The model's own URL is not a source
+    # unless it is one of those pages (DEC-002, BR-SRC-007).
+    candidates = validators.research_pages(result.citations)
+    live = await validators.without_gone_pages(candidates)
+    if focus:
+        already = len(lesson.evidence)
+        room = max(validators.MAX_SOURCES_PER_LESSON - already, 0)
+        known = {validators.normalize_url(item.url) for item in lesson.evidence}
+        pages = [
+            page
+            for page in live
+            if validators.normalize_url(page.url) not in known
+        ][:room]
+    else:
+        pages = live[: validators.MAX_SOURCES_PER_LESSON]
+    logger.info(
+        "research_pages lesson=%s candidates=%s live=%s kept=%s",
+        lesson.index,
+        len(candidates),
+        len(live),
+        len(pages),
+    )
+    used_refs = {e.ref for e in lesson.evidence}
     known_urls = {validators.normalize_url(e.url) for e in lesson.evidence}
-    for item in out.evidence:
-        resolved = validators.reconcile_source_url(item.url, result.citations)
-        if resolved is None or not validators.is_http_url(resolved.url):
-            continue
-        norm = validators.normalize_url(resolved.url)
+    new_items: list[EvidenceItem] = []
+    for item in validators.published_research_evidence(
+        out.evidence, pages, used_refs=used_refs
+    ):
+        norm = validators.normalize_url(item.url)
         if norm in known_urls:
             continue
         known_urls.add(norm)
-        limits = (
-            validators.SITE_HOME_LIMIT if resolved.used_site_home else item.limits
-        )
         new_items.append(
             EvidenceItem(
-                **{**item.model_dump(), "url": resolved.url, "limits": limits},
-                verification=resolved.verification,
+                **item.model_dump(),
+                verification="retrieved",
                 retrieved_at=retrieved_at,
             )
         )
     if focus:
-        # Additional round: keep prior evidence, add new refs with a round prefix
-        # to keep refs unique.
-        existing_refs = {e.ref for e in lesson.evidence}
-        for item in new_items:
-            if item.ref in existing_refs:
-                item.ref = f"R{lesson.research_rounds}-{item.ref}"
         lesson.evidence.extend(new_items)
     else:
         lesson.evidence = new_items

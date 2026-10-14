@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from tests.conftest import TEST_USER_ID
 from tests.fixtures import blueprint
 from tests.test_blueprints import script_full_build, selected_request
 from tests.test_build import approved_course
@@ -13,7 +14,7 @@ from tests.test_learning_requests import create
 
 from auteur_api.ai.client import GenerationError
 from auteur_api.core.background import ImmediateTaskRunner
-from auteur_api.core.config import DEMO_USER_ID, settings
+from auteur_api.core.config import settings
 from auteur_api.core.store import new_id, store
 from auteur_api.modules.blueprints.schemas import BlueprintOutput
 from auteur_api.modules.generation.build import course_needs_build, ensure_started
@@ -21,8 +22,13 @@ from auteur_api.modules.generation.schemas import (
     CourseRecord,
     CourseState,
     LessonState,
+    ModuleRecord,
     ModuleState,
     ResearchOutput,
+)
+from auteur_api.modules.generation.service import (
+    active_build_course_id,
+    course_build_is_active,
 )
 
 
@@ -33,13 +39,13 @@ def test_new_id_is_uuid_with_dashes() -> None:
     assert "-" in value
 
 
-def test_created_request_uses_uuid_and_demo_owner(client, fake_ai) -> None:
+def test_created_request_uses_uuid_and_authenticated_owner(client, fake_ai) -> None:
     response = create(client, fake_ai)
     assert response.status_code == 201
     body = response.json()
     uuid.UUID(body["id"])
     record = store.get_learning_request(body["id"])
-    assert record.user_id == DEMO_USER_ID
+    assert record.user_id == TEST_USER_ID
 
 
 def test_get_hides_other_users_learning_request(client, fake_ai) -> None:
@@ -53,13 +59,26 @@ def test_get_hides_other_users_learning_request(client, fake_ai) -> None:
     assert hidden.json()["error"]["code"] == "not_found"
 
 
-def test_invalid_bearer_token_is_unauthorized(client) -> None:
-    response = client.get(
+def test_invalid_bearer_token_is_unauthorized(open_client) -> None:
+    response = open_client.get(
         "/api/v1/learning-requests/missing",
         headers={"Authorization": "Bearer not-a-real-token"},
     )
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "unauthorized"
+
+
+def test_missing_token_is_unauthorized_in_any_environment(
+    open_client, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "app_env", "production")
+    response = open_client.get("/api/v1/learning-requests/missing")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    again = open_client.get("/api/v1/learning-requests/missing")
+    assert again.status_code == 401
 
 
 def test_published_course_get_does_not_call_ai(client, fake_ai) -> None:
@@ -156,12 +175,12 @@ def test_library_lists_only_the_callers_courses_newest_first(client) -> None:
     # BR-LIB-001: another user's course is not listed.
     # BR-LIB-002: the caller's courses are ordered by last activity.
     older = _saved_course(
-        user_id=DEMO_USER_ID,
+        user_id=TEST_USER_ID,
         title="Older course",
         created_at=datetime(2026, 9, 1, tzinfo=UTC),
     )
     newer = _saved_course(
-        user_id=DEMO_USER_ID,
+        user_id=TEST_USER_ID,
         title="Newer course",
         created_at=datetime(2026, 9, 1, tzinfo=UTC) + timedelta(days=2),
         state=CourseState.PARTIALLY_AVAILABLE,
@@ -187,6 +206,144 @@ def test_library_is_empty_without_courses(client) -> None:
     response = client.get("/api/v1/courses")
     assert response.status_code == 200
     assert response.json() == {"courses": []}
+
+
+def _module(state: ModuleState, index: int = 1) -> ModuleRecord:
+    return ModuleRecord(
+        id=new_id(),
+        index=index,
+        title=f"Module {index}",
+        function="Develop the idea",
+        guiding_questions=["What changes?"],
+        outcome="A clearer account",
+        qa_criteria=["Stays on the objective"],
+        state=state,
+    )
+
+
+def test_active_build_check_does_not_load_lessons(client, monkeypatch) -> None:
+    # BR-GEN-002: the check needs module states, not lesson bodies.
+    writing = _saved_course(
+        user_id=TEST_USER_ID,
+        title="Course being written",
+        created_at=datetime(2026, 9, 2, tzinfo=UTC),
+        state=CourseState.WRITING,
+    )
+    writing.modules = [_module(ModuleState.WRITING)]
+    store.save_course(writing)
+    capped = _saved_course(
+        user_id=TEST_USER_ID,
+        title="Demo cap reached",
+        created_at=datetime(2026, 9, 3, tzinfo=UTC),
+        state=CourseState.PARTIALLY_AVAILABLE,
+    )
+    capped.module_limit = 1
+    capped.modules = [
+        _module(ModuleState.PUBLISHED, 1),
+        _module(ModuleState.NOT_BUILT, 2),
+    ]
+    store.save_course(capped)
+    _saved_course(
+        user_id=TEST_USER_ID,
+        title="Finished course",
+        created_at=datetime(2026, 9, 4, tzinfo=UTC),
+        state=CourseState.COMPLETE,
+    )
+
+    def fail_full_load(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("active build check loaded a full course")
+
+    monkeypatch.setattr(store, "get_course", fail_full_load)
+    assert active_build_course_id(store, TEST_USER_ID) == writing.id
+
+
+def test_open_build_lookup_loads_module_states_only() -> None:
+    from auteur_api.core.postgres_store import PostgresStore
+
+    query = _RecordingQuery(
+        [
+            {
+                "id": "course-writing",
+                "state": "writing",
+                "module_limit": 1,
+                "final_synthesis": None,
+                "modules": [{"state": "writing"}],
+            },
+            {
+                "id": "course-capped",
+                "state": "partially_available",
+                "module_limit": 1,
+                "final_synthesis": None,
+                "modules": [{"state": "published"}, {"state": "not_built"}],
+            },
+            {
+                "id": "course-synthesis",
+                "state": "partially_available",
+                "module_limit": None,
+                "final_synthesis": None,
+                "modules": [{"state": "published"}],
+            },
+            {
+                "id": "course-with-synthesis",
+                "state": "partially_available",
+                "module_limit": None,
+                "final_synthesis": {"body": "already written"},
+                "modules": [{"state": "published"}],
+            },
+        ]
+    )
+    snapshots = PostgresStore(_TableClient(query)).list_course_build_snapshots("user-1")
+    by_id = {item.id: item for item in snapshots}
+
+    assert query.selected == "id,state,module_limit,final_synthesis,modules(state)"
+    assert "lessons" not in query.selected
+    assert ("eq", "user_id", "user-1") in query.filters
+    assert ("not_in", "state", ["complete", "failed"]) in query.filters
+    assert course_build_is_active(by_id["course-writing"])
+    assert course_build_is_active(by_id["course-synthesis"])
+    assert not course_build_is_active(by_id["course-capped"])
+    assert not course_build_is_active(by_id["course-with-synthesis"])
+    assert active_build_course_id(
+        PostgresStore(_TableClient(query)), "user-1"
+    ) == "course-writing"
+
+
+class _RecordingQuery:
+    def __init__(self, data: list[dict[str, object]]) -> None:
+        self.selected: str | None = None
+        self.filters: list[tuple[object, ...]] = []
+        self._data = data
+
+    def select(self, columns: str) -> _RecordingQuery:
+        self.selected = columns
+        return self
+
+    def eq(self, column: str, value: object) -> _RecordingQuery:
+        self.filters.append(("eq", column, value))
+        return self
+
+    @property
+    def not_(self) -> _RecordingQuery:
+        return self
+
+    def in_(self, column: str, values: list[str]) -> _RecordingQuery:
+        self.filters.append(("not_in", column, values))
+        return self
+
+    def order(self, column: str, *, desc: bool = False) -> _RecordingQuery:
+        self.filters.append(("order", column, desc))
+        return self
+
+    def execute(self) -> object:
+        return type("Response", (), {"data": self._data})()
+
+
+class _TableClient:
+    def __init__(self, query: _RecordingQuery) -> None:
+        self._query = query
+
+    def table(self, _name: str) -> _RecordingQuery:
+        return self._query
 
 
 def test_read_retries_when_the_connection_drops() -> None:

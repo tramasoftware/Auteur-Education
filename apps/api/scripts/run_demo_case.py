@@ -176,8 +176,10 @@ def run(api: Api, case_key: str, until: str, evidence: dict[str, Any]) -> None:
         else:
             vis = bp["blueprint"]
             print(f"  blueprint v{bp['current_version']}: {vis['title']}")
-            for m in vis["modules"]:
-                print(f"    {m['index']}. {m['title']} ({len(m['lessons'])} lessons)")
+            for index, module in enumerate(vis["modules"], start=1):
+                print(
+                    f"    {index}. {module['title']} ({len(module['lessons'])} lessons)"
+                )
             if until == "course":
                 approved = api.call(
                     "POST",

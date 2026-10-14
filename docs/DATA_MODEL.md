@@ -25,7 +25,7 @@ El plano de datos para el navegador sigue siendo FastAPI (DEC-012). El frontend 
 
 1:1 con `auth.users`. Trigger `private.handle_new_user` inserta el perfil.
 
-El usuario demo `00000000-0000-0000-0000-000000000001` se siembra para el bypass no productivo (DEC-011).
+El visitante sin cuenta es un usuario anónimo de Supabase. Al crear la cuenta, el mismo `id` se conserva, o FastAPI mueve las filas si entra a una cuenta que ya existía (DEC-011).
 
 ### `learning_requests`
 
@@ -74,8 +74,8 @@ auth.users
 
 ## RLS
 
-RLS está activo en las nueve tablas de dominio. Policies `authenticated`: `user_id = auth.uid()` para SELECT/INSERT/UPDATE. Sin DELETE para el learner. `anon` no tiene grants. El backend escribe con `service_role` después de atribuir `user_id` (JWT o demo).
+RLS está activo en las nueve tablas de dominio. `anon` y `authenticated` no tienen grants: el navegador no lee esas tablas. `service_role` escribe después de verificar el JWT. Una policy restrictiva niega el JWT anónimo si esos grants volvieran a existir.
 
 ## Fuera de alcance
 
-Autenticación de producto, Stripe, créditos, ElevenLabs, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`).
+Stripe, créditos, ElevenLabs, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011).

@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BlueprintNavIcon } from "@/components/icons/BlueprintNavIcon";
+import { AccountControls } from "@/features/auth/AccountControls";
 import { resolveCreationNavTarget, type CreationNavTarget } from "@/lib/activeBuild";
 import {
   isCourseFlowPath,
@@ -83,6 +84,10 @@ export function SiteHeader() {
 
   function closeMenu() {
     setMenuOpen(false);
+  }
+
+  if (pathname === "/login" || pathname.startsWith("/auth")) {
+    return null;
   }
 
   return (
@@ -202,6 +207,7 @@ function SiteNav({
           </Link>
         );
       })}
+      <AccountControls onNavigate={onNavigate} />
     </nav>
   );
 }
