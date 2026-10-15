@@ -92,6 +92,18 @@ function post<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
+export type AccountProfile = {
+  first_name: string | null;
+  last_name: string | null;
+  birth_date: string | null;
+  gender: string | null;
+  avatar_url: string | null;
+};
+
+export function getAccountProfile(): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile");
+}
+
 export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
 }

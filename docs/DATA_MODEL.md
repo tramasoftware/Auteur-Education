@@ -23,7 +23,9 @@ El plano de datos para el navegador sigue siendo FastAPI (DEC-012). El frontend 
 
 ### `profiles`
 
-1:1 con `auth.users`. Trigger `private.handle_new_user` inserta el perfil.
+1:1 con `auth.users`. Trigger `private.handle_new_user` inserta el perfil y, si el alta trae datos, copia `first_name`, `last_name`, `birth_date` y `gender`. Esos campos quedan vacíos en un visitante anónimo. No autorizan nada: el acceso sigue saliendo del `id` verificado.
+
+`birth_date` es una fecha que, al momento del alta, corresponde a una edad de 13 a 120 años. `gender` es `female`, `male`, `nonbinary` o `undisclosed`. Si el alta llega por Google y el nombre todavía está vacío, el trigger parte `full_name` en `first_name` y `last_name` y guarda `avatar_url` solo cuando es una URL `https`.
 
 El visitante sin cuenta es un usuario anónimo de Supabase. Al crear la cuenta, el mismo `id` se conserva, o FastAPI mueve las filas si entra a una cuenta que ya existía (DEC-011).
 

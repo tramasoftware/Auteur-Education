@@ -8,7 +8,7 @@ export function isAnonymousClaim(
 export type AccountSession =
   | { status: "guest" }
   | { status: "anonymous" }
-  | { status: "registered"; email: string | null; method: string | null };
+  | { status: "registered"; email: string | null };
 
 /** Display fields from a verified JWT. Identity still comes from the user id, not metadata. */
 export function accountSession(
@@ -24,21 +24,5 @@ export function accountSession(
   return {
     status: "registered",
     email: email || null,
-    method: signInMethod(claims),
   };
-}
-
-function signInMethod(claims: Record<string, unknown>): string | null {
-  const metadata = claims.app_metadata;
-  if (!metadata || typeof metadata !== "object") {
-    return null;
-  }
-  const provider = (metadata as { provider?: unknown }).provider;
-  if (provider === "email") {
-    return "Email";
-  }
-  if (provider === "google") {
-    return "Google";
-  }
-  return null;
 }

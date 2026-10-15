@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from auteur_api.api.v1.router import api_router
@@ -58,6 +58,9 @@ def create_app() -> FastAPI:
         title="Auteur Education API",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
     application.add_middleware(
         CORSMiddleware,
@@ -66,6 +69,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.middleware("http")
+    async def private_api_responses(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "private, no-store"
+        return response
+
     register_error_handlers(application)
     application.include_router(health_router)
     application.include_router(api_router, prefix="/api/v1")

@@ -4,11 +4,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { safeInternalPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
-const PASSWORD_STEP = new Set(["recovery", "email_change"]);
+const OTP_TYPES = new Set<EmailOtpType>([
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+]);
+const PASSWORD_STEP = new Set<EmailOtpType>(["recovery", "email_change"]);
 
 export async function GET(request: NextRequest) {
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
-  const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null;
+  const type = otpType(request.nextUrl.searchParams.get("type"));
   const code = request.nextUrl.searchParams.get("code");
   const next = safeInternalPath(request.nextUrl.searchParams.get("next"));
   const supabase = await createClient();
@@ -28,6 +36,13 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(new URL("/login?error=link", request.url));
+}
+
+function otpType(value: string | null): EmailOtpType | null {
+  if (value && OTP_TYPES.has(value as EmailOtpType)) {
+    return value as EmailOtpType;
+  }
+  return null;
 }
 
 function redirectAfterConfirm(

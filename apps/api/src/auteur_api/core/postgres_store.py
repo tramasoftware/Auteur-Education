@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -13,7 +13,7 @@ from supabase import Client, create_client
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
 from auteur_api.core.errors import not_found
-from auteur_api.core.store import CourseBuildSnapshot, assert_owner
+from auteur_api.core.store import CourseBuildSnapshot, ProfileRecord, assert_owner
 from auteur_api.modules.blueprints.schemas import (
     BlueprintInternal,
     BlueprintRecord,
@@ -57,6 +57,16 @@ def _dt(value: object) -> datetime:
         return value
     text = str(value).replace("Z", "+00:00")
     return datetime.fromisoformat(text)
+
+
+def _https_avatar(value: object) -> str | None:
+    if (
+        not isinstance(value, str)
+        or not value.startswith("https://")
+        or len(value) > 500
+    ):
+        return None
+    return value
 
 
 def _dump(model: object | None) -> object | None:
@@ -509,6 +519,29 @@ class PostgresStore:
             or []
         )
         return [row["id"] for row in rows]
+
+    def get_profile(self, user_id: str) -> ProfileRecord:
+        rows = (
+            self._table("profiles")
+            .select("first_name,last_name,birth_date,gender,avatar_url")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not rows:
+            return ProfileRecord()
+        row = rows[0]
+        raw_birth = row.get("birth_date")
+        birth_date = date.fromisoformat(str(raw_birth)[:10]) if raw_birth else None
+        return ProfileRecord(
+            first_name=row.get("first_name"),
+            last_name=row.get("last_name"),
+            birth_date=birth_date,
+            gender=row.get("gender"),
+            avatar_url=_https_avatar(row.get("avatar_url")),
+        )
 
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
         """Move one visitor's rows onto a permanent account (BR-AUT-005)."""

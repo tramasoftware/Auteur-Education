@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from auteur_api.ai.tracing import StageTrace
@@ -79,6 +79,15 @@ def assert_owner(record_user_id: str | None, user_id: str | None) -> None:
         raise not_found("Resource")
 
 
+@dataclass(frozen=True)
+class ProfileRecord:
+    first_name: str | None = None
+    last_name: str | None = None
+    birth_date: date | None = None
+    gender: str | None = None
+    avatar_url: str | None = None
+
+
 class Store(Protocol):
     def get_learning_request(
         self, request_id: str, *, user_id: str | None = None
@@ -122,6 +131,8 @@ class Store(Protocol):
 
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None: ...
 
+    def get_profile(self, user_id: str) -> ProfileRecord: ...
+
 
 class DemoStore:
     def __init__(self) -> None:
@@ -129,6 +140,7 @@ class DemoStore:
         self.blueprints: dict[str, BlueprintRecord] = {}
         self.courses: dict[str, CourseRecord] = {}
         self.traces: dict[str, list[StageTrace]] = {}
+        self.profiles: dict[str, ProfileRecord] = {}
 
     def reset(self) -> None:
         self.__init__()
@@ -231,6 +243,9 @@ class DemoStore:
         for record in self.courses.values():
             if record.user_id == from_user_id:
                 record.user_id = to_user_id
+
+    def get_profile(self, user_id: str) -> ProfileRecord:
+        return self.profiles.get(user_id, ProfileRecord())
 
 
 store = DemoStore()

@@ -1,11 +1,13 @@
 """Claim an anonymous visitor's learning request after sign-in (UF-06)."""
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 
 from auteur_api.core.auth import (
+    CurrentUserId,
     bearer_token,
     discard_anonymous_user,
     user_from_access_token,
@@ -22,6 +24,26 @@ Store = Annotated[StoreBackend, Depends(get_store)]
 
 class ClaimResponse(BaseModel):
     attached: bool
+
+
+class ProfileResponse(BaseModel):
+    first_name: str | None
+    last_name: str | None
+    birth_date: date | None
+    gender: str | None
+    avatar_url: str | None
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def get_profile(store: Store, user_id: CurrentUserId) -> ProfileResponse:
+    profile = store.get_profile(user_id)
+    return ProfileResponse(
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        birth_date=profile.birth_date,
+        gender=profile.gender,
+        avatar_url=profile.avatar_url,
+    )
 
 
 @router.post("/claim", response_model=ClaimResponse)

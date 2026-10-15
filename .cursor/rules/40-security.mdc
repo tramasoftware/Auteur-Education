@@ -19,6 +19,8 @@ Never:
 
 Server-side credentials remain server-side.
 
+Never expose Supabase service-role keys, secret API keys, private signing keys, or equivalent privileged credentials to the browser.
+
 ---
 
 ## 2. AI Providers
@@ -39,6 +41,9 @@ Do not expose:
 * database credentials;
 * Stripe secret keys;
 * internal service credentials.
+* privileged Supabase credentials.
+
+Use the least-privileged credentials available for each operation.
 
 ---
 
@@ -47,6 +52,8 @@ Do not expose:
 Environment variables containing secrets must remain server-side.
 
 Public frontend environment variables must contain only values explicitly safe for browser exposure.
+
+Never assume a variable is private merely because it is stored in an environment file. Inspect how it is imported and used.
 
 ---
 
@@ -61,8 +68,11 @@ Validate:
 * path parameters;
 * external provider responses;
 * user-controlled content.
+* identifiers and permissions received from clients.
 
 Do not assume AI-generated output is valid.
+
+Validate inputs at the appropriate server-side trust boundary.
 
 ---
 
@@ -86,36 +96,112 @@ Never expose:
 * tokens;
 * database details;
 * provider secrets.
+* internal security implementation details.
 
-Return safe user-facing errors.
-
----
-
-## 8. Authorization
-
-Hiding UI elements is not authorization.
-
-When authentication and permissions are implemented, enforce them server-side.
-
-Do not implement authentication prematurely merely because the final product will require it.
+Return safe user-facing errors without leaking sensitive information.
 
 ---
 
-## 9. Logging
+## 8. Authorization and Authorization
+
+Authentication and authorization are distinct responsibilities.
+
+* Authentication establishes the identity of the user.
+* Authorization determines what that identity is permitted to access.
+
+When authentication is implemented:
+
+* Enforce authorization server-side for every protected operation.
+* Never rely solely on frontend route guards or hidden UI elements.
+* Never trust client-supplied user IDs, roles, permissions, ownership, or tenant IDs without server-side verification.
+* Deny access by default when authorization cannot be established.
+* Apply least privilege.
+* Verify resource ownership and organization membership where applicable.
+* Prevent users from assigning themselves privileged roles.
+* Protect against cross-user and cross-tenant data access.
+* Do not bypass authentication or authorization to make a feature work.
+
+Do not implement authentication prematurely before the relevant architecture and requirements have been approved.
+
+---
+
+## 9. Approved Authentication Provider
+
+Supabase Auth is the intended authentication provider unless an explicit architectural decision changes this requirement.
+
+* Use supported Supabase Auth SDKs and documented authentication flows.
+* Do not build a custom password authentication system.
+* Do not implement custom JWT issuance or signing.
+* Do not invent a separate session or refresh-token mechanism.
+* Do not assume a token is valid merely because it can be decoded.
+* Verify credentials using a supported, secure server-side mechanism appropriate to the token type and application architecture.
+* Consult the official documentation for the installed SDK versions before implementing security-sensitive behavior.
+
+If the existing implementation conflicts with these rules, report the conflict before changing the architecture.
+
+---
+
+## 10. Sessions and Cookies
+
+Session handling must follow the approved authentication architecture.
+
+When browser sessions use cookies:
+
+- Use HTTPS in production.
+- Set appropriate Secure, HttpOnly, and SameSite attributes according to the chosen flow.
+- Evaluate CSRF protections for cookie-authenticated state-changing requests.
+- Avoid exposing session or refresh tokens to browser JavaScript when the selected architecture can securely avoid it.
+- Handle expiration, refresh, logout, and revocation using supported mechanisms.
+- Do not store privileged credentials or long-lived refresh tokens in localStorage.
+- Do not expose tokens in URLs, logs, analytics, or error messages.
+- Ensure personalized responses are not accidentally shared through public caches.
+
+Do not introduce a BFF, middleware, or another session architecture without checking existing project decisions first.
+
+## 11. User Experience and Branding
+
+Authentication must use Auteur Education's own interface and visual identity.
+
+- Build custom application screens for login, registration, logout, email verification, and password recovery where required.
+- Do not introduce a default third-party login interface unless explicitly approved.
+- Customize email templates and sender configuration when supported by the selected provider and deployment.
+- Use approved application URLs for authentication callbacks and recovery flows.
+- Never claim that provider branding has been completely removed without checking the rendered pages, emails, redirects, and links.
+- Third-party identity providers may display their own consent or authentication screens.
+
+Branding requirements must never weaken token validation, session security, or account recovery protections.
+
+## 12. Database Access and Row Level Security
+
+When Supabase PostgreSQL is accessed through user-scoped credentials:
+
+- Enable and correctly configure Row Level Security on tables that require user-level isolation.
+- Write policies that enforce the intended ownership, role, and tenant boundaries.
+- Test both permitted and forbidden access.
+- Never assume that enabling RLS alone guarantees correct authorization.
+- Never disable RLS or weaken policies as a workaround.
+- Never use service-role credentials for ordinary user-scoped queries.
+- Remember that privileged database connections may bypass RLS and require separate server-side authorization controls.
+
+Inspect the actual database access path before deciding which protections apply.
+
+## 13. Logging
 
 Do not log:
 
-* passwords;
-* API keys;
-* authentication tokens;
-* secrets;
-* unnecessary sensitive user data.
+- passwords;
+- API keys;
+- access tokens;
+- refresh tokens;
+- recovery tokens;
+- secrets;
+- unnecessary sensitive user data.
 
 Logs should contain only information useful for diagnosis.
 
----
+Authentication and authorization failures may be logged safely without recording credentials or sensitive token contents.
 
-## 10. Dependencies
+## 14. Dependencies
 
 Do not add security-sensitive dependencies without justification.
 
@@ -123,32 +209,49 @@ Keep dependencies minimal.
 
 Prefer maintained, established packages when an external dependency is genuinely required.
 
----
+Check compatibility with the installed framework and SDK versions before adding or upgrading dependencies.
 
-## 11. Demo vs Production
+## 15. Demo vs Production
 
 Temporary demo configurations must not be mistaken for production security architecture.
 
 Explicitly identify temporary:
 
-* CORS;
-* authentication bypasses;
-* mock credentials;
-* in-memory state;
-* development-only behavior.
+- CORS;
+- authentication bypasses;
+- mock credentials;
+- in-memory state;
+- development-only behavior.
 
 Never commit real credentials to support a demo.
 
----
+Never introduce a production authentication bypass for testing convenience.
 
-## 12. Security Principle
+## 16. Security Testing
 
-Security should be enforced at the actual trust boundary.
+When modifying authentication, authorization, sessions, or protected data access:
+
+- Add or update automated security tests.
+- Test missing, malformed, expired, and invalid credentials.
+- Test unauthorized access and privilege escalation attempts.
+- Test cross-user and cross-tenant access attempts where applicable.
+- Test logout, refresh, recovery, and verification flows.
+- Test database policies and RLS where applicable.
+- Run relevant tests, type checks, and linting.
+- Report failed tests, unverified assumptions, and remaining risks explicitly.
+
+Passing tests does not, by itself, prove that the application is secure.
+
+## 17. Security Principle
+
+Security must be enforced at the actual trust boundary.
 
 Frontend behavior improves UX.
 
 Backend behavior enforces security.
 
-External providers must be treated as untrusted dependencies.
+Database policies enforce data-level restrictions where applicable.
+
+External providers must be treated as dependencies whose configuration and behavior require verification.
 
 User input and AI output must both be validated.

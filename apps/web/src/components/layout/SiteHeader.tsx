@@ -5,7 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BlueprintNavIcon } from "@/components/icons/BlueprintNavIcon";
-import { AccountControls } from "@/features/auth/AccountControls";
 import { resolveCreationNavTarget, type CreationNavTarget } from "@/lib/activeBuild";
 import {
   isCourseFlowPath,
@@ -207,7 +206,6 @@ function SiteNav({
           </Link>
         );
       })}
-      <AccountControls onNavigate={onNavigate} />
     </nav>
   );
 }

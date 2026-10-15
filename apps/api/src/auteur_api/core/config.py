@@ -16,6 +16,17 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    @field_validator("cors_origins")
+    @classmethod
+    def cors_origins_are_explicit(cls, value: list[str]) -> list[str]:
+        cleaned = [origin.strip() for origin in value if origin.strip()]
+        if any(origin == "*" for origin in cleaned):
+            raise ValueError(
+                "CORS origins must be explicit. "
+                "A wildcard is not allowed with credentials."
+            )
+        return cleaned
+
     # AI provider (server-side only; never exposed to the frontend). BR-SEC-001.
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1"

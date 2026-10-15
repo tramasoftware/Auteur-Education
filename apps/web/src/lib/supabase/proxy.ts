@@ -23,6 +23,9 @@ export async function updateSession(request: NextRequest) {
         Object.entries(headers).forEach(([header, value]) => {
           supabaseResponse.headers.set(header, value);
         });
+        if (!supabaseResponse.headers.has("Cache-Control")) {
+          supabaseResponse.headers.set("Cache-Control", "private, no-store");
+        }
       },
     },
   });

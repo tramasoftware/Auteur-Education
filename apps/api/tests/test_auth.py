@@ -1,10 +1,14 @@
 """Product identity: anonymous rows move only after both sessions are verified."""
 
+from datetime import date
+
+import pytest
+from pydantic import ValidationError
 from tests.conftest import TEST_USER_ID
 from tests.test_learning_requests import create
 
 from auteur_api.core.auth import VerifiedUser
-from auteur_api.core.store import store
+from auteur_api.core.store import ProfileRecord, store
 from auteur_api.modules.auth.service import attach_anonymous_owner
 
 ANONYMOUS_USER_ID = "20000000-0000-4000-8000-000000000002"
@@ -102,6 +106,41 @@ def test_claim_moves_rows_for_a_verified_anonymous_source(
     assert response.json() == {"attached": True}
     assert store.get_learning_request(request_id).user_id == TEST_USER_ID
     assert discarded == [ANONYMOUS_USER_ID]
+
+
+def test_cors_rejects_a_wildcard_origin() -> None:
+    from auteur_api.core.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(cors_origins=["*"])
+
+
+def test_claim_without_tokens_is_unauthorized(open_client) -> None:
+    response = open_client.post("/api/v1/auth/claim")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+def test_account_profile_is_not_publicly_cacheable(client) -> None:
+    store.profiles[TEST_USER_ID] = ProfileRecord(
+        first_name="Ada",
+        last_name="Lovelace",
+        birth_date=date(1990, 12, 10),
+        gender="female",
+    )
+
+    response = client.get("/api/v1/auth/profile")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json() == {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "birth_date": "1990-12-10",
+        "gender": "female",
+        "avatar_url": None,
+    }
 
 
 def test_anonymous_session_can_read_but_cannot_start_a_blueprint(
