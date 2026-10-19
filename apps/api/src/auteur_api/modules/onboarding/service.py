@@ -133,6 +133,7 @@ def _recovery_alternative_codes(out: RequestAnalysisOutput) -> list[str]:
         not item.title.strip()
         or not item.explanation.strip()
         or not item.suggested_intent.strip()
+        or not item.suggested_outcome.strip()
         for item in alternatives
     ):
         codes.append("recovery_alternatives_incomplete")
@@ -175,7 +176,7 @@ async def create_learning_request(
             scope_id=request_id,
             stage="AI-STG-01/02",
             target=f"learning_request:{request_id}",
-            prompt_version=prompts.ANALYZE_REQUEST_V4,
+            prompt_version=prompts.ANALYZE_REQUEST_V5,
             instructions=prompts.ANALYZE_REQUEST_INSTRUCTIONS,
             input=prompts.analyze_request_input(inputs),
             schema=RequestAnalysisOutput,

@@ -9,6 +9,7 @@ from auteur_api.modules.onboarding.schemas import (
     CompatibilityAssessment,
     Interpretation,
     LearningObjectiveOutput,
+    RecoveryAlternative,
     RequestAnalysisOutput,
 )
 
@@ -71,6 +72,7 @@ def test_incompatible_request_cannot_continue(client, fake_ai) -> None:
     assert alternatives[0]["title"]
     assert alternatives[0]["explanation"]
     assert alternatives[0]["suggested_intent"]
+    assert alternatives[0]["suggested_outcome"]
     precision = client.post(
         f"/api/v1/learning-requests/{body['id']}/precision",
         json={"option_id": "x"},
@@ -125,6 +127,34 @@ def test_weapons_incompatible_has_no_recovery_alternatives(client, fake_ai) -> N
     assert body["compatibility"]["risk_category"] == "weapons"
     assert body["compatibility"]["recovery_alternatives"] == []
     assert "recovery_alternatives_not_allowed" in fake_ai.calls[1]["input"]
+
+
+def test_recovery_alternative_without_outcome_is_retried(client, fake_ai) -> None:
+    incomplete = recovery_alternatives()
+    incomplete[0]["suggested_outcome"] = "  "
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(classification="Incompatible", alternatives=incomplete),
+    )
+    fake_ai.enqueue(RequestAnalysisOutput, analysis(classification="Incompatible"))
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    outcome = response.json()["compatibility"]["recovery_alternatives"][0][
+        "suggested_outcome"
+    ]
+    assert outcome.strip()
+    assert "recovery_alternatives_incomplete" in fake_ai.calls[1]["input"]
+
+
+def test_saved_recovery_alternative_without_outcome_stays_readable() -> None:
+    loaded = RecoveryAlternative.model_validate(
+        {
+            "title": "Direction",
+            "explanation": "A related intention.",
+            "suggested_intent": "I want to understand the criteria.",
+        }
+    )
+    assert loaded.suggested_outcome == ""
 
 
 def test_saved_compatibility_without_recovery_alternatives_defaults_empty() -> None:
@@ -263,6 +293,8 @@ def test_compatibility_prompt_treats_applied_foundations_as_allowed() -> None:
     assert "Photoshop" in text
     assert "learning_orientation" in text
     assert "recovery_alternatives" in text
+    assert "suggested_outcome" in text
+    assert "What do you want to be able to do or understand?" in text
     assert "Do not rescue an applied request as the history" in text
     assert "Do not choose the class that lets a practical request continue" not in text
 

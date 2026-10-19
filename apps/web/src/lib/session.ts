@@ -1,3 +1,5 @@
+import type { ExperienceLevel } from "@/types/generator";
+
 /**
  * Resume support (UF-05): remember the current learning request in the browser
  * so a reload returns to the last persisted step. Course and Blueprint URLs
@@ -100,24 +102,78 @@ export function forgetRequestId(): void {
   }
 }
 
-/** Suggested intention from an incompatible recovery card (DEC-016). */
-const DRAFT_INTENT_KEY = "auteur.demo.draftIntent";
+const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
+const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
+  "None",
+  "Basic",
+  "Intermediate",
+  "Advanced",
+]);
 
-export function rememberDraftIntent(intent: string): void {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(DRAFT_INTENT_KEY, intent);
+/** Form values kept while sign-in interrupts "Analyze my intention". */
+export type OnboardingDraft = {
+  initial_intent: string;
+  experience_level: ExperienceLevel;
+  prior_knowledge: string | null;
+  expected_outcome: string;
+};
+
+// useSyncExternalStore requires the same snapshot object until storage changes.
+let cachedDraftRaw: string | null = null;
+let cachedDraft: OnboardingDraft | null = null;
+
+function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<OnboardingDraft>;
+    if (
+      typeof parsed.initial_intent !== "string" ||
+      typeof parsed.expected_outcome !== "string" ||
+      !EXPERIENCE_LEVELS.has(parsed.experience_level as ExperienceLevel) ||
+      (parsed.prior_knowledge !== null && typeof parsed.prior_knowledge !== "string")
+    ) {
+      return null;
+    }
+    return {
+      initial_intent: parsed.initial_intent,
+      experience_level: parsed.experience_level as ExperienceLevel,
+      prior_knowledge: parsed.prior_knowledge ?? null,
+      expected_outcome: parsed.expected_outcome,
+    };
+  } catch {
+    return null;
   }
 }
 
-export function recallDraftIntent(): string | null {
+export function rememberOnboardingDraft(draft: OnboardingDraft): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const raw = JSON.stringify(draft);
+  cachedDraftRaw = raw;
+  cachedDraft = draft;
+  window.sessionStorage.setItem(ONBOARDING_DRAFT_KEY, raw);
+}
+
+export function recallOnboardingDraft(): OnboardingDraft | null {
   if (typeof window === "undefined") {
     return null;
   }
-  return window.sessionStorage.getItem(DRAFT_INTENT_KEY);
+  const raw = window.sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
+  if (raw === cachedDraftRaw) {
+    return cachedDraft;
+  }
+  cachedDraftRaw = raw;
+  cachedDraft = parseOnboardingDraft(raw);
+  return cachedDraft;
 }
 
-export function forgetDraftIntent(): void {
+export function forgetOnboardingDraft(): void {
+  cachedDraftRaw = null;
+  cachedDraft = null;
   if (typeof window !== "undefined") {
-    window.sessionStorage.removeItem(DRAFT_INTENT_KEY);
+    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
   }
 }

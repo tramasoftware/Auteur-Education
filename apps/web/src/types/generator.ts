@@ -50,6 +50,7 @@ export type RecoveryAlternative = {
   title: string;
   explanation: string;
   suggested_intent: string;
+  suggested_outcome: string;
 };
 
 export type CompatibilityAssessment = {

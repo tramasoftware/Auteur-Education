@@ -120,7 +120,7 @@ Antes de generar propuestas, el sistema clasifica la solicitud como:
 - `Allowed with reframing`: contiene una dimensión teórica, histórica, crítica o metodológica que puede enseñarse si se reformula honestamente;
 - `Incompatible`: depende de demostraciones visuales, corporales, manuales, procedimentales o de otro tipo que el producto no puede ofrecer adecuadamente.
 
-Una solicitud `Incompatible` por ese límite del medio no continúa. El sistema explica el límite y ofrece tres intenciones relacionadas, enseñables por texto y audio, en la misma orientación ya clasificada (comprensión del campo, o fundamentos aplicados de la materia). Elegir una vuelve al formulario con solo esa intención autocompletada. No son propuestas de curso ni equivalen al resultado práctico original. Si el riesgo es seguridad o armas, no se ofrecen alternativas.
+Una solicitud `Incompatible` por ese límite del medio no continúa. El sistema explica el límite y ofrece tres intenciones relacionadas, enseñables por texto y audio, en la misma orientación ya clasificada (comprensión del campo, o fundamentos aplicados de la materia). Cada una trae la intención y un resultado esperado básico; el nivel parte de `None` y los conocimientos previos van vacíos. La persona puede editarlos. Elegir una crea una solicitud nueva, que se clasifica de nuevo. No son propuestas de curso ni equivalen al resultado práctico original. Si el riesgo es seguridad o armas, no se ofrecen alternativas.
 
 Las solicitudes prácticas en ámbitos sensibles, como salud, derecho, finanzas, seguridad o armas, deben limitarse a alfabetización general y contenidos teóricos o rechazarse cuando no puedan tratarse de manera segura.
 

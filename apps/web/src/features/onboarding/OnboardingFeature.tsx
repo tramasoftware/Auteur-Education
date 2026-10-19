@@ -16,7 +16,6 @@ import {
   Select,
   Notice,
   StatusBadge,
-  ArrowRightIcon,
   inputClass,
   textareaClass,
 } from "@/components/ui";
@@ -25,14 +24,16 @@ import { ApiError, learningRequests } from "@/lib/api";
 import { requestStateLabel } from "@/lib/labels";
 import {
   forgetCourseFlowPath,
-  forgetDraftIntent,
+  forgetOnboardingDraft,
   forgetRequestId,
-  recallDraftIntent,
+  recallOnboardingDraft,
   recallRequestId,
-  rememberDraftIntent,
+  rememberOnboardingDraft,
   rememberRequestId,
+  type OnboardingDraft,
 } from "@/lib/session";
-import type { ExperienceLevel, LearningRequest } from "@/types/generator";
+import { createClient } from "@/lib/supabase/browser";
+import type { ExperienceLevel, LearningRequest, RecoveryAlternative } from "@/types/generator";
 
 const LEVELS: ExperienceLevel[] = ["None", "Basic", "Intermediate", "Advanced"];
 /** Matches API `max_free_text_chars`; not a product rule. */
@@ -68,7 +69,7 @@ export function OnboardingFeature() {
     setError(null);
     try {
       const next = await action();
-      forgetDraftIntent();
+      forgetOnboardingDraft();
       rememberRequestId(next.id);
       setRequest(next);
       router.replace(`/onboarding?request=${next.id}`);
@@ -121,20 +122,29 @@ export function OnboardingFeature() {
     }
   };
 
+  const analyzeIntention = async (payload: OnboardingDraft) => {
+    const supabase = createClient();
+    let registered = false;
+    try {
+      // getUser checks the token with Auth. A stale claim must not start analysis.
+      const { data, error } = await supabase.auth.getUser();
+      registered = !error && Boolean(data.user) && !data.user.is_anonymous;
+    } catch {
+      registered = false;
+    }
+    if (!registered) {
+      rememberOnboardingDraft(payload);
+      router.push(`/login?next=${encodeURIComponent("/onboarding")}`);
+      return;
+    }
+    await run(() => learningRequests.create(payload));
+  };
+
   const resetFromScratch = () => {
-    forgetDraftIntent();
+    forgetOnboardingDraft();
     forgetRequestId();
     forgetCourseFlowPath();
     // Full navigation resets client state; client routing alone left stale onboarding UI.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
-    window.location.assign("/onboarding");
-  };
-
-  const useRecoveryIntention = (suggestedIntent: string) => {
-    rememberDraftIntent(suggestedIntent);
-    forgetRequestId();
-    forgetCourseFlowPath();
-    // Same full navigation as start-over: this page already holds the rejected request.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
     window.location.assign("/onboarding");
   };
@@ -149,7 +159,9 @@ export function OnboardingFeature() {
         <IntentForm
           busy={loading}
           error={error}
-          onSubmit={(payload) => run(() => learningRequests.create(payload))}
+          onSubmit={(payload) => {
+            void analyzeIntention(payload);
+          }}
         />
       </div>
     );
@@ -161,8 +173,9 @@ export function OnboardingFeature() {
 
       {request.state === "incompatible" ? (
         <IncompatibleIntention
+          busy={loading}
           onStartOver={resetFromScratch}
-          onUseIntention={useRecoveryIntention}
+          onUseIntention={(payload) => run(() => learningRequests.create(payload))}
           request={request}
         />
       ) : null}
@@ -208,29 +221,27 @@ export function OnboardingFeature() {
 type IntentFormProps = {
   busy: boolean;
   error: unknown;
-  onSubmit: (payload: {
-    initial_intent: string;
-    experience_level: ExperienceLevel;
-    prior_knowledge: string | null;
-    expected_outcome: string;
-  }) => void;
+  onSubmit: (payload: OnboardingDraft) => void;
 };
 
-function subscribeDraftIntent(): () => void {
+function subscribeOnboardingDraft(): () => void {
   return () => {};
 }
 
-function readDraftIntent(): string {
-  return recallDraftIntent() ?? "";
-}
-
 function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
-  const draft = useSyncExternalStore(subscribeDraftIntent, readDraftIntent, () => "");
+  const draft = useSyncExternalStore(
+    subscribeOnboardingDraft,
+    recallOnboardingDraft,
+    () => null,
+  );
   const [intent, setIntent] = useState<string | null>(null);
-  const intentValue = intent ?? draft;
-  const [level, setLevel] = useState<ExperienceLevel>("Basic");
-  const [prior, setPrior] = useState("");
-  const [outcome, setOutcome] = useState("");
+  const [level, setLevel] = useState<ExperienceLevel | null>(null);
+  const [prior, setPrior] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const intentValue = intent ?? draft?.initial_intent ?? "";
+  const levelValue = level ?? draft?.experience_level ?? "Basic";
+  const priorValue = prior ?? draft?.prior_knowledge ?? "";
+  const outcomeValue = outcome ?? draft?.expected_outcome ?? "";
 
   const fieldError = (field: string) =>
     error instanceof ApiError
@@ -245,9 +256,9 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
     event.preventDefault();
     onSubmit({
       initial_intent: intentValue.trim(),
-      experience_level: level,
-      prior_knowledge: prior.trim() || null,
-      expected_outcome: outcome.trim(),
+      experience_level: levelValue,
+      prior_knowledge: priorValue.trim() || null,
+      expected_outcome: outcomeValue.trim(),
     });
   };
 
@@ -274,7 +285,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       <Field id="level" label="Your current level" error={fieldError("experience_level")}>
         <Select
           id="level"
-          value={level}
+          value={levelValue}
           options={LEVELS}
           onChange={setLevel}
         />
@@ -290,7 +301,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
           className={textareaClass}
           rows={2}
           maxLength={MAX_FREE_TEXT_CHARS}
-          value={prior}
+          value={priorValue}
           onChange={(e) => setPrior(e.target.value)}
         />
       </Field>
@@ -305,7 +316,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
           rows={2}
           required
           maxLength={MAX_FREE_TEXT_CHARS}
-          value={outcome}
+          value={outcomeValue}
           onChange={(e) => setOutcome(e.target.value)}
         />
       </Field>
@@ -315,7 +326,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
         <ErrorNotice error={error} />
       ) : null}
       {!(error instanceof ApiError) && error ? <ErrorNotice error={error} /> : null}
-      <Button type="submit" busy={busy} disabled={!intentValue.trim() || !outcome.trim()}>
+      <Button type="submit" busy={busy} disabled={!intentValue.trim() || !outcomeValue.trim()}>
         Analyze my intention
       </Button>
       {busy ? (
@@ -414,19 +425,26 @@ function YourIntentionSection({
   );
 }
 
+type RecoveryPayload = {
+  initial_intent: string;
+  experience_level: ExperienceLevel;
+  prior_knowledge: string | null;
+  expected_outcome: string;
+};
+
 function IncompatibleIntention({
   request,
+  busy,
   onStartOver,
   onUseIntention,
 }: {
   request: LearningRequest;
+  busy: boolean;
   onStartOver: () => void;
-  onUseIntention: (suggestedIntent: string) => void;
+  onUseIntention: (payload: RecoveryPayload) => void;
 }) {
   const { explanation, safe_reframing: alternative } = request.compatibility;
   const alternatives = request.compatibility.recovery_alternatives ?? [];
-  const [selected, setSelected] = useState<number | null>(null);
-  const chosen = selected === null ? null : alternatives[selected];
 
   if (alternatives.length === 0) {
     return (
@@ -460,52 +478,190 @@ function IncompatibleIntention({
         </p>
         {explanation.trim() ? <p className="mt-2">{explanation}</p> : null}
         <p className="mt-2">
-          These related directions can be taught that way. Choosing one starts a
-          new intention. It is not the same result.
+          These related directions can be taught that way. Open one, edit it if
+          you want, and choose it to start a new intention. It is not the same
+          result.
         </p>
       </Notice>
       <h2 className="text-lg font-semibold">Choose one of these directions</h2>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">Related directions</legend>
+      <ul className="flex flex-col gap-4">
         {alternatives.map((item, index) => (
-          <label
+          <RecoveryAlternativeCard
             key={`${item.title}-${index}`}
-            className="flex cursor-pointer gap-3 rounded-xl border border-line bg-surface p-3 text-sm has-[:checked]:border-foreground"
-          >
-            <input
-              type="radio"
-              name="recovery-alternative"
-              value={String(index)}
-              checked={selected === index}
-              onChange={() => setSelected(index)}
-              className="mt-1"
-            />
-            <span className="flex flex-col gap-1">
-              <span className="font-medium">{item.title}</span>
-              <span className="text-muted">{item.explanation}</span>
-            </span>
-          </label>
+            item={item}
+            index={index}
+            busy={busy}
+            onChoose={onUseIntention}
+          />
         ))}
-      </fieldset>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          className="gap-2 self-start"
-          disabled={!chosen}
-          onClick={() => {
-            if (chosen) {
-              onUseIntention(chosen.suggested_intent);
-            }
-          }}
-        >
-          Use this intention
-          <ArrowRightIcon />
-        </Button>
-        <Button type="button" variant="outline" className="self-start" onClick={onStartOver}>
-          Write a new intention
-        </Button>
-      </div>
+      </ul>
+      {busy ? (
+        <GenerationStatus
+          title="Reading your intention"
+          description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
+        />
+      ) : null}
+      <Button type="button" variant="outline" className="self-start" onClick={onStartOver}>
+        Write a new intention
+      </Button>
     </section>
+  );
+}
+
+function RecoveryAlternativeCard({
+  item,
+  index,
+  busy,
+  onChoose,
+}: {
+  item: RecoveryAlternative;
+  index: number;
+  busy: boolean;
+  onChoose: (payload: RecoveryPayload) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [intent, setIntent] = useState(item.suggested_intent);
+  const [level, setLevel] = useState<ExperienceLevel>("None");
+  const [prior, setPrior] = useState("");
+  const [outcome, setOutcome] = useState(item.suggested_outcome);
+  const fieldId = (name: string) => `recovery-${index}-${name}`;
+  const ready = intent.trim().length > 0 && outcome.trim().length > 0;
+
+  const choose = () => {
+    if (!ready) {
+      return;
+    }
+    onChoose({
+      initial_intent: intent.trim(),
+      experience_level: level,
+      prior_knowledge: prior.trim() || null,
+      expected_outcome: outcome.trim(),
+    });
+  };
+
+  return (
+    <li className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-serif text-base font-semibold">{item.title}</h3>
+        <p className="text-sm text-muted">{item.explanation}</p>
+      </div>
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+          expanded ? "grid-rows-[1fr] opacity-100" : "-mb-3 grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className={expanded ? "overflow-visible" : "pointer-events-none overflow-hidden"}>
+          <div className="flex flex-col gap-3">
+            {editing ? (
+              <div className="flex flex-col gap-5">
+                <Field id={fieldId("intent")} label="What do you want to learn?">
+                  <textarea
+                    id={fieldId("intent")}
+                    className={textareaClass}
+                    rows={3}
+                    required
+                    maxLength={MAX_FREE_TEXT_CHARS}
+                    value={intent}
+                    onChange={(event) => setIntent(event.target.value)}
+                  />
+                </Field>
+                <Field id={fieldId("level")} label="Your current level">
+                  <Select
+                    id={fieldId("level")}
+                    value={level}
+                    options={LEVELS}
+                    onChange={setLevel}
+                  />
+                </Field>
+                <Field
+                  id={fieldId("prior")}
+                  label="Previous knowledge (optional)"
+                  hint="Books, courses, or experience that shape where you start."
+                >
+                  <textarea
+                    id={fieldId("prior")}
+                    className={textareaClass}
+                    rows={2}
+                    maxLength={MAX_FREE_TEXT_CHARS}
+                    value={prior}
+                    onChange={(event) => setPrior(event.target.value)}
+                  />
+                </Field>
+                <Field
+                  id={fieldId("outcome")}
+                  label="What do you want to be able to do or understand?"
+                >
+                  <textarea
+                    id={fieldId("outcome")}
+                    className={textareaClass}
+                    rows={2}
+                    required
+                    maxLength={MAX_FREE_TEXT_CHARS}
+                    value={outcome}
+                    onChange={(event) => setOutcome(event.target.value)}
+                  />
+                </Field>
+              </div>
+            ) : (
+              <DefinitionList
+                items={[
+                  { term: "Intention", detail: intent },
+                  { term: "Level", detail: level },
+                  {
+                    term: "Prior knowledge",
+                    detail: prior.trim() || "Not provided",
+                  },
+                  { term: "Expected outcome", detail: outcome },
+                ]}
+              />
+            )}
+            {editing ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                disabled={busy}
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </Button>
+            )}
+            <Button
+              type="button"
+              busy={busy}
+              disabled={busy || !ready}
+              onClick={choose}
+              className="self-start"
+            >
+              Choose this direction
+            </Button>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
+            >
+              Read less
+              <span aria-hidden className="inline-block -rotate-90 text-base leading-none">
+                ›
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      {expanded ? null : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
+        >
+          Read more
+          <span aria-hidden className="inline-block rotate-90 text-base leading-none">
+            ›
+          </span>
+        </button>
+      )}
+    </li>
   );
 }
 

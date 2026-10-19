@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from auteur_api.core.config import settings
 from auteur_api.modules.proposals.schemas import ProposalSetRecord, ProposalSetResponse
@@ -98,6 +98,15 @@ class RecoveryAlternative(BaseModel):
     title: str
     explanation: str
     suggested_intent: str
+    suggested_outcome: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def fill_outcome_saved_before_field(cls, value: object) -> object:
+        # Rows saved before suggested_outcome existed stay readable.
+        if isinstance(value, dict) and "suggested_outcome" not in value:
+            return {**value, "suggested_outcome": ""}
+        return value
 
 
 class CompatibilityAssessment(BaseModel):
@@ -125,7 +134,7 @@ class PrecisionResultOutput(BaseModel):
 
 
 class RequestAnalysisOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "request_analysis_v3"
+    SCHEMA_VERSION: ClassVar[str] = "request_analysis_v4"
 
     input_is_english: bool
     detected_language: str

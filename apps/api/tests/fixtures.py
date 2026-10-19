@@ -13,6 +13,7 @@ def recovery_alternatives(count: int = 3) -> list[dict[str, str]]:
             "title": f"Direction {i}",
             "explanation": f"A related intention that text and audio can teach ({i}).",
             "suggested_intent": f"I want to understand the criteria behind topic {i}.",
+            "suggested_outcome": f"Understand the criteria behind topic {i}.",
         }
         for i in range(count)
     ]

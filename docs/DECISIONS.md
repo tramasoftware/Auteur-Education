@@ -125,9 +125,16 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** APROBADA (pedido del cliente, octubre 2026)
 - **Necesidad:** rechazar una intención incompatible y pedir otra de inmediato resulta demasiado abrupto. La persona necesita direcciones cercanas a lo que pidió, enseñables por texto y audio, sin tratar la solicitud original como realizable.
-- **Decisión:** si `AI-STG-01` clasifica la solicitud como `Incompatible` y el riesgo no es `weapons` ni `security`, el mismo análisis devuelve exactamente tres alternativas (`title`, `explanation`, `suggested_intent`). Cada una es una intención nueva, relacionada con la pedido, y se queda en el `learning_orientation` ya elegido (`DEC-015`). `applied` no se rescata como historia o filosofía del tema; `theoretical` no se convierte en un procedimiento. Elegir una vuelve al formulario de onboarding con solo la intención inicial autocompletada. Nivel, conocimientos previos y resultado esperado los completa la persona. Enviar crea una solicitud nueva, que se clasifica de nuevo. La solicitud incompatible no produce objetivo, propuestas de curso, Blueprint ni checkout (`BR-OBJ-004`). Si el riesgo es `weapons` o `security`, no hay alternativas. Salud, derecho y finanzas pueden recibir tres alternativas de alfabetización segura.
+- **Decisión:** si `AI-STG-01` clasifica la solicitud como `Incompatible` y el riesgo no es `weapons` ni `security`, el mismo análisis devuelve exactamente tres alternativas (`title`, `explanation`, `suggested_intent`, `suggested_outcome`). Cada una es una intención nueva, relacionada con lo pedido, y se queda en el `learning_orientation` ya elegido (`DEC-015`). `applied` no se rescata como historia o filosofía del tema; `theoretical` no se convierte en un procedimiento. `suggested_outcome` es una oración básica que responde «What do you want to be able to do or understand?» para esa intención. Elegir una no continúa esta solicitud. La alternativa llega con nivel `None`, conocimientos previos vacíos, la intención y ese resultado esperado. La persona puede editar esos cuatro campos. Elegir crea una solicitud nueva con esos valores y la clasifica de nuevo: la precisión aparece solo si ese análisis la pide. La solicitud incompatible no produce objetivo, propuestas de curso, Blueprint ni checkout (`BR-OBJ-004`). Si el riesgo es `weapons` o `security`, no hay alternativas. Salud, derecho y finanzas pueden recibir tres alternativas de alfabetización segura.
 - **Impacto:** `UF-03` variante D, `BR-OBJ-004`, `AI-STG-01`, `MVP.md` §3, análisis de onboarding y la pantalla de incompatibilidad.
 - **Límite:** no son propuestas de curso (`AI-STG-04`). No cambian `Allowed with reframing` ni el arrastre de `learning_orientation`. No se muestra la orientación en la tarjeta.
+
+### DEC-017 — Cuenta iniciada antes de analizar la intención
+
+- **Estatus:** APROBADA (pedido de implementación, octubre 2026)
+- **Necesidad:** analizar la intención no debe empezar para quien no está en una cuenta.
+- **Decisión:** «Analyze my intention» comprueba el token con Auth. Una sesión anónima o un token rechazado no cuentan como cuenta iniciada. Si no hay cuenta, se guarda el formulario y se abre `/login?next=/onboarding`. Si hay cuenta, se crea la solicitud y sigue el análisis. El visitante anónimo sigue existiendo para el resto del recorrido (`DEC-011`).
+- **Impacto:** formulario de onboarding. No cambia el requisito de cuenta permanente del Blueprint (`BR-AUT-004`).
 
 ## Pendientes sin decisión
 

@@ -105,7 +105,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 4. El sistema solicita qué quiere aprender o llegar a comprender.
 5. El visitante escribe una intención, pregunta o capacidad deseada en texto libre.
 6. El sistema valida que la entrada tenga contenido significativo.
-7. Se crea una solicitud anónima en estado `Draft` y comienza `UF-02`.
+7. Si no hay una cuenta iniciada, el sistema guarda lo escrito y abre el login. Al volver, el formulario sigue completo. Con una cuenta iniciada, se crea la solicitud y comienza `UF-02`.
 
 #### Variantes y errores
 
@@ -116,7 +116,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 
 #### Resultado
 
-Existe una solicitud anónima persistida con la intención inicial.
+Existe una solicitud persistida en la cuenta iniciada, con la intención inicial.
 
 ### UF-02 Completar el onboarding y confirmar el objetivo
 
@@ -186,8 +186,8 @@ La solicitud contiene intención, nivel, contexto opcional, resultado esperado, 
 
 1. El sistema clasifica la solicitud como `Incompatible`.
 2. Explica por qué el resultado depende de una demostración visual, corporal, manual, procedimental o insegura.
-3. Si el límite es el medio y el riesgo no es seguridad ni armas, ofrece tres intenciones relacionadas. Cada una tiene título y explicación, se puede enseñar por texto y audio, conserva la orientación ya clasificada (`theoretical` o `applied`) y no se presenta como equivalente al resultado original.
-4. El visitante elige una. Vuelve al formulario inicial con esa intención autocompletada y completa nivel, conocimientos previos y resultado esperado. Enviar crea una solicitud nueva, que se clasifica de nuevo.
+3. Si el límite es el medio y el riesgo no es seguridad ni armas, ofrece tres intenciones relacionadas. Cada una tiene título, explicación, un texto de intención y un resultado esperado básico. Se puede enseñar por texto y audio, conserva la orientación ya clasificada (`theoretical` o `applied`) y no se presenta como equivalente al resultado original.
+4. El visitante abre una. Ve la intención, el nivel en `None`, los conocimientos previos vacíos y el resultado esperado. Puede editar esos campos. Elegirla crea una solicitud nueva con esos valores, que se clasifica de nuevo. La precisión aparece solo si ese análisis la pide.
 5. Si el riesgo es seguridad o armas, o si el visitante prefiere escribir otra intención, el formulario vuelve en blanco.
 6. La solicitud incompatible no genera propuestas de curso ni permite avanzar al checkout.
 

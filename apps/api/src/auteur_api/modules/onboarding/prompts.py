@@ -74,7 +74,7 @@ be understood without a short subordinate frame.
 """
 
 
-ANALYZE_REQUEST_V4 = "analyze_request_v4"
+ANALYZE_REQUEST_V5 = "analyze_request_v5"
 
 ANALYZE_REQUEST_INSTRUCTIONS = (
     SHARED_RULES
@@ -137,8 +137,13 @@ Task: analyze a new learning request in one pass.
    - If classification is "Incompatible" and risk_category is "weapons" or
      "security", recovery_alternatives=[]. Do not suggest a nearby intention.
    - Otherwise, when "Incompatible", return exactly 3 recovery_alternatives.
-     Each has title, explanation, and suggested_intent. suggested_intent is one
-     clear English sentence the learner could submit as what they want to learn.
+     Each has title, explanation, suggested_intent, and suggested_outcome.
+     suggested_intent is one clear English sentence the learner could submit as
+     what they want to learn.
+     suggested_outcome answers "What do you want to be able to do or understand?"
+     for that suggested_intent. One plain, basic English sentence, tied to that
+     intention, so the outcome is not empty. Do not add a syllabus, a procedure,
+     or the original practical result.
      The three must differ in the question they open, not in wording only.
      They stay in the learning_orientation you already chose for this request.
      applied: each suggested_intent asks for the working foundations of the

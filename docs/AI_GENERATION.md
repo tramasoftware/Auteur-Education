@@ -205,7 +205,7 @@ Personal branding, entendido como posicionamiento, audiencia y voz, es compatibl
 - aspectos no alcanzables por el medio;
 - reformulación segura, si corresponde;
 - categoría de riesgo, si corresponde;
-- hasta tres alternativas de recuperación cuando la clasificación es `Incompatible` por el medio: título, explicación y texto de intención para una solicitud nueva;
+- hasta tres alternativas de recuperación cuando la clasificación es `Incompatible` por el medio: título, explicación, texto de intención y un resultado esperado básico para una solicitud nueva;
 - siguiente acción permitida.
 
 `learning_orientation` no cambia de definición. `DEC-016` está subordinada a `DEC-015`: las alternativas de una solicitud `applied` siguen en los fundamentos de esa materia y no la convierten en su historia o su filosofía; las de una solicitud `theoretical` siguen siendo comprensión del campo.
@@ -213,7 +213,7 @@ Personal branding, entendido como posicionamiento, audiencia y voz, es compatibl
 ### Validaciones
 
 - `Incompatible` no puede producir propuestas de curso ni avanzar al checkout. La solicitud original no continúa.
-- Si el riesgo no es `weapons` ni `security`, `Incompatible` devuelve exactamente tres alternativas distintas, en la orientación ya elegida, sin prometer el resultado práctico original. Si el riesgo es `weapons` o `security`, la lista queda vacía.
+- Si el riesgo no es `weapons` ni `security`, `Incompatible` devuelve exactamente tres alternativas distintas, en la orientación ya elegida, sin prometer el resultado práctico original. Cada alternativa incluye un `suggested_outcome` básico y no vacío. Si el riesgo es `weapons` o `security`, la lista queda vacía.
 - Cualquier otra clasificación devuelve la lista de alternativas vacía.
 - `Allowed with reframing` debe conservar la intención de fondo sin prometer equivalencia práctica.
 - Salud, derecho, finanzas, seguridad, armas y otros ámbitos sensibles se limitan a alfabetización general segura o se rechazan.
