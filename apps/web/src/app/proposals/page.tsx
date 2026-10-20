@@ -1,17 +1,13 @@
 import { Suspense } from "react";
 
-import { JourneyFrame } from "@/components/layout";
-import { ProposalsFeature } from "@/features/proposals";
+import { ProposalsFeature, ProposalsScreen } from "@/features/proposals";
 
 export default function ProposalsPage() {
   return (
-    <JourneyFrame
-      title="Learning directions"
-      description="Genuinely different ways to approach your objective. Pick one before Auteur drafts the Blueprint."
-    >
-      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+      <ProposalsScreen>
         <ProposalsFeature />
-      </Suspense>
-    </JourneyFrame>
+      </ProposalsScreen>
+    </Suspense>
   );
 }
