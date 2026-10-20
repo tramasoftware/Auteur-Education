@@ -129,7 +129,7 @@ Existe una solicitud persistida en la cuenta iniciada, con la intención inicial
 #### Recorrido principal
 
 1. El sistema solicita el nivel de experiencia.
-2. El visitante selecciona exactamente uno: `None`, `Basic`, `Intermediate` o `Advanced`.
+2. El visitante selecciona exactamente uno: `None`, `Beginner`, `Intermediate` o `Advanced`.
 3. Puede describir opcionalmente conocimientos previos, estudios, experiencia o dificultades.
 4. El sistema solicita el resultado que espera alcanzar.
 5. El visitante explica qué quiere poder comprender, distinguir, explicar, comparar, analizar o evaluar.

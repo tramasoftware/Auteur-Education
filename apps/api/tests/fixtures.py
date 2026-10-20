@@ -91,7 +91,7 @@ def objective(statement: str | None = None) -> dict[str, Any]:
         "distinguish them from its immediate triggers.",
         "observable_capability": "Explain and distinguish causes from triggers.",
         "learning_object": "Causes of the French Revolution (1750-1789)",
-        "assumed_level_and_knowledge": "Basic; no prior knowledge of the period.",
+        "assumed_level_and_knowledge": "Beginner; no prior knowledge of the period.",
         "scope": ["fiscal crisis", "social structure", "Enlightenment ideas"],
         "exclusions": ["Napoleonic era"],
         "achievement_criteria": ["Can articulate three structural causes."],
@@ -101,7 +101,7 @@ def objective(statement: str | None = None) -> dict[str, Any]:
 
 REQUEST_BODY = {
     "initial_intent": "I want to understand why the French Revolution happened",
-    "experience_level": "Basic",
+    "experience_level": "Beginner",
     "prior_knowledge": "I read a popular history book once.",
     "expected_outcome": "Explain the causes to a friend.",
 }
@@ -117,7 +117,7 @@ def proposal(index: int, *, title: str | None = None) -> dict[str, Any]:
         "organizing_principle": f"Principle {index}",
         "scope": ["a", "b"],
         "exclusions": ["c"],
-        "level_fit": "Suitable for Basic level.",
+        "level_fit": "Suitable for Beginner level.",
         "guiding_authors_or_traditions": ["Tocqueville"],
         "estimated_modules": 4,
         "estimated_duration": "6 hours",
@@ -150,7 +150,7 @@ def blueprint(
             "objective_statement": "Explain the structural causes of the Revolution.",
             "expected_outcome": "Distinguish causes from triggers.",
             "central_problem": "Why did the monarchy collapse in 1789?",
-            "level_and_assumed_knowledge": "Basic; no prior knowledge assumed.",
+            "level_and_assumed_knowledge": "Beginner; no prior knowledge assumed.",
             "scope": ["fiscal crisis", "social order"],
             "exclusions": ["Napoleonic era"],
             "organizing_principle": "From structures to events",
@@ -352,5 +352,7 @@ def proposal_set(count: int = 3, *, dims: int = 3) -> dict[str, Any]:
         "proposals": [proposal(i) for i in range(count)],
         "pairwise_differences": pairs,
         "recommended_proposal_index": 0 if count > 1 else None,
-        "recommendation_reason": "Best fit for a Basic learner." if count > 1 else None,
+        "recommendation_reason": (
+            "Best fit for a Beginner learner." if count > 1 else None
+        ),
     }

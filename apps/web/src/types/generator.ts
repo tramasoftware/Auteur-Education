@@ -3,7 +3,7 @@
  * Keep in sync with auteur_api.modules.*.schemas. Never invent fields here.
  */
 
-export type ExperienceLevel = "None" | "Basic" | "Intermediate" | "Advanced";
+export type ExperienceLevel = "None" | "Beginner" | "Intermediate" | "Advanced";
 
 export type RequestState =
   | "draft"

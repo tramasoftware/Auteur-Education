@@ -1,45 +1,12 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
-import { getHealth } from "@/lib/api";
+import { LandingPage } from "@/features/landing";
 
-export default async function Home() {
-  let apiStatus = "unreachable";
+export const metadata: Metadata = {
+  title: "Create the course you wish existed · Auteur Education",
+  description: "Built around your question, your goal, and what you already know.",
+};
 
-  try {
-    const health = await getHealth();
-    apiStatus = health.status;
-  } catch {
-    apiStatus = "unreachable";
-  }
-
-  return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium uppercase tracking-wide text-muted">
-          Auteur Education
-        </p>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Structured theoretical learning, in text and audio.
-        </h1>
-        <p className="max-w-xl text-lg leading-8 text-muted">
-          Turn an intention to understand something into a researched course
-          with a clear path, sources, and a personal library.
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/onboarding"
-            className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
-          >
-            Create a course
-          </Link>
-          <Link
-            href="/login"
-            className="inline-flex w-fit items-center rounded-xl border border-line bg-surface px-5 py-2.5 text-sm font-medium text-foreground cursor-pointer hover:bg-[#eceae4]"
-          >
-            Sign in
-          </Link>
-        </div>
-      </div>
-    </main>
-  );
+export default function Home() {
+  return <LandingPage />;
 }

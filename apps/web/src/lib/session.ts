@@ -105,7 +105,7 @@ export function forgetRequestId(): void {
 const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
 const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
   "None",
-  "Basic",
+  "Beginner",
   "Intermediate",
   "Advanced",
 ]);
@@ -127,18 +127,22 @@ function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
     return null;
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<OnboardingDraft>;
+    const parsed = JSON.parse(raw) as Partial<OnboardingDraft> & {
+      experience_level?: string;
+    };
+    const experienceLevel =
+      parsed.experience_level === "Basic" ? "Beginner" : parsed.experience_level;
     if (
       typeof parsed.initial_intent !== "string" ||
       typeof parsed.expected_outcome !== "string" ||
-      !EXPERIENCE_LEVELS.has(parsed.experience_level as ExperienceLevel) ||
+      !EXPERIENCE_LEVELS.has(experienceLevel as ExperienceLevel) ||
       (parsed.prior_knowledge !== null && typeof parsed.prior_knowledge !== "string")
     ) {
       return null;
     }
     return {
       initial_intent: parsed.initial_intent,
-      experience_level: parsed.experience_level as ExperienceLevel,
+      experience_level: experienceLevel as ExperienceLevel,
       prior_knowledge: parsed.prior_knowledge ?? null,
       expected_outcome: parsed.expected_outcome,
     };

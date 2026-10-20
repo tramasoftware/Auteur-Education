@@ -1,14 +1,14 @@
 import { Suspense } from "react";
 
-import { JourneyFrame } from "@/components/layout";
 import { OnboardingFeature } from "@/features/onboarding";
+import { OnboardingScreen } from "@/features/onboarding/OnboardingScreen";
 
 export default function OnboardingPage() {
   return (
-    <JourneyFrame title="Start a learning request">
+    <OnboardingScreen>
       <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
         <OnboardingFeature />
       </Suspense>
-    </JourneyFrame>
+    </OnboardingScreen>
   );
 }

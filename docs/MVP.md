@@ -98,7 +98,7 @@ El onboarding incluye:
 Los niveles disponibles son:
 
 - `None`;
-- `Basic`;
+- `Beginner`;
 - `Intermediate`;
 - `Advanced`.
 

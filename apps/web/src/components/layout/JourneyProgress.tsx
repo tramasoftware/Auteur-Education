@@ -156,6 +156,11 @@ function defaultStep(pathname: string): JourneyStep {
 const JourneyStepContext = createContext<Dispatch<SetStateAction<JourneyStep | null>> | null>(
   null,
 );
+const JourneyStepValueContext = createContext<JourneyStep | null>(null);
+
+export function useJourneyStepValue() {
+  return useContext(JourneyStepValueContext);
+}
 
 export function useJourneyStep(step: JourneyStep) {
   const setStep = useContext(JourneyStepContext);
@@ -225,26 +230,33 @@ export function JourneyProgress({ step }: { step: JourneyStep }) {
 }
 
 type JourneyFrameProps = {
-  title: string;
+  title?: string;
   description?: string;
+  bare?: boolean;
   children: ReactNode;
 };
 
-export function JourneyFrame({ title, description, children }: JourneyFrameProps) {
+export function JourneyFrame({ title, description, bare = false, children }: JourneyFrameProps) {
   const pathname = usePathname();
   const [step, setStep] = useState<JourneyStep | null>(null);
   const shown = step ?? defaultStep(pathname);
 
   return (
     <JourneyStepContext.Provider value={setStep}>
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-8">
-        {shown.hidden ? null : <JourneyProgress step={shown} />}
-        <h1 className="font-display text-[1.75rem] font-semibold tracking-tight">{title}</h1>
-        {description ? (
-          <p className="text-muted">{description}</p>
-        ) : null}
-        {children}
-      </main>
+      <JourneyStepValueContext.Provider value={shown}>
+        {bare ? (
+          children
+        ) : (
+          <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-8">
+            {shown.hidden ? null : <JourneyProgress step={shown} />}
+            {title ? (
+              <h1 className="font-display text-[1.75rem] font-semibold tracking-tight">{title}</h1>
+            ) : null}
+            {description ? <p className="text-muted">{description}</p> : null}
+            {children}
+          </main>
+        )}
+      </JourneyStepValueContext.Provider>
     </JourneyStepContext.Provider>
   );
 }

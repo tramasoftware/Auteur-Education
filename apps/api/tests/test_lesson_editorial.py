@@ -71,7 +71,7 @@ def _spec() -> LessonSpecOutput:
 def _context() -> BuildContext:
     parsed = BlueprintOutput.model_validate(blueprint(modules=1, lessons=2))
     return BuildContext(
-        experience_level="basic",
+        experience_level="Beginner",
         prior_knowledge="Read one narrative history.",
         objective_statement=parsed.visible.objective_statement,
         achievement_criteria=["Distinguish causes from triggers."],

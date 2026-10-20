@@ -139,7 +139,7 @@ El proceso generativo puede recibir únicamente información pertinente y valida
 | Campo conceptual | Origen | Uso |
 | --- | --- | --- |
 | `initial_intent` | Usuario | Necesidad inicial de aprendizaje. |
-| `experience_level` | Usuario | `None`, `Basic`, `Intermediate` o `Advanced`. |
+| `experience_level` | Usuario | `None`, `Beginner`, `Intermediate` o `Advanced`. |
 | `prior_knowledge` | Usuario, opcional | Estudios, experiencia, conceptos conocidos o dificultades. |
 | `expected_outcome` | Usuario | Capacidad o comprensión esperada. |
 | `compatibility_assessment` | `AI-STG-01` validada | Determina si puede continuar, reformularse o rechazarse. |

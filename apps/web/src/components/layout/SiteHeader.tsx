@@ -85,7 +85,17 @@ export function SiteHeader() {
     setMenuOpen(false);
   }
 
-  if (pathname === "/login" || pathname.startsWith("/auth")) {
+  if (
+    pathname === "/" ||
+    pathname === "/about" ||
+    pathname === "/plans" ||
+    pathname === "/login" ||
+    pathname.startsWith("/auth") ||
+    pathname === "/onboarding" ||
+    pathname.startsWith("/onboarding/") ||
+    pathname === "/proposals" ||
+    pathname.startsWith("/proposals/")
+  ) {
     return null;
   }
 

@@ -67,7 +67,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-ONB-001` | Interfaz, entradas, objetivos, propuestas, Blueprints, cursos, audios, Knowledge Checks, mensajes y emails del MVP funcionan exclusivamente en inglés. | Una entrada no inglesa no avanza hacia propuestas ni contenido. |
 | `BR-ONB-002` | El sistema no traduce automáticamente entradas ni genera cursos en otros idiomas dentro del MVP. | Ante otro idioma solicita una reformulación en inglés y conserva el recorrido recuperable. |
 | `BR-ONB-003` | El usuario puede iniciar con una intención temática, una pregunta o una capacidad deseada en texto libre. | No se le exige redactar un prompt técnico ni conocer la estructura de un curso. |
-| `BR-ONB-004` | El nivel debe ser exactamente uno de `None`, `Basic`, `Intermediate` o `Advanced`. | No se persisten valores alternativos ni múltiples niveles simultáneos. |
+| `BR-ONB-004` | El nivel debe ser exactamente uno de `None`, `Beginner`, `Intermediate` o `Advanced`. | No se persisten valores alternativos ni múltiples niveles simultáneos. |
 | `BR-ONB-005` | Los conocimientos previos son opcionales y no reemplazan la selección de nivel. | El sistema acepta el campo vacío y no inventa experiencia ausente. |
 | `BR-ONB-006` | Nivel y conocimientos previos modifican punto de entrada, lenguaje, profundidad, recapitulación, ejemplos, fuentes y razonamiento exigido. | Dos usuarios con preparación distinta no reciben únicamente un cambio superficial de tono. |
 | `BR-ONB-007` | El ritmo, las horas semanales y un calendario personal de cursada no forman parte del onboarding del MVP. | Ninguno de esos datos es obligatorio para avanzar. |

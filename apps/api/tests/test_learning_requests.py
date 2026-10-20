@@ -48,6 +48,18 @@ def test_invalid_level_is_rejected(client) -> None:
     assert response.json()["error"]["code"] == "validation_error"
 
 
+def test_former_basic_level_is_stored_as_beginner(client, fake_ai) -> None:
+    # BR-ONB-004: Basic was renamed; older clients still send it.
+    fake_ai.enqueue(RequestAnalysisOutput, analysis())
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    response = client.post(
+        "/api/v1/learning-requests",
+        json={**REQUEST_BODY, "experience_level": "Basic"},
+    )
+    assert response.status_code == 201
+    assert response.json()["inputs"]["experience_level"] == "Beginner"
+
+
 def test_non_english_input_is_rejected_and_not_persisted(client, fake_ai) -> None:
     # BR-ONB-001/002
     fake_ai.enqueue(RequestAnalysisOutput, analysis(english=False))

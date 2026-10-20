@@ -19,9 +19,16 @@ from auteur_api.modules.proposals.schemas import ProposalSetRecord, ProposalSetR
 class ExperienceLevel(StrEnum):
     # BR-ONB-004: exactly one of these values.
     NONE = "None"
-    BASIC = "Basic"
+    BEGINNER = "Beginner"
     INTERMEDIATE = "Intermediate"
     ADVANCED = "Advanced"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ExperienceLevel | None:
+        # Rows and drafts saved before the rename still use Basic.
+        if value == "Basic":
+            return cls.BEGINNER
+        return None
 
 
 class RequestState(StrEnum):

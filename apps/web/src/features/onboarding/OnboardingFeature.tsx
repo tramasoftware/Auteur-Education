@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
@@ -35,7 +35,13 @@ import {
 import { createClient } from "@/lib/supabase/browser";
 import type { ExperienceLevel, LearningRequest, RecoveryAlternative } from "@/types/generator";
 
-const LEVELS: ExperienceLevel[] = ["None", "Basic", "Intermediate", "Advanced"];
+const LEVELS: ExperienceLevel[] = ["None", "Beginner", "Intermediate", "Advanced"];
+const LEVEL_NOTES: Record<ExperienceLevel, string> = {
+  None: "No background yet",
+  Beginner: "I’m new to this",
+  Intermediate: "I know some of the ideas",
+  Advanced: "I have experience in this subject",
+};
 /** Matches API `max_free_text_chars`; not a product rule. */
 const MAX_FREE_TEXT_CHARS = 4000;
 
@@ -155,7 +161,14 @@ export function OnboardingFeature() {
 
   if (!request) {
     return (
-      <div className="flex flex-col gap-6">
+      <article className="lect">
+        <div className="pasosf">
+          <i className="hoy" />
+          <i />
+          <i />
+          <i />
+          <span>Your question</span>
+        </div>
         <IntentForm
           busy={loading}
           error={error}
@@ -163,7 +176,7 @@ export function OnboardingFeature() {
             void analyzeIntention(payload);
           }}
         />
-      </div>
+      </article>
     );
   }
 
@@ -239,9 +252,23 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
   const [prior, setPrior] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const intentValue = intent ?? draft?.initial_intent ?? "";
-  const levelValue = level ?? draft?.experience_level ?? "Basic";
+  const levelValue = level ?? draft?.experience_level ?? "Beginner";
   const priorValue = prior ?? draft?.prior_knowledge ?? "";
   const outcomeValue = outcome ?? draft?.expected_outcome ?? "";
+  const priorDetails = useRef<HTMLDetailsElement>(null);
+  const revealedPrior = useRef(false);
+
+  useEffect(() => {
+    const details = priorDetails.current;
+    if (details && priorValue.trim() && !revealedPrior.current) {
+      details.open = true;
+      revealedPrior.current = true;
+    }
+    document.querySelectorAll<HTMLTextAreaElement>(".onboarding-screen .plano textarea").forEach((field) => {
+      field.style.height = "auto";
+      field.style.height = `${field.scrollHeight}px`;
+    });
+  }, [intentValue, outcomeValue, priorValue]);
 
   const fieldError = (field: string) =>
     error instanceof ApiError
@@ -251,6 +278,11 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
     error instanceof ApiError && error.code === "non_english_input"
       ? error.message
       : fieldError("initial_intent");
+  const formNotice =
+    (error instanceof ApiError &&
+      error.code !== "validation_error" &&
+      error.code !== "non_english_input") ||
+    (!(error instanceof ApiError) && Boolean(error));
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -263,77 +295,141 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
-      <Field
-        id="intent"
-        label="What do you want to learn?"
-        hint="Describe it in English, in your own words."
-        error={intentError}
-      >
-        <textarea
-          id="intent"
-          className={textareaClass}
-          rows={3}
-          required
-          maxLength={MAX_FREE_TEXT_CHARS}
-          value={intentValue}
-          onChange={(e) => setIntent(e.target.value)}
-          aria-invalid={intentError ? true : undefined}
-          aria-describedby={intentError ? "intent-error" : "intent-hint"}
-        />
-      </Field>
-      <Field id="level" label="Your current level" error={fieldError("experience_level")}>
-        <Select
-          id="level"
-          value={levelValue}
-          options={LEVELS}
-          onChange={setLevel}
-        />
-      </Field>
-      <Field
-        id="prior"
-        label="Previous knowledge (optional)"
-        hint="Books, courses, or experience that shape where you start."
-        error={fieldError("prior_knowledge")}
-      >
-        <textarea
-          id="prior"
-          className={textareaClass}
-          rows={2}
-          maxLength={MAX_FREE_TEXT_CHARS}
-          value={priorValue}
-          onChange={(e) => setPrior(e.target.value)}
-        />
-      </Field>
-      <Field
-        id="outcome"
-        label="What do you want to be able to do or understand?"
-        error={fieldError("expected_outcome")}
-      >
-        <textarea
-          id="outcome"
-          className={textareaClass}
-          rows={2}
-          required
-          maxLength={MAX_FREE_TEXT_CHARS}
-          value={outcomeValue}
-          onChange={(e) => setOutcome(e.target.value)}
-        />
-      </Field>
-      {error instanceof ApiError &&
-      error.code !== "validation_error" &&
-      error.code !== "non_english_input" ? (
-        <ErrorNotice error={error} />
-      ) : null}
-      {!(error instanceof ApiError) && error ? <ErrorNotice error={error} /> : null}
-      <Button type="submit" busy={busy} disabled={!intentValue.trim() || !outcomeValue.trim()}>
-        Analyze my intention
-      </Button>
-      {busy ? (
-        <GenerationStatus
-          title="Reading your intention"
-          description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
-        />
+    <form onSubmit={submit} noValidate>
+      <div className="preg disp">
+        <h1 id="intent-label">What would you like to understand?</h1>
+        <p className="bajada" id="intent-hint">
+          A sentence is enough to start.
+        </p>
+        <label className="plano">
+          <span className="sr-only">What would you like to understand?</span>
+          <textarea
+            id="intent"
+            rows={1}
+            required
+            maxLength={MAX_FREE_TEXT_CHARS}
+            value={intentValue}
+            placeholder="For example: why my neighborhood has changed so much in ten years."
+            onChange={(e) => setIntent(e.target.value)}
+            aria-labelledby="intent-label"
+            aria-invalid={intentError ? true : undefined}
+            aria-describedby={intentError ? "intent-error" : "intent-hint"}
+          />
+        </label>
+        {intentError ? (
+          <p className="field-error" id="intent-error" role="alert">
+            {intentError}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="preg">
+        <h2 id="outcome-label">What would you like to do with what you learn?</h2>
+        <label className="plano">
+          <span className="sr-only">What would you like to do with what you learn?</span>
+          <textarea
+            id="outcome"
+            rows={1}
+            required
+            maxLength={MAX_FREE_TEXT_CHARS}
+            value={outcomeValue}
+            placeholder="For example: explain why one neighborhood draws people in while another empties out."
+            onChange={(e) => setOutcome(e.target.value)}
+            aria-labelledby="outcome-label"
+            aria-invalid={fieldError("expected_outcome") ? true : undefined}
+            aria-describedby={fieldError("expected_outcome") ? "outcome-error" : undefined}
+          />
+        </label>
+        {fieldError("expected_outcome") ? (
+          <p className="field-error" id="outcome-error" role="alert">
+            {fieldError("expected_outcome")}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="preg">
+        <h2 id="level-label">Where are you starting from?</h2>
+        <div className="niveles" role="radiogroup" aria-labelledby="level-label">
+          {LEVELS.map((option) => (
+            <label className="niv" key={option}>
+              <input
+                type="radio"
+                name="experience_level"
+                value={option}
+                checked={levelValue === option}
+                onChange={() => setLevel(option)}
+              />
+              <span className="c" aria-hidden="true" />
+              <b>{option}</b>
+              <small>{LEVEL_NOTES[option]}</small>
+            </label>
+          ))}
+        </div>
+        {fieldError("experience_level") ? (
+          <p className="field-error" role="alert">
+            {fieldError("experience_level")}
+          </p>
+        ) : null}
+
+        <details
+          className="extra"
+          ref={priorDetails}
+          onToggle={() => {
+            document
+              .querySelectorAll<HTMLTextAreaElement>(".onboarding-screen .plano textarea")
+              .forEach((field) => {
+                field.style.height = "auto";
+                field.style.height = `${field.scrollHeight}px`;
+              });
+          }}
+        >
+          <summary>
+            <span className="mas" aria-hidden="true" />
+            <span className="txt">What you already know (optional)</span>
+          </summary>
+          <label className="plano">
+            <span className="sr-only">Previous knowledge (optional)</span>
+            <textarea
+              id="prior"
+              rows={1}
+              maxLength={MAX_FREE_TEXT_CHARS}
+              value={priorValue}
+              placeholder="For example: I’ve read Jane Jacobs; I’ve taken an art history course."
+              onChange={(e) => setPrior(e.target.value)}
+              aria-invalid={fieldError("prior_knowledge") ? true : undefined}
+              aria-describedby={fieldError("prior_knowledge") ? "prior-error" : undefined}
+            />
+          </label>
+          {fieldError("prior_knowledge") ? (
+            <p className="field-error" id="prior-error" role="alert">
+              {fieldError("prior_knowledge")}
+            </p>
+          ) : null}
+        </details>
+      </div>
+
+      <div className="acciones pie-l">
+        <span className="nota">Your first lesson is free with an account. No card needed.</span>
+        <button
+          className="btn"
+          type="submit"
+          disabled={busy || !intentValue.trim() || !outcomeValue.trim()}
+          aria-busy={busy || undefined}
+        >
+          {busy ? "Working…" : "Analyze my intention"}
+          {busy ? null : <span className="ar" aria-hidden="true" />}
+        </button>
+      </div>
+      {formNotice || busy ? (
+        <div className="form-avisos">
+          {formNotice ? <ErrorNotice error={error} /> : null}
+          {busy ? (
+            <GenerationStatus
+              title="Reading your intention"
+              description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
+            />
+          ) : null}
+        </div>
       ) : null}
     </form>
   );
