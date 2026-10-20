@@ -31,11 +31,13 @@ class CourseProposalOutput(BaseModel):
     intellectual_outcome: str
     distinctive_trajectory: str
     organizing_principle: str
+    direction_label: str
     scope: list[str]
     exclusions: list[str]
     level_fit: str
     guiding_authors_or_traditions: list[str]
     estimated_modules: int
+    estimated_lessons: int
     estimated_duration: str
     main_advantage: str
     trade_off: str
@@ -49,7 +51,7 @@ class PairwiseDifferenceOutput(BaseModel):
 
 
 class ProposalSetOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "proposal_set_v1"
+    SCHEMA_VERSION: ClassVar[str] = "proposal_set_v2"
 
     proposals: list[CourseProposalOutput]
     pairwise_differences: list[PairwiseDifferenceOutput]
@@ -62,6 +64,9 @@ class ProposalSetOutput(BaseModel):
 
 class CourseProposal(CourseProposalOutput):
     id: str
+    # Older stored sets predate these fields (proposal_set_v1).
+    direction_label: str = ""
+    estimated_lessons: int = 0
 
 
 class ProposalSetRecord(BaseModel):

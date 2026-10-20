@@ -104,11 +104,13 @@ export type CourseProposal = {
   intellectual_outcome: string;
   distinctive_trajectory: string;
   organizing_principle: string;
+  direction_label?: string;
   scope: string[];
   exclusions: string[];
   level_fit: string;
   guiding_authors_or_traditions: string[];
   estimated_modules: number;
+  estimated_lessons?: number;
   estimated_duration: string;
   main_advantage: string;
   trade_off: string;
@@ -225,6 +227,8 @@ export type ModuleSummary = {
   index: number;
   title: string;
   function: string;
+  guiding_questions: string[];
+  outcome: string;
   state: ModuleState;
   lesson_count: number;
   published_at: string | null;

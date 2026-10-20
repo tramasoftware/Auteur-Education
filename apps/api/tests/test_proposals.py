@@ -43,8 +43,11 @@ def test_generates_between_one_and_five_with_recommendation(client, fake_ai) -> 
         == (body["proposals"]["proposals"][0]["id"])
     )
     assert body["proposals"]["recommendation_reason"]
+    first = body["proposals"]["proposals"][0]
+    assert first["direction_label"] == "Through history"
+    assert first["estimated_lessons"] == 12
     # BR-PRP-007: no structure leaks into proposals.
-    assert "modules" not in body["proposals"]["proposals"][0]
+    assert "modules" not in first
 
     # Idempotent: a second call keeps the same set (BR-PRP-003).
     again = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
@@ -97,6 +100,22 @@ def test_select_exactly_one_and_change_before_blueprint(client, fake_ai) -> None
         json={"proposal_id": second},
     )
     assert changed.json()["selected_proposal_id"] == second
+
+
+def test_direction_label_is_validated_and_retried(client, fake_ai) -> None:
+    request_id = confirmed_request(client, fake_ai)
+    invalid = proposal_set(2)
+    invalid["proposals"][0]["direction_label"] = (
+        "Distinguish define and relate social versus demographic drivers"
+    )
+    fake_ai.enqueue(ProposalSetOutput, invalid)
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(2))
+    response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
+    assert response.status_code == 200
+    assert "proposal_direction_label_invalid" in fake_ai.calls[-1]["input"]
+    assert response.json()["proposals"]["proposals"][0]["direction_label"] == (
+        "Through history"
+    )
 
 
 def test_objective_revision_invalidates_proposals(client, fake_ai) -> None:

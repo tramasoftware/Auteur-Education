@@ -20,6 +20,8 @@ from auteur_api.modules.proposals.schemas import (
 )
 
 MIN_DIFFERING_DIMENSIONS = 3  # BR-PRP-002
+DIRECTION_LABEL_MIN_WORDS = 2
+DIRECTION_LABEL_MAX_WORDS = 4
 
 
 def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[str]:
@@ -49,9 +51,20 @@ def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[s
             codes.append("proposals_insufficiently_differentiated")
             break
 
+    labels = {p.direction_label.strip().lower() for p in out.proposals}
+    if len(labels) != count:
+        codes.append("proposal_direction_labels_duplicated")
+
     for p in out.proposals:
+        words = len(p.direction_label.split())
+        if not DIRECTION_LABEL_MIN_WORDS <= words <= DIRECTION_LABEL_MAX_WORDS:
+            codes.append("proposal_direction_label_invalid")
+            break
         if p.estimated_modules < 1:
             codes.append("proposal_estimated_modules_invalid")
+            break
+        if p.estimated_lessons < p.estimated_modules:
+            codes.append("proposal_estimated_lessons_invalid")
             break
 
     idx = out.recommended_proposal_index
@@ -85,7 +98,7 @@ async def generate_proposals(
             scope_id=record.id,
             stage="AI-STG-04",
             target=f"learning_request:{record.id}",
-            prompt_version=prompts.GENERATE_PROPOSALS_V2,
+            prompt_version=prompts.GENERATE_PROPOSALS_V3,
             instructions=prompts.GENERATE_PROPOSALS_INSTRUCTIONS,
             input=prompts.generate_proposals_input(
                 record.inputs,

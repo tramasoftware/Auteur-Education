@@ -94,7 +94,9 @@ export function SiteHeader() {
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/") ||
     pathname === "/proposals" ||
-    pathname.startsWith("/proposals/")
+    pathname.startsWith("/proposals/") ||
+    /^\/courses\/[^/]+$/.test(pathname) ||
+    /^\/courses\/[^/]+\/modules\//.test(pathname)
   ) {
     return null;
   }

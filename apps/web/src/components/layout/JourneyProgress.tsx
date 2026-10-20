@@ -61,7 +61,7 @@ export function onboardingJourneyStep(request: LearningRequest | null): JourneyS
       stage: "onboarding",
       substepIndex: 1,
       substepCount: 3,
-      substepLabel: "Learning object",
+      substepLabel: "Refine your subject",
     };
   }
 
@@ -70,7 +70,7 @@ export function onboardingJourneyStep(request: LearningRequest | null): JourneyS
       stage: "onboarding",
       substepIndex: 2,
       substepCount: 3,
-      substepLabel: "Learning objective",
+      substepLabel: "Your objective",
     };
   }
 
@@ -78,7 +78,7 @@ export function onboardingJourneyStep(request: LearningRequest | null): JourneyS
     stage: "onboarding",
     substepIndex: 1,
     substepCount: 2,
-    substepLabel: "Learning objective",
+    substepLabel: "Your objective",
   };
 }
 

@@ -144,6 +144,8 @@ def course_view(course: CourseRecord) -> CourseResponse:
                 index=m.index,
                 title=m.title,
                 function=m.function,
+                guiding_questions=m.guiding_questions,
+                outcome=m.outcome,
                 state=m.state,
                 lesson_count=len(m.lessons),
                 published_at=m.published_at,

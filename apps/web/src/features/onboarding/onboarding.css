@@ -109,6 +109,10 @@
   background: var(--borgona);
 }
 
+.landing.onboarding-screen .pasosf i.fue {
+  background: rgba(37, 42, 64, 0.42);
+}
+
 .landing.onboarding-screen .pasosf span {
   margin-left: 6px;
   color: var(--m-3);
@@ -146,6 +150,57 @@
   line-height: 1.6;
 }
 
+.landing.onboarding-screen .obj-statement {
+  max-width: 46ch;
+  margin: 20px 0 0;
+  color: var(--m-1);
+  font-family: var(--font-editorial), Georgia, serif;
+  font-size: clamp(19px, 1.9vw, 23px);
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+}
+
+.landing.onboarding-screen .obj-facts {
+  margin: 0;
+}
+
+.landing.onboarding-screen .obj-facts dt {
+  margin: 0 0 8px;
+  color: var(--m-3);
+  font-size: 10px;
+  font-weight: 550;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing.onboarding-screen .obj-facts dd {
+  margin: 0 0 22px;
+  color: var(--m-1);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.landing.onboarding-screen .obj-facts dd:last-child {
+  margin-bottom: 0;
+}
+
+.landing.onboarding-screen .obj-facts ul {
+  margin: 0;
+  padding-left: 1.15em;
+  list-style: disc;
+}
+
+.landing.onboarding-screen .obj-facts li {
+  padding: 0 0 6px;
+  font-family: var(--font-editorial), Georgia, serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.landing.onboarding-screen .obj-facts li:last-child {
+  padding-bottom: 0;
+}
+
 .landing.onboarding-screen .plano {
   display: block;
   max-width: none;
@@ -171,6 +226,10 @@
   font-size: 16.5px;
   line-height: 1.5;
   resize: none;
+}
+
+.landing.onboarding-screen .plano textarea.alto {
+  min-height: 4.75em;
 }
 
 .landing.onboarding-screen .preg.disp .plano textarea {
@@ -260,6 +319,11 @@
   color: var(--m-3);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.landing.onboarding-screen .niv small.rel {
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .landing.onboarding-screen .niv:hover {
@@ -474,7 +538,7 @@
   padding: 13px 22px;
   border: 0;
   border-radius: 10px 10px 4px 4px;
-  background: var(--noche);
+  background: var(--noche-2);
   color: var(--marfil);
   font-family: var(--font-ui);
   font-size: 14px;

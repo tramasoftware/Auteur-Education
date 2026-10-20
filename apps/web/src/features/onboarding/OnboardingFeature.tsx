@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
-  BulletList,
   Button,
   ConfirmDialog,
   DefinitionList,
@@ -182,7 +180,9 @@ export function OnboardingFeature() {
 
   return (
     <div className="flex flex-col gap-8">
-      <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
+      {request.state === "precision_required" || request.objective ? null : (
+        <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
+      )}
 
       {request.state === "incompatible" ? (
         <IncompatibleIntention
@@ -216,17 +216,6 @@ export function OnboardingFeature() {
       ) : null}
 
       <ErrorNotice error={error} />
-
-      {request.objective?.confirmed ? (
-        <div className="flex flex-col gap-2">
-          <Link
-            href={`/proposals?request=${request.id}`}
-            className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
-          >
-            Continue to learning directions
-          </Link>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -773,68 +762,92 @@ function PrecisionPanel({ request, busy, onChoose }: PrecisionPanelProps) {
   const p = request.precision;
 
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">Narrow the object of learning</h2>
-      <p className="text-sm leading-6 text-muted">{p.reason}</p>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">Precision options</legend>
-        {p.options.map((option) => (
-          <label
-            key={option.id}
-            className="flex cursor-pointer gap-3 rounded-xl border border-line bg-surface p-3 text-sm has-[:checked]:border-foreground"
-          >
-            <input
-              type="radio"
-              name="precision"
-              value={option.id}
-              checked={optionId === option.id}
-              onChange={() => {
-                setOptionId(option.id);
-                setFreeText("");
-              }}
-              className="mt-1"
-            />
-            <span className="flex flex-col gap-1">
-              <span className="font-medium">{option.title}</span>
-              <span className="text-muted">
-                {option.explanation}
-              </span>
-              <span className="text-xs text-muted">{option.relation_to_intention}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+    <article className="lect">
+      <div className="pasosf">
+        <i className="fue" />
+        <i className="hoy" />
+        <i />
+        <i />
+        <span>Refine your subject</span>
+      </div>
+
+      <div className="preg disp">
+        <h1 id="precision-label">Where should we look closer?</h1>
+        <p className="bajada">{p.reason || "Choose a focus for your course."}</p>
+      </div>
+
+      <div className="preg">
+        <div className="niveles" role="radiogroup" aria-labelledby="precision-label">
+          {p.options.map((option) => (
+            <label className="niv" key={option.id}>
+              <input
+                type="radio"
+                name="precision"
+                value={option.id}
+                checked={optionId === option.id}
+                onChange={() => {
+                  setOptionId(option.id);
+                  setFreeText("");
+                }}
+              />
+              <span className="c" aria-hidden="true" />
+              <b>{option.title}</b>
+              <small>{option.explanation}</small>
+              {option.relation_to_intention ? (
+                <small className="rel">{option.relation_to_intention}</small>
+              ) : null}
+            </label>
+          ))}
+        </div>
+      </div>
+
       {p.allows_free_text ? (
-        <Field id="free-text" label="Or describe your own focus">
-          <input
-            id="free-text"
-            className={inputClass}
-            maxLength={MAX_FREE_TEXT_CHARS}
-            value={freeText}
-            onChange={(e) => {
-              setFreeText(e.target.value);
-              setOptionId("");
-            }}
-          />
-        </Field>
+        <div className="preg">
+          <h2 id="free-text-label">Or describe your own focus</h2>
+          <label className="plano">
+            <span className="sr-only">Or describe your own focus</span>
+            <textarea
+              id="free-text"
+              rows={1}
+              maxLength={MAX_FREE_TEXT_CHARS}
+              value={freeText}
+              placeholder="For example: the difference between social and demographic drivers of neighborhood change."
+              onChange={(e) => {
+                setFreeText(e.target.value);
+                setOptionId("");
+                e.currentTarget.style.height = "auto";
+                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+              }}
+              aria-labelledby="free-text-label"
+            />
+          </label>
+        </div>
       ) : null}
-      <Button
-        type="button"
-        busy={busy}
-        disabled={!optionId && !freeText.trim()}
-        onClick={() =>
-          onChoose(optionId ? { option_id: optionId } : { free_text: freeText.trim() })
-        }
-      >
-        Formulate my objective
-      </Button>
+
+      <div className="acciones pie-l">
+        <span className="nota">This focus will shape the objective.</span>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy || (!optionId && !freeText.trim())}
+          aria-busy={busy || undefined}
+          onClick={() =>
+            onChoose(optionId ? { option_id: optionId } : { free_text: freeText.trim() })
+          }
+        >
+          {busy ? "Working…" : "Formulate my objective"}
+          {busy ? null : <span className="ar" aria-hidden="true" />}
+        </button>
+      </div>
       {busy ? (
-        <GenerationStatus
-          title="Formulating your objective"
-          description="Turning the chosen learning object into a precise objective you can review."
-        />
+        <div className="form-avisos">
+          <GenerationStatus
+            title="Formulating your objective"
+            description="Turning the chosen learning object into a precise objective you can review."
+          />
+        </div>
       ) : null}
-    </section>
+    </article>
   );
 }
 
@@ -857,113 +870,177 @@ function ObjectivePanel({
   const o = request.objective!;
   const locked = request.state !== "objective_confirmation" && !o.confirmed;
   const hasFeedback = feedback.trim().length > 0;
+  const canRevise =
+    o.confirmed && request.state !== "approved" && !request.blueprint_id;
+  const hadPrecision =
+    request.precision.needs_precision || request.selected_precision !== null;
+
+  const grow = (field: HTMLTextAreaElement) => {
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  };
+
+  const primaryLabel = hasFeedback
+    ? o.confirmed
+      ? "Reformulate objective"
+      : "Confirm these changes"
+    : "Continue to learning directions";
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold">Learning objective</h2>
-        <StatusBadge
-          label={o.confirmed ? `Confirmed · v${o.version}` : `Draft · v${o.version}`}
-          tone={o.confirmed ? "success" : "neutral"}
-        />
+    <article className="lect">
+      <div className="pasosf">
+        <i className="fue" />
+        {hadPrecision ? <i className="fue" /> : null}
+        <i className="hoy" />
+        <i />
+        {!hadPrecision ? <i /> : null}
+        <span>Your objective</span>
       </div>
-      <p className="text-base leading-7">{o.statement}</p>
-      <DefinitionList
-        items={[
-          { term: "You will be able to", detail: o.observable_capability },
-          { term: "Object of learning", detail: o.learning_object },
-          { term: "Assumed level", detail: o.assumed_level_and_knowledge },
-          { term: "Scope", detail: <BulletList items={o.scope} /> },
-          { term: "Exclusions", detail: <BulletList items={o.exclusions} /> },
-          {
-            term: "Signs of achievement",
-            detail: <BulletList items={o.achievement_criteria} />,
-          },
-          ...(o.medium_limitations.length > 0
-            ? [
-                {
-                  term: "Limits of text and audio",
-                  detail: <BulletList items={o.medium_limitations} />,
-                },
-              ]
-            : []),
-        ]}
-      />
+
+      <div className="preg disp">
+        <h1>Is this the objective?</h1>
+        <p className="bajada">Review it before we generate learning paths.</p>
+        <p className="obj-statement">{o.statement}</p>
+      </div>
+
+      <div className="preg">
+        <dl className="obj-facts">
+          <dt>You will be able to</dt>
+          <dd>{o.observable_capability}</dd>
+          <dt>Object of learning</dt>
+          <dd>{o.learning_object}</dd>
+          <dt>Assumed level</dt>
+          <dd>{o.assumed_level_and_knowledge}</dd>
+          <dt>Scope</dt>
+          <dd>
+            {o.scope.length > 0 ? (
+              <ul>
+                {o.scope.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              "None named."
+            )}
+          </dd>
+          <dt>Exclusions</dt>
+          <dd>
+            {o.exclusions.length > 0 ? (
+              <ul>
+                {o.exclusions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              "None named."
+            )}
+          </dd>
+          <dt>Signs of achievement</dt>
+          <dd>
+            {o.achievement_criteria.length > 0 ? (
+              <ul>
+                {o.achievement_criteria.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              "None named."
+            )}
+          </dd>
+          {o.medium_limitations.length > 0 ? (
+            <>
+              <dt>Limits of text and audio</dt>
+              <dd>
+                <ul>
+                  {o.medium_limitations.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      </div>
+
       {!o.confirmed && !locked ? (
-        <div className="flex flex-col gap-3">
-          <Field
-            id="objective-feedback"
-            label="What should change?"
-            hint="Leave empty to accept this objective and continue."
-          >
+        <div className="preg">
+          <h2 id="objective-feedback-label">What should change?</h2>
+          <p className="bajada">Leave empty to accept this objective and continue.</p>
+          <label className="plano">
+            <span className="sr-only">What should change?</span>
             <textarea
               id="objective-feedback"
-              className={textareaClass}
-              rows={3}
+              className="alto"
+              rows={2}
               maxLength={MAX_FREE_TEXT_CHARS}
               value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-            />
-          </Field>
-          {hasFeedback ? (
-            <Button
-              type="button"
-              busy={busy}
-              className="self-start"
-              onClick={() => {
-                onConfirmWithChanges(feedback.trim());
-                setFeedback("");
+              placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
+              onChange={(e) => {
+                setFeedback(e.target.value);
+                grow(e.currentTarget);
               }}
-            >
-              Confirm these changes for the objective
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              busy={busy}
-              className="self-start"
-              onClick={onContinueToDirections}
-            >
-              Continue to learning directions
-            </Button>
-          )}
+              aria-labelledby="objective-feedback-label"
+            />
+          </label>
         </div>
       ) : null}
-      {o.confirmed && request.state !== "approved" && !request.blueprint_id ? (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-muted">
-            Change the objective (this discards current proposals)
+
+      {canRevise ? (
+        <details className="extra">
+          <summary>
+            <span className="mas" aria-hidden="true" />
+            <span className="txt">Change the objective (this discards current proposals)</span>
           </summary>
-          <div className="mt-2 flex flex-col gap-2">
+          <label className="plano">
+            <span className="sr-only">What should change?</span>
             <textarea
-              aria-label="What should change?"
-              className={textareaClass}
-              rows={3}
+              className="alto"
+              rows={2}
               maxLength={MAX_FREE_TEXT_CHARS}
               value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              busy={busy}
-              disabled={!feedback.trim()}
-              onClick={() => {
-                onRevise(feedback.trim());
-                setFeedback("");
+              placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
+              onChange={(e) => {
+                setFeedback(e.target.value);
+                grow(e.currentTarget);
               }}
-            >
-              Reformulate objective
-            </Button>
-          </div>
+            />
+          </label>
         </details>
       ) : null}
+
+      <div className="acciones pie-l">
+        <span className="nota">This objective will shape the learning paths.</span>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy || locked}
+          aria-busy={busy || undefined}
+          onClick={() => {
+            if (hasFeedback && o.confirmed) {
+              onRevise(feedback.trim());
+              setFeedback("");
+              return;
+            }
+            if (hasFeedback) {
+              onConfirmWithChanges(feedback.trim());
+              setFeedback("");
+              return;
+            }
+            void onContinueToDirections();
+          }}
+        >
+          {busy ? "Working…" : primaryLabel}
+          {busy ? null : <span className="ar" aria-hidden="true" />}
+        </button>
+      </div>
       {busy ? (
-        <GenerationStatus
-          title="Updating your objective"
-          description="Applying this change so the objective stays precise before the next step."
-        />
+        <div className="form-avisos">
+          <GenerationStatus
+            title="Updating your objective"
+            description="Applying this change so the objective stays precise before the next step."
+          />
+        </div>
       ) : null}
-    </section>
+    </article>
   );
 }

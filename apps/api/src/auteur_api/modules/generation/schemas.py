@@ -356,6 +356,8 @@ class ModuleSummary(BaseModel):
     index: int
     title: str
     function: str
+    guiding_questions: list[str]
+    outcome: str
     state: ModuleState
     lesson_count: int
     published_at: datetime | None

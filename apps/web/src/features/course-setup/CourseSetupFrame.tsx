@@ -24,6 +24,16 @@ type CourseSetupFrameProps = {
  * header and footer in each document; the label on the right and the back
  * link change with the screen.
  */
+function ScreenTitle({ title }: { title?: string }) {
+  const step = useJourneyStepValue();
+  const resolvedTitle =
+    title ??
+    (!step || step.hidden || step.substepLabel === "Initial form"
+      ? "Your question"
+      : step.substepLabel);
+  return <p className="donde">{resolvedTitle}</p>;
+}
+
 export function CourseSetupFrame({
   children,
   title,
@@ -33,13 +43,6 @@ export function CourseSetupFrame({
   mainClassName = "question-main",
   screenClassName,
 }: CourseSetupFrameProps) {
-  const step = useJourneyStepValue();
-  const resolvedTitle =
-    title ??
-    (!step || step.hidden || step.substepLabel === "Initial form"
-      ? "Your question"
-      : step.substepLabel);
-
   return (
     <div className={`landing course-setup${screenClassName ? ` ${screenClassName}` : ""}`}>
       <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
@@ -58,7 +61,7 @@ export function CourseSetupFrame({
               <span className="m1">Auteur</span>
               <span className="m2">Education</span>
             </Link>
-            <p className="donde">{resolvedTitle}</p>
+            <ScreenTitle title={title} />
           </div>
         </header>
         <main className={mainClassName}>{children}</main>

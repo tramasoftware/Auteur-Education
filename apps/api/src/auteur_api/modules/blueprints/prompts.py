@@ -107,11 +107,13 @@ def generate_blueprint_input(
         f"intellectual_outcome: {proposal.intellectual_outcome}",
         f"distinctive_trajectory: {proposal.distinctive_trajectory}",
         f"organizing_principle: {proposal.organizing_principle}",
+        f"direction_label: {proposal.direction_label}",
         "scope: " + "; ".join(proposal.scope),
         "exclusions: " + "; ".join(proposal.exclusions),
         "guiding_authors_or_traditions: "
         + "; ".join(proposal.guiding_authors_or_traditions),
         f"estimated_modules: {proposal.estimated_modules}",
+        f"estimated_lessons: {proposal.estimated_lessons}",
         f"trade_off: {proposal.trade_off}",
         "",
         "LEARNER CONTEXT",

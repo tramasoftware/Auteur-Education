@@ -284,10 +284,11 @@ El conjunto contiene entre una y cinco propuestas. Cada `CourseProposal` incluye
 - resultado intelectual;
 - recorrido distintivo;
 - principio organizador o perspectiva;
+- etiqueta corta de la dirección (2 a 4 palabras);
 - alcance y exclusiones;
 - adecuación al nivel;
 - autores, tradiciones o métodos orientativos cuando correspondan;
-- estimación de módulos y duración;
+- estimación de módulos, lecciones y duración;
 - ventaja principal;
 - trade-off respecto de otras opciones;
 - recomendación justificada, únicamente si existe una opción claramente superior.

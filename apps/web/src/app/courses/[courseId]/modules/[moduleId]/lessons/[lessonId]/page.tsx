@@ -1,5 +1,4 @@
-import { PlaceholderPage } from "@/components/layout";
-import { LessonReader } from "@/features/course-reader";
+import { ModuleDesk } from "@/features/course-reader/ModuleDesk";
 
 type LessonPageProps = {
   params: Promise<{
@@ -11,13 +10,7 @@ type LessonPageProps = {
 
 export default async function LessonPage({ params }: LessonPageProps) {
   const { courseId, moduleId, lessonId } = await params;
-
   return (
-    <PlaceholderPage
-      title="Lesson"
-      description="Continuous prose written to be read or listened to, with the sources it actually relies on."
-    >
-      <LessonReader courseId={courseId} moduleId={moduleId} lessonId={lessonId} />
-    </PlaceholderPage>
+    <ModuleDesk courseId={courseId} moduleId={moduleId} pane="lesson" lessonId={lessonId} />
   );
 }

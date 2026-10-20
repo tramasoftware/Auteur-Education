@@ -1,0 +1,52 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { ErrorNotice, outlineButtonClass } from "@/components/ui";
+import { courses } from "@/lib/api";
+import type { CourseModule } from "@/types/generator";
+
+import { SourcesList } from "./SourcesList";
+
+type ModuleSourcesViewProps = { courseId: string; moduleId: string };
+
+export function ModuleSourcesView({ courseId, moduleId }: ModuleSourcesViewProps) {
+  const [module, setModule] = useState<CourseModule | null>(null);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    courses.getModule(courseId, moduleId).then(setModule).catch(setError);
+  }, [courseId, moduleId]);
+
+  if (!module) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted">Loading…</p>
+        <ErrorNotice error={error} />
+        <Link href={`/courses/${courseId}`} className={outlineButtonClass}>
+          Back to the course
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      <Link href={`/courses/${courseId}`} className={outlineButtonClass}>
+        ← Course overview
+      </Link>
+      <section className="flex flex-col gap-3">
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">
+          Module {module.index}: {module.title}
+        </h2>
+        <h3 className="text-lg font-semibold">Sources used in this module</h3>
+        {module.sources.length > 0 ? (
+          <SourcesList sources={module.sources} />
+        ) : (
+          <p className="text-sm text-muted">No sources were recorded for this module.</p>
+        )}
+      </section>
+    </div>
+  );
+}
