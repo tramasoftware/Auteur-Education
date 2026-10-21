@@ -91,7 +91,7 @@
 }
 
 .auth-screen .sesion {
-  width: min(640px, calc(100% - 56px));
+  width: min(544px, calc(100% - 56px));
   margin: 48px auto 72px;
   padding: 8px 0 24px;
 }

@@ -987,6 +987,7 @@
 
 .landing .pie-sitio {
   padding: 32px 0 48px;
+  border-top: 1px solid rgba(37, 42, 64, 0.12);
   color: var(--m-3);
   font-size: 12px;
 }

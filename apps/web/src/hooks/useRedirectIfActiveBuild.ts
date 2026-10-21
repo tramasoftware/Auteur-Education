@@ -9,11 +9,15 @@ import { fetchActiveBuildCourseId } from "@/lib/activeBuild";
  * BR-GEN-002: while a build is running, block onboarding / proposals / Blueprint.
  * Sends the learner to the in-progress course overview.
  */
-export function useRedirectIfActiveBuild(): boolean {
+export function useRedirectIfActiveBuild(enabled = true): boolean {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     let cancelled = false;
 
     fetchActiveBuildCourseId()
@@ -36,7 +40,7 @@ export function useRedirectIfActiveBuild(): boolean {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, enabled]);
 
-  return checking;
+  return enabled && checking;
 }

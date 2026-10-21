@@ -43,6 +43,24 @@ function readingMinutes(wordCount: number): number {
   return Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
 }
 
+function moduleStatusClass(state: ModuleState): string {
+  switch (state) {
+    case "published":
+      return "is-ready";
+    case "writing":
+      return "is-writing";
+    case "researching":
+    case "reviewing":
+      return "is-preparing";
+    case "queued":
+      return "is-queued";
+    case "failed":
+      return "is-failed";
+    case "not_built":
+      return "is-limited";
+  }
+}
+
 function moduleStatusLabel(state: ModuleState): string {
   switch (state) {
     case "published":
@@ -256,13 +274,24 @@ function ModuleSection({
   const live = ["writing", "researching", "reviewing"].includes(module.state);
   const loading = live || module.state === "queued" || module.state === "not_built";
   const ready = module.state === "published";
+  const assembling = loading && module.state !== "not_built";
   return (
     <section className="cur-mod">
+      {assembling ? (
+        <p className="mod-build">
+          <span className="spin" aria-hidden="true" />
+          <span>
+            Assembling module {pad(module.index)} · {moduleStatusLabel(module.state)}
+          </span>
+        </p>
+      ) : null}
       <span className="n">{pad(module.index)}</span>
       <div>
         <h2>
           {module.title}
-          <span className="est-m">{moduleStatusLabel(module.state)}</span>
+          <span className={`est-m ${moduleStatusClass(module.state)}`}>
+            {moduleStatusLabel(module.state)}
+          </span>
         </h2>
         <AboutModule
           outcome={module.outcome}
@@ -422,7 +451,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
             <div>
               <h2>
                 Preparing
-                <span className="est-m">Preparing…</span>
+                <span className="est-m is-preparing">Preparing…</span>
               </h2>
               <ol className="ren">
                 <SkeletonRows count={3} live />

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { blueprintJourneyStep, useJourneyStep } from "@/components/layout";
 import {
@@ -17,6 +17,7 @@ import {
   StatusBadge,
   textareaClass,
 } from "@/components/ui";
+import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
 import { forgetCourseFlowPath, forgetRequestId } from "@/lib/session";
@@ -24,15 +25,55 @@ import { usePolling } from "@/lib/usePolling";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import type { Blueprint } from "@/types/generator";
 
+import { PreparingCourse, type PreparingSheet } from "./PreparingCourse";
+
+const SHEET_LINES = [
+  [92, 86, 78, 64],
+  [88, 90, 70, 58],
+  [84, 92, 76, 40],
+  [90, 82, 94, 62],
+];
+
+function preparingCopy(blueprint: Blueprint) {
+  const visible = blueprint.blueprint;
+  const sheets: PreparingSheet[] = [];
+  for (const [moduleIndex, module] of (visible?.modules ?? []).entries()) {
+    for (const [lessonIndex, lesson] of module.lessons.entries()) {
+      if (sheets.length >= 6) {
+        break;
+      }
+      sheets.push({
+        label: `Module ${String(moduleIndex + 1).padStart(2, "0")} · Lesson ${lessonIndex + 1}`,
+        title: lesson.title,
+        lines: SHEET_LINES[sheets.length % SHEET_LINES.length],
+      });
+    }
+    if (sheets.length >= 6) {
+      break;
+    }
+  }
+  const moduleCount = visible?.modules.length ?? 1;
+  const first = visible?.modules[0];
+  return {
+    title: visible?.title || "Your course",
+    subtitle: visible?.subtitle || "",
+    sheets,
+    coverKicker: `AUTEUR · MODULE OVERVIEW · 01 / ${String(moduleCount).padStart(2, "0")}`,
+    coverLabel: "Module 01",
+    coverTitle: first?.title || visible?.title || "Your course",
+  };
+}
+
 /** UF-04: review the visible Blueprint, request changes, approve the exact version. */
 export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
-  const router = useRouter();
-  const blockingActiveBuild = useRedirectIfActiveBuild();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [revising, setRevising] = useState(false);
+  const [preparingCourseId, setPreparingCourseId] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const blockingActiveBuild = useRedirectIfActiveBuild(!preparing);
 
   useJourneyStep(blueprintJourneyStep(blueprint?.state ?? null));
 
@@ -75,16 +116,42 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
     setBusy(true);
     setError(null);
     try {
+      setPreparing(true);
       const result = await blueprints.approve(blueprintId, blueprint.current_version);
       forgetRequestId();
       forgetCourseFlowPath();
-      router.push(`/courses/${result.course_id}`);
+      setPreparingCourseId(result.course_id);
+      setBusy(false);
     } catch (err) {
+      setPreparing(false);
       setError(err);
       setBusy(false);
       load();
     }
   };
+
+  if (preparing && blueprint) {
+    const copy = preparingCopy(blueprint);
+    return createPortal(
+      <div className="preparing-overlay">
+        <CourseSetupFrame
+          screenClassName="preparing-screen"
+          mainClassName="preparing-main"
+          title="Your course"
+          backHref={`/blueprints/${blueprintId}`}
+          backLabel="Blueprint"
+          backAriaLabel="Back to the Blueprint"
+        >
+          <PreparingCourse
+            {...copy}
+            courseReady={preparingCourseId !== null}
+            courseHref={preparingCourseId ? `/courses/${preparingCourseId}` : null}
+          />
+        </CourseSetupFrame>
+      </div>,
+      document.body,
+    );
+  }
 
   if (blockingActiveBuild) {
     return <p className="text-sm text-muted">Checking generation status…</p>;
