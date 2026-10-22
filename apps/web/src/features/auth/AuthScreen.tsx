@@ -39,7 +39,7 @@ export function AuthScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const mode = modeFrom(params.get("mode"));
-  const next = safeInternalPath(params.get("next"), "/library");
+  const next = safeInternalPath(params.get("next"), "/home");
   const linkError = params.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

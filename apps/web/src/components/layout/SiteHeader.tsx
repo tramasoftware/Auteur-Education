@@ -13,19 +13,7 @@ import {
   type CourseFlowStage,
 } from "@/lib/session";
 
-const navItems = [
-  { href: "/library", label: "Library", icon: "library" },
-  { href: "/account", label: "Account", icon: "user" },
-  { href: "/admin", label: "Admin", icon: "shield" },
-] as const;
-
-type NavIconName =
-  | (typeof navItems)[number]["icon"]
-  | "create"
-  | "onboarding"
-  | "proposals"
-  | "blueprint"
-  | "generating";
+type NavIconName = "create" | "onboarding" | "proposals" | "blueprint" | "generating";
 
 const PLANNING_NAV: Record<
   CourseFlowStage,
@@ -90,6 +78,9 @@ export function SiteHeader() {
     pathname === "/about" ||
     pathname === "/plans" ||
     pathname === "/login" ||
+    pathname === "/home" ||
+    pathname === "/my-courses" ||
+    pathname === "/profile" ||
     pathname.startsWith("/auth") ||
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/") ||
@@ -201,23 +192,6 @@ function SiteNav({
       >
         <CourseCreationNavLink pathname={pathname} onNavigate={onNavigate} />
       </Suspense>
-      {navItems.map((item) => {
-        const current = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={current ? "page" : undefined}
-            onClick={onNavigate}
-            className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors ${
-              current ? "text-foreground" : "text-muted hover:text-foreground"
-            }`}
-          >
-            <NavIcon name={item.icon} />
-            {item.label}
-          </Link>
-        );
-      })}
     </nav>
   );
 }
@@ -403,18 +377,6 @@ function NavIcon({ name }: { name: NavIconName }) {
         />
       </>
     ),
-    library: (
-      <>
-        <path d="M5 19V6.5M9 19V5M13 19V7.5M17 19V8.5" />
-      </>
-    ),
-    user: (
-      <>
-        <circle cx="12" cy="8" r="3" />
-        <path d="M6.5 18.5a5.5 5.5 0 0 1 11 0" />
-      </>
-    ),
-    shield: <path d="M12 3.5 18.5 6v5.2c0 3.6-2.5 6.4-6.5 8.3-4-1.9-6.5-4.7-6.5-8.3V6L12 3.5Z" />,
   };
   return <svg {...common}>{paths[name as Exclude<NavIconName, "blueprint">]}</svg>;
 }

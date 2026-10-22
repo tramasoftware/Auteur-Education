@@ -201,11 +201,42 @@
 }
 
 .landing .lp-hero {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   align-items: center;
   gap: clamp(48px, 7vw, 112px);
   padding: 96px 0 80px;
+}
+
+.landing .lp-hero::before,
+.landing .ae-sources::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  user-select: none;
+}
+
+.landing .lp-hero::before {
+  top: 0;
+  bottom: -160px;
+  left: calc((100% - 100vw) / 2);
+  width: 100vw;
+  background-image: url("/brand/ae-brand-art-1.png");
+  background-size: auto max(calc(100% + 160px), clamp(778px, 88.4vw, 1273px));
+  background-position: left -180px top -160px;
+  opacity: 0.24;
+  -webkit-mask-image:
+    radial-gradient(ellipse 82% 92% at 18% 35%, #000 38%, transparent 96%),
+    linear-gradient(180deg, #000 0%, #000 calc(100% - 260px), rgba(0, 0, 0, 0.45) calc(100% - 130px), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(ellipse 82% 92% at 18% 35%, #000 38%, transparent 96%),
+    linear-gradient(180deg, #000 0%, #000 calc(100% - 260px), rgba(0, 0, 0, 0.45) calc(100% - 130px), transparent 100%);
+  mask-composite: intersect;
 }
 
 .landing .lp-hero h1 {
@@ -303,6 +334,7 @@
 
 .landing #coleccion {
   padding-top: 72px;
+  border-top-color: transparent;
 }
 
 .landing .col-cab {
@@ -859,10 +891,23 @@
 }
 
 .landing .ae-source-editorial {
+  position: relative;
+  isolation: isolate;
   display: block;
   padding: 76px 0 90px;
   border-top: 1px solid var(--regla);
   text-align: center;
+}
+
+.landing .ae-sources::before {
+  inset: 0 auto 0 calc((100% - 100vw) / 2);
+  width: 100vw;
+  background-image: url("/brand/ae-brand-art-2.png");
+  background-size: clamp(900px, 104vw, 1550px) auto;
+  background-position: right -90px center;
+  opacity: 0.2;
+  -webkit-mask-image: radial-gradient(ellipse 75% 74% at 85% 60%, #000 35%, transparent 98%);
+  mask-image: radial-gradient(ellipse 75% 74% at 85% 60%, #000 35%, transparent 98%);
 }
 
 .landing .ae-source-editorial > .k {

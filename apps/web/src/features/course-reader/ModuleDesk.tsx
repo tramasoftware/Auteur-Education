@@ -5,7 +5,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import { ErrorNotice } from "@/components/ui";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
-import type { CourseModule, Lesson, SourceView } from "@/types/generator";
+import type { Course, CourseModule, Lesson, SourceView } from "@/types/generator";
 
 import { KnowledgeCheck } from "./KnowledgeCheck";
 import {
@@ -84,6 +84,52 @@ function paragraphs(text: string): string[] {
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+/** Purpose sometimes ends with “(Source: …)”; links live in lesson.sources instead. */
+function lessonPurposeText(purpose: string): string {
+  return purpose.replace(/\s*\(Source:\s*[^)]+\)\s*$/i, "").trim();
+}
+
+function LessonMeta({ lesson }: { lesson: Lesson }) {
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const sources = lesson.sources;
+  const sourceLabel =
+    sources.length === 1 ? "1 Source" : `${sources.length} Sources`;
+
+  return (
+    <div className="meta">
+      <span>
+        {readingMinutes(lesson.word_count)} min read ~{lesson.word_count} words
+      </span>
+      {sources.length > 0 ? (
+        <div className="meta-src">
+          <button
+            type="button"
+            className="meta-src-toggle"
+            aria-expanded={sourcesOpen}
+            onClick={() => setSourcesOpen((open) => !open)}
+          >
+            <span>{sourceLabel}</span>
+            <span className="meta-src-icon" aria-hidden="true">
+              {sourcesOpen ? "−" : "+"}
+            </span>
+          </button>
+          {sourcesOpen ? (
+            <ul className="meta-src-list">
+              {sources.map((source, index) => (
+                <li key={`${source.ref}:${source.url}:${index}`}>
+                  <a href={source.url} target="_blank" rel="noreferrer noopener">
+                    {source.title || source.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function AudioRail({ title }: { title: string }) {
@@ -305,16 +351,13 @@ function Cover({
 }
 
 function LessonSheet({ lesson, nav }: { lesson: Lesson; nav: SheetNavLinks }) {
+  const purpose = lesson.purpose ? lessonPurposeText(lesson.purpose) : "";
   return (
     <>
       <header className="head">
         <h1>{lesson.title}</h1>
-        {lesson.purpose ? <p className="para">{lesson.purpose}</p> : null}
-        <div className="meta">
-          <span>
-            {readingMinutes(lesson.word_count)} min read ~{lesson.word_count} words
-          </span>
-        </div>
+        {purpose ? <p className="para">{purpose}</p> : null}
+        <LessonMeta lesson={lesson} />
       </header>
       <div className="body">
         {lesson.sections.map((section, index) => {
@@ -394,17 +437,38 @@ function SourceRow({ source, index }: { source: SourceView; index: number }) {
   );
 }
 
-function QuizSheet({ module, nav }: { module: CourseModule; nav: SheetNavLinks }) {
+function QuizSheet({
+  courseId,
+  course,
+  module,
+  nav,
+}: {
+  courseId: string;
+  course: Course | null;
+  module: CourseModule;
+  nav: SheetNavLinks;
+}) {
+  const next = course?.modules.find((item) => item.index === module.index + 1) ?? null;
+  const continueHref =
+    next && next.state === "published"
+      ? `/courses/${courseId}/modules/${next.id}`
+      : `/courses/${courseId}`;
+  const continueLabel = next ? `Continue to module ${pad(next.index)}` : "Back to the course";
+
   return (
     <>
       <header className="head">
         <h1>Module quiz</h1>
-        <p className="para">
-          Questions on the ideas this module developed. Optional and repeatable.
-        </p>
+        <div className="regla" />
       </header>
       {module.knowledge_check ? (
-        <KnowledgeCheck check={module.knowledge_check} sheet />
+        <KnowledgeCheck
+          check={module.knowledge_check}
+          sheet
+          continueHref={continueHref}
+          continueLabel={continueLabel}
+          overviewHref={`/courses/${courseId}/modules/${module.id}`}
+        />
       ) : (
         <p className="sheet-loading">This module does not have a quiz yet.</p>
       )}
@@ -532,7 +596,12 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
                 ) : pane === "sources" ? (
                   <SourcesSheet module={module} nav={sheetNav} />
                 ) : (
-                  <QuizSheet module={module} nav={sheetNav} />
+                  <QuizSheet
+                    courseId={courseId}
+                    course={course}
+                    module={module}
+                    nav={sheetNav}
+                  />
                 )}
               </article>
             </div>

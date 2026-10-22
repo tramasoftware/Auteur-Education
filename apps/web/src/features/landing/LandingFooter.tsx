@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
 const questions = [
@@ -34,7 +35,7 @@ const questions = [
   },
 ] as const;
 
-export function LandingFooter() {
+export function LandingFooter({ member = false }: { member?: boolean }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
 
@@ -42,6 +43,13 @@ export function LandingFooter() {
     <footer className="pie-sitio pie-publico">
       <div className="landing-wrap ae-footer-links">
         <span>Auteur Education</span>
+        {member ? (
+          <>
+            <Link href="/home">Home</Link>
+            <Link href="/my-courses">My courses</Link>
+            <Link href="/profile">Profile</Link>
+          </>
+        ) : null}
         <button
           className="ae-footer-faq-toggle"
           type="button"

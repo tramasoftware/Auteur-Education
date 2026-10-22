@@ -1,7 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { accountSession } from "@/lib/auth/claims";
+
 import { supabasePublicEnv } from "./env";
+
+const MEMBER_PATHS = new Set(["/home", "/my-courses", "/profile"]);
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -31,6 +35,18 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Verifies the session and refreshes cookies. Do not trust getSession here.
-  await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getClaims();
+  if (MEMBER_PATHS.has(request.nextUrl.pathname)) {
+    const session = accountSession(
+      error ? undefined : (data?.claims as Record<string, unknown> | undefined),
+    );
+    if (session.status !== "registered") {
+      const redirectResponse = NextResponse.redirect(new URL("/", request.url));
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      return redirectResponse;
+    }
+  }
   return supabaseResponse;
 }

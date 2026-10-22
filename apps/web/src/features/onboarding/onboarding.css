@@ -1408,4 +1408,148 @@
   .landing.course-setup .btn:active:not(:disabled) {
     transform: none;
   }
+
+  .landing.course-setup .stage-failure {
+    transform: none;
+  }
+}
+
+/* Screen 14: a deep-burgundy sheet, only after a stage load fails. */
+.landing.course-setup .stage-failure {
+  position: relative;
+  width: min(720px, 100%);
+  margin: 48px auto 72px;
+  padding: clamp(40px, 4.6vw, 64px) clamp(36px, 5vw, 76px) clamp(36px, 4vw, 56px);
+  border-radius: 2px;
+  background: #481112;
+  color: #f2f0ef;
+  transform: rotate(-0.35deg);
+  transform-origin: 50% 0;
+}
+
+.landing.onboarding-screen .question-main .stage-failure {
+  margin-top: 16px;
+}
+
+.landing.course-setup .stage-failure::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='q'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23q)' opacity='.26'/%3E%3C/svg%3E");
+}
+
+.landing.course-setup .stage-failure > * {
+  position: relative;
+}
+
+.landing.course-setup .stage-failure .lomo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 14px;
+  border-radius: 2px 2px 0 0;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.landing.course-setup .stage-failure .lomo::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(242, 240, 239, 0.18);
+}
+
+.landing.course-setup .stage-failure .ico {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 24px;
+  color: #f2f0ef;
+}
+
+.landing.course-setup .stage-failure h1 {
+  max-width: 20ch;
+  margin: 0;
+  color: #f2f0ef;
+  font-family: var(--font-editorial), Georgia, serif;
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 400;
+  letter-spacing: -0.014em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.landing.course-setup .stage-failure p {
+  max-width: 54ch;
+  margin: 24px 0 0;
+  color: rgba(242, 240, 239, 0.86);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 15.5px;
+  font-weight: 400;
+  letter-spacing: -0.011em;
+  line-height: 1.6;
+}
+
+.landing.course-setup .stage-failure .acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 32px;
+}
+
+.landing.course-setup .stage-failure .btn {
+  min-height: 44px;
+  padding: 0 22px 0 24px;
+  border: 0;
+  border-radius: 12px 12px 4px 4px;
+  background: #f2f0ef;
+  color: #481112;
+  font-family: var(--font-editorial), Georgia, serif;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: -0.008em;
+  line-height: 1;
+}
+
+.landing.course-setup .stage-failure .btn:hover:not(:disabled) {
+  background: #f2f0ef;
+  transform: translateY(-1px);
+}
+
+.landing.course-setup .stage-failure .btn.fantasma {
+  background: none;
+  color: #f2f0ef;
+  outline: 1px solid rgba(242, 240, 239, 0.45);
+  outline-offset: -1px;
+}
+
+.landing.course-setup .stage-failure .btn.fantasma:hover:not(:disabled) {
+  background: none;
+  outline-color: #f2f0ef;
+}
+
+@media (max-width: 640px) {
+  .landing.course-setup .stage-failure {
+    width: calc(100% - 24px);
+    margin: 24px auto 40px;
+    padding: 36px 20px 28px;
+    transform: none;
+  }
+
+  .landing.course-setup .stage-failure .acciones {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .landing.course-setup .stage-failure .btn {
+    width: 100%;
+  }
 }

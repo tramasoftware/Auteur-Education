@@ -10,6 +10,7 @@ import {
   GenerationStatus,
   StatusBadge,
 } from "@/components/ui";
+import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { ApiError, learningRequests } from "@/lib/api";
 import { requestStateLabel } from "@/lib/labels";
@@ -36,6 +37,13 @@ const LEVEL_NOTES: Record<ExperienceLevel, string> = {
 /** Matches API `max_free_text_chars`; not a product rule. */
 const MAX_FREE_TEXT_CHARS = 4000;
 
+function isIntentionFieldError(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    (err.code === "validation_error" || err.code === "non_english_input")
+  );
+}
+
 /**
  * UF-01/UF-02 in a single screen (DEC-006): intention form, compatibility,
  * learning-object precision when needed, and objective confirmation.
@@ -47,6 +55,10 @@ export function OnboardingFeature() {
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [failure, setFailure] = useState<(typeof stageFailureCopy)[keyof typeof stageFailureCopy] | null>(
+    null,
+  );
+  const retryRef = useRef<() => void>(() => {});
 
   useJourneyStep(onboardingJourneyStep(request));
 
@@ -61,17 +73,31 @@ export function OnboardingFeature() {
       .catch(() => forgetRequestId());
   }, [params, request]);
 
-  const run = async (action: () => Promise<LearningRequest>) => {
+  const run = async (
+    action: () => Promise<LearningRequest>,
+    failureCopy: (typeof stageFailureCopy)[keyof typeof stageFailureCopy] | null = null,
+    keepFieldErrors = false,
+  ) => {
     setLoading(true);
     setError(null);
     try {
       const next = await action();
+      setFailure(null);
       forgetOnboardingDraft();
       rememberRequestId(next.id);
       setRequest(next);
       router.replace(`/onboarding?request=${next.id}`);
     } catch (err) {
-      setError(err);
+      if (failureCopy && !(keepFieldErrors && isIntentionFieldError(err))) {
+        retryRef.current = () => {
+          void run(action, failureCopy, keepFieldErrors);
+        };
+        setFailure(failureCopy);
+        setError(null);
+      } else {
+        setFailure(null);
+        setError(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -89,9 +115,14 @@ export function OnboardingFeature() {
         request.objective.version,
       );
       rememberRequestId(next.id);
+      setFailure(null);
       router.push(`/proposals?request=${next.id}`);
-    } catch (err) {
-      setError(err);
+    } catch {
+      retryRef.current = () => {
+        void continueToLearningDirections();
+      };
+      setFailure(stageFailureCopy.directions);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -134,7 +165,7 @@ export function OnboardingFeature() {
       router.push(`/login?next=${encodeURIComponent("/onboarding")}`);
       return;
     }
-    await run(() => learningRequests.create(payload));
+    await run(() => learningRequests.create(payload), stageFailureCopy.intention, true);
   };
 
   const resetFromScratch = () => {
@@ -150,9 +181,19 @@ export function OnboardingFeature() {
     return <p className="text-sm text-muted">Checking generation status…</p>;
   }
 
+  const failureScreen = failure ? (
+    <StageFailure
+      {...failure}
+      busy={loading}
+      onRetry={() => retryRef.current()}
+      onBack={() => setFailure(null)}
+    />
+  ) : null;
+
   if (!request) {
     return (
-      <article className="lect">
+      <>
+      <article className="lect" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
         <div className="pasosf">
           <i className="hoy" />
           <i />
@@ -168,11 +209,14 @@ export function OnboardingFeature() {
           }}
         />
       </article>
+      {failureScreen}
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <>
+    <div className="flex flex-col gap-8" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
       {request.state === "precision_required" ||
       request.state === "incompatible" ||
       request.objective ? null : (
@@ -183,7 +227,9 @@ export function OnboardingFeature() {
         <IncompatibleIntention
           busy={loading}
           onStartOver={resetFromScratch}
-          onUseIntention={(payload) => run(() => learningRequests.create(payload))}
+          onUseIntention={(payload) =>
+            run(() => learningRequests.create(payload), stageFailureCopy.suggested, true)
+          }
           request={request}
         />
       ) : null}
@@ -194,7 +240,7 @@ export function OnboardingFeature() {
           busy={loading}
           onReset={resetFromScratch}
           onChoose={(payload) =>
-            run(() => learningRequests.choosePrecision(request.id, payload))
+            run(() => learningRequests.choosePrecision(request.id, payload), stageFailureCopy.precision)
           }
         />
       ) : null}
@@ -214,6 +260,8 @@ export function OnboardingFeature() {
 
       <ErrorNotice error={error} />
     </div>
+    {failureScreen}
+    </>
   );
 }
 

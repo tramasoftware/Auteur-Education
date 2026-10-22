@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -18,6 +19,7 @@ import {
   textareaClass,
 } from "@/components/ui";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
+import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
 import { forgetCourseFlowPath, forgetRequestId } from "@/lib/session";
@@ -66,9 +68,11 @@ function preparingCopy(blueprint: Blueprint) {
 
 /** UF-04: review the visible Blueprint, request changes, approve the exact version. */
 export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
+  const router = useRouter();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [courseFailed, setCourseFailed] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [revising, setRevising] = useState(false);
   const [preparingCourseId, setPreparingCourseId] = useState<string | null>(null);
@@ -115,6 +119,7 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
     }
     setBusy(true);
     setError(null);
+    setCourseFailed(false);
     try {
       setPreparing(true);
       const result = await blueprints.approve(blueprintId, blueprint.current_version);
@@ -122,15 +127,15 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
       forgetCourseFlowPath();
       setPreparingCourseId(result.course_id);
       setBusy(false);
-    } catch (err) {
-      setPreparing(false);
-      setError(err);
+    } catch {
+      setPreparing(true);
+      setCourseFailed(true);
       setBusy(false);
       load();
     }
   };
 
-  if (preparing && blueprint) {
+  if ((preparing || courseFailed) && blueprint) {
     const copy = preparingCopy(blueprint);
     return createPortal(
       <div className="preparing-overlay">
@@ -142,11 +147,26 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
           backLabel="Blueprint"
           backAriaLabel="Back to the Blueprint"
         >
-          <PreparingCourse
-            {...copy}
-            courseReady={preparingCourseId !== null}
-            courseHref={preparingCourseId ? `/courses/${preparingCourseId}` : null}
-          />
+          {courseFailed ? (
+            <StageFailure
+              {...stageFailureCopy.course}
+              busy={busy}
+              onRetry={() => {
+                void approve();
+              }}
+              onBack={() => {
+                setCourseFailed(false);
+                setPreparing(false);
+                router.push(`/proposals?request=${blueprint.request_id}`);
+              }}
+            />
+          ) : (
+            <PreparingCourse
+              {...copy}
+              courseReady={preparingCourseId !== null}
+              courseHref={preparingCourseId ? `/courses/${preparingCourseId}` : null}
+            />
+          )}
         </CourseSetupFrame>
       </div>,
       document.body,

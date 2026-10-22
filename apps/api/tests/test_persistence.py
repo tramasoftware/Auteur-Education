@@ -21,6 +21,7 @@ from auteur_api.modules.generation.build import course_needs_build, ensure_start
 from auteur_api.modules.generation.schemas import (
     CourseRecord,
     CourseState,
+    LessonRecord,
     LessonState,
     ModuleRecord,
     ModuleState,
@@ -190,6 +191,17 @@ def test_library_lists_only_the_callers_courses_newest_first(client) -> None:
         title="Someone else's course",
         created_at=datetime(2026, 9, 20, tzinfo=UTC),
     )
+    first = _module(ModuleState.PUBLISHED, 1)
+    first.lessons = [
+        LessonRecord(id=new_id(), index=1, title="Opening", purpose="Introduce the idea"),
+        LessonRecord(id=new_id(), index=2, title="Development", purpose="Carry the idea"),
+    ]
+    second = _module(ModuleState.QUEUED, 2)
+    second.lessons = [
+        LessonRecord(id=new_id(), index=1, title="Close", purpose="Leave a question"),
+    ]
+    newer.modules = [first, second]
+    store.save_course(newer)
 
     response = client.get("/api/v1/courses")
     assert response.status_code == 200
@@ -200,6 +212,10 @@ def test_library_lists_only_the_callers_courses_newest_first(client) -> None:
     assert body[0]["objective_statement"] == "Understand Newer course."
     assert body[0]["state"] == "partially_available"
     assert body[0]["updated_at"]
+    assert body[0]["module_count"] == 2
+    assert body[0]["lesson_count"] == 3
+    assert body[1]["module_count"] == 0
+    assert body[1]["lesson_count"] == 0
 
 
 def test_library_is_empty_without_courses(client) -> None:

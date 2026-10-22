@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createPathRouteMotion } from "./pathRouteMotion";
 
 import { proposalsJourneyStep, useJourneyStep } from "@/components/layout";
-import {
-  ErrorNotice,
-  GenerationStatus,
-} from "@/components/ui";
+import { GenerationStatus } from "@/components/ui";
+import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { isAnonymousClaim } from "@/lib/auth/claims";
 import { learningRequests } from "@/lib/api";
@@ -119,8 +117,8 @@ export function ProposalsFeature() {
   const blockingActiveBuild = useRedirectIfActiveBuild();
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(true);
+  const [failure, setFailure] = useState<"directions" | "blueprint" | null>(null);
   const loadSeq = useRef(0);
 
   const requestId = params.get("request") ?? recallRequestId();
@@ -132,40 +130,39 @@ export function ProposalsFeature() {
     ),
   );
 
-  useEffect(() => {
+  const loadDirections = useCallback(() => {
     if (!requestId) {
       return;
     }
     const seq = ++loadSeq.current;
-    let cancelled = false;
-    (async () => {
-      setBusy(true);
-      setError(null);
-      try {
-        const current = await loadProposalsForRequest(requestId);
-        if (!cancelled && seq === loadSeq.current) {
-          rememberRequestId(current.id);
-          setRequest(current);
-          setSelectedId(current.selected_proposal_id);
+    void loadProposalsForRequest(requestId).then(
+      (current) => {
+        if (seq !== loadSeq.current) {
+          return;
         }
-      } catch (err) {
-        if (!cancelled && seq === loadSeq.current) {
-          setError(err);
+        rememberRequestId(current.id);
+        setRequest(current);
+        setSelectedId(current.selected_proposal_id);
+        setFailure(null);
+        setBusy(false);
+      },
+      () => {
+        if (seq !== loadSeq.current) {
+          return;
         }
-      } finally {
-        if (!cancelled && seq === loadSeq.current) {
-          setBusy(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+        setRequest(null);
+        setFailure("directions");
+        setBusy(false);
+      },
+    );
   }, [requestId]);
+
+  useEffect(() => {
+    loadDirections();
+  }, [loadDirections]);
 
   const selectPath = (proposalId: string) => {
     setSelectedId(proposalId);
-    setError(null);
   };
 
   const startBlueprint = async () => {
@@ -173,7 +170,6 @@ export function ProposalsFeature() {
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       if (request.selected_proposal_id !== selectedId) {
         setRequest(await learningRequests.selectProposal(request.id, selectedId));
@@ -187,9 +183,10 @@ export function ProposalsFeature() {
         return;
       }
       const blueprint = await learningRequests.startBlueprint(request.id);
+      setFailure(null);
       router.push(`/blueprints/${blueprint.id}`);
-    } catch (err) {
-      setError(err);
+    } catch {
+      setFailure("blueprint");
       setBusy(false);
     }
   };
@@ -213,6 +210,19 @@ export function ProposalsFeature() {
   }
 
   if (!request) {
+    if (failure === "directions") {
+      return (
+        <StageFailure
+          {...stageFailureCopy.directions}
+          busy={busy}
+          onRetry={() => {
+            setBusy(true);
+            loadDirections();
+          }}
+          onBack={() => router.push(`/onboarding?request=${requestId}`)}
+        />
+      );
+    }
     return (
       <div className="caminos-h">
         <div className="form-avisos">
@@ -224,7 +234,6 @@ export function ProposalsFeature() {
           ) : (
             <p>Loading…</p>
           )}
-          <ErrorNotice error={error} />
         </div>
       </div>
     );
@@ -246,6 +255,19 @@ export function ProposalsFeature() {
 
   const set = request.proposals;
 
+  if (failure === "blueprint") {
+    return (
+      <StageFailure
+        {...stageFailureCopy.blueprint}
+        busy={busy}
+        onRetry={() => {
+          void startBlueprint();
+        }}
+        onBack={() => setFailure(null)}
+      />
+    );
+  }
+
   return (
     <>
       <section className="caminos-h">
@@ -255,18 +277,13 @@ export function ProposalsFeature() {
         {set?.recommendation_reason ? <p className="reco">{set.recommendation_reason}</p> : null}
       </section>
 
-      {!set ? (
-        <div className="form-avisos">
-          <ErrorNotice error={error} />
-        </div>
-      ) : (
+      {!set ? null : (
         <Paths
           proposals={set.proposals}
           recommendedId={set.recommended_proposal_id}
           selectedId={selectedId}
           busy={busy}
           blueprintId={request.blueprint_id}
-          error={error}
           onSelect={selectPath}
           onContinue={startBlueprint}
         />
@@ -281,7 +298,6 @@ function Paths({
   selectedId,
   busy,
   blueprintId,
-  error,
   onSelect,
   onContinue,
 }: {
@@ -290,7 +306,6 @@ function Paths({
   selectedId: string | null;
   busy: boolean;
   blueprintId: string | null;
-  error: unknown;
   onSelect: (proposalId: string) => void;
   onContinue: () => void;
 }) {
@@ -545,11 +560,6 @@ function Paths({
           </span>
         </div>
       </div>
-      {error ? (
-        <div className="form-avisos">
-          <ErrorNotice error={error} />
-        </div>
-      ) : null}
     </>
   );
 }

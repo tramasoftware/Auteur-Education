@@ -534,7 +534,7 @@ def module_synthesis_input(ctx: BuildContext, module: ModuleRecord) -> str:
 
 # --- AI-STG-13 Knowledge Check ---
 
-KNOWLEDGE_CHECK_V1 = "knowledge_check_v2"
+KNOWLEDGE_CHECK_V1 = "knowledge_check_v3"
 
 KNOWLEDGE_CHECK_INSTRUCTIONS = (
     SHARED_RULES
@@ -549,7 +549,9 @@ literal definitions. Obey the ORIENTATION block. An applied check tests judgment
 and the use of criteria the module taught, not recall of philosophical
 definitions. A theoretical check tests understanding and reasoning in the
 learner's field. Distractors must be plausible, mutually distinguishable and
-consistent with the text; explain the error each represents. No reasonable ambiguity
+consistent with the text. Each option explanation is one paragraph of at most two
+sentences: for the correct option, the idea that makes it right; for each
+distractor, the error it represents. No reasonable ambiguity
 between two options. Never assess content the module did not teach. For each question
 list assessed_concepts and related_lesson_titles (exact titles from the module). The
 check is formative, optional, repeatable and not certifying.

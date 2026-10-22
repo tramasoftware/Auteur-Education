@@ -16,7 +16,7 @@ export function CourseOutlineScreen({
   return (
     <CourseSetupFrame
       title={title}
-      backHref="/library"
+      backHref="/my-courses"
       backLabel="My courses"
       backAriaLabel="Back to My courses"
       mainClassName="cur"

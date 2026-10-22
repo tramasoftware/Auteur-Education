@@ -48,9 +48,18 @@ def course_build_snapshot(course: CourseRecord) -> CourseBuildSnapshot:
     )
 
 
+def course_structure_counts(course: CourseRecord) -> tuple[int, int]:
+    """Module and lesson totals stored on the course row for the library list."""
+    return (
+        len(course.modules),
+        sum(len(module.lessons) for module in course.modules),
+    )
+
+
 def course_list_item(
     course: CourseRecord, *, updated_at: datetime | None = None
 ) -> CourseListItem:
+    module_count, lesson_count = course_structure_counts(course)
     return CourseListItem(
         id=course.id,
         title=course.title,
@@ -58,6 +67,8 @@ def course_list_item(
         objective_statement=course.objective_statement,
         state=course.state,
         updated_at=updated_at or _last_activity(course),
+        module_count=module_count,
+        lesson_count=lesson_count,
     )
 
 

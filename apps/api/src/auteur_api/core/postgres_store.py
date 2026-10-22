@@ -13,7 +13,12 @@ from supabase import Client, create_client
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
 from auteur_api.core.errors import not_found
-from auteur_api.core.store import CourseBuildSnapshot, ProfileRecord, assert_owner
+from auteur_api.core.store import (
+    CourseBuildSnapshot,
+    ProfileRecord,
+    assert_owner,
+    course_structure_counts,
+)
 from auteur_api.modules.blueprints.schemas import (
     BlueprintInternal,
     BlueprintRecord,
@@ -333,6 +338,7 @@ class PostgresStore:
         )
 
     def save_course(self, record: CourseRecord) -> None:
+        module_count, lesson_count = course_structure_counts(record)
         self._table("courses").upsert(
             {
                 "id": record.id,
@@ -344,6 +350,8 @@ class PostgresStore:
                 "subtitle": record.subtitle,
                 "objective_statement": record.objective_statement,
                 "state": record.state.value,
+                "module_count": module_count,
+                "lesson_count": lesson_count,
                 "current_activity": record.current_activity,
                 "final_synthesis": _dump(record.final_synthesis),
                 "course_audit": _dump(record.course_audit),
@@ -408,7 +416,7 @@ class PostgresStore:
         rows = (
             self._table("courses")
             .select(
-                "id,title,subtitle,objective_statement,state,updated_at,created_at"
+                "id,title,subtitle,objective_statement,state,updated_at,created_at,module_count,lesson_count"
             )
             .eq("user_id", user_id)
             .order("updated_at", desc=True)
@@ -424,6 +432,8 @@ class PostgresStore:
                 objective_statement=row["objective_statement"],
                 state=CourseState(row["state"]),
                 updated_at=_dt(row.get("updated_at") or row["created_at"]),
+                module_count=row.get("module_count") or 0,
+                lesson_count=row.get("lesson_count") or 0,
             )
             for row in rows
         ]

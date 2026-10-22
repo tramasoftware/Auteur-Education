@@ -384,6 +384,8 @@ class CourseListItem(BaseModel):
 
     Custom title, level and learning progress are not stored on `courses`.
     `updated_at` is the last build activity used for BR-LIB-002 ordering.
+    `module_count` and `lesson_count` are written with the course so the
+    library can show them without loading lesson bodies.
     """
 
     id: str
@@ -392,6 +394,8 @@ class CourseListItem(BaseModel):
     objective_statement: str
     state: CourseState
     updated_at: datetime
+    module_count: int
+    lesson_count: int
 
 
 class CourseListResponse(BaseModel):
