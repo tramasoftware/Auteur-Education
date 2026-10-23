@@ -212,6 +212,7 @@ def test_library_lists_only_the_callers_courses_newest_first(client) -> None:
     assert body[0]["objective_statement"] == "Understand Newer course."
     assert body[0]["state"] == "partially_available"
     assert body[0]["updated_at"]
+    assert body[0]["created_at"] > body[1]["created_at"]
     assert body[0]["module_count"] == 2
     assert body[0]["lesson_count"] == 3
     assert body[1]["module_count"] == 0

@@ -83,6 +83,18 @@
   transform: translateY(0) scale(0.98);
 }
 
+.member .btn:disabled,
+.member .btn:disabled:hover {
+  cursor: default;
+  opacity: 0.6;
+  transform: none;
+}
+
+.member .btn.fantasma:disabled:hover {
+  background: none;
+  color: var(--tinta);
+}
+
 .member .btn.fantasma {
   background: none;
   color: var(--tinta);
@@ -1156,13 +1168,14 @@
 .member .cajon {
   --tx: #f2f0ef;
   --tx2: rgba(242, 240, 239, 0.66);
+  --stack-overlap: 38px;
   position: relative;
   margin-top: 8px;
 }
 
 .member .cajon .carp {
   position: relative;
-  z-index: var(--stack, 1);
+  z-index: 1;
   display: block;
   max-height: 900px;
   color: var(--tx);
@@ -1173,12 +1186,7 @@
 }
 
 .member .cajon .carp + .carp {
-  margin-top: -38px;
-}
-
-.member .cajon .carp:hover,
-.member .cajon .carp.on {
-  z-index: 30;
+  margin-top: calc(var(--stack-overlap) * -1);
 }
 
 .member .cajon .carp.claro {
@@ -1190,11 +1198,20 @@
   position: relative;
   top: auto;
   left: auto;
-  max-width: calc(100% - var(--x) - 20px);
-  margin-left: var(--x);
+  display: flex;
+  width: max-content;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+  margin-right: 0;
+  margin-left: 20px;
   border: 0;
   color: var(--tx);
   cursor: default;
+}
+
+.member .cajon .carp:nth-child(even) .pest.folder-tab {
+  margin-right: 20px;
+  margin-left: auto;
 }
 
 .member .cajon .pest .n {
@@ -1219,6 +1236,11 @@
   height: 312px;
 }
 
+.member .cajon .carp:hover:not(:last-child) .cu,
+.member .cajon .carp.on:not(:last-child) .cu {
+  height: calc(312px + var(--stack-overlap) + 12px);
+}
+
 .member .cajon .ficha-c {
   position: absolute;
   inset: 0;
@@ -1234,6 +1256,11 @@
 .member .cajon .carp:hover .ficha-c,
 .member .cajon .carp.on .ficha-c {
   opacity: 1;
+}
+
+.member .cajon .carp:hover:not(:last-child) .ficha-c,
+.member .cajon .carp.on:not(:last-child) .ficha-c {
+  padding-bottom: calc(22px + var(--stack-overlap) + 12px);
 }
 
 .member .cajon .ficha-c .k {
@@ -1519,6 +1546,32 @@
   line-height: 1.5;
 }
 
+.member .fila .campo {
+  display: block;
+  width: min(100%, 28rem);
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(37, 42, 64, 0.22);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--m-1);
+  font: inherit;
+  font-size: 14px;
+}
+
+.member .fila .campo:focus {
+  border-color: var(--m-1);
+  outline: 2px solid rgba(37, 42, 64, 0.18);
+  outline-offset: 1px;
+}
+
+.member .fila .acc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .member .sw {
   position: relative;
   width: 42px;
@@ -1787,12 +1840,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .member .cajon .carp + .carp {
-    margin-top: -36px;
+  .member .cajon {
+    --stack-overlap: 36px;
   }
 
   .member .cajon .ficha-c {
     padding: 16px 18px 18px;
+  }
+
+  .member .cajon .carp:hover:not(:last-child) .ficha-c,
+  .member .cajon .carp.on:not(:last-child) .ficha-c {
+    padding-bottom: calc(18px + var(--stack-overlap) + 12px);
   }
 
   .member .pliego,

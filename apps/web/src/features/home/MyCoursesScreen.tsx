@@ -8,7 +8,9 @@ import type { LibraryCourse } from "@/types/generator";
 
 import { MemberFrame } from "./MemberFrame";
 
-/** Muted folder colors in the niebla / brown / ink family. The sequence repeats after ten. */
+/** Muted folder colors. The oldest course is always the first swatch.
+ *  Each newer course takes the next swatch. Past the last one, the list repeats.
+ */
 const FOLDER_COLORS = [
   { color: "#C6D4DF", claro: true },
   { color: "#372018", claro: false },
@@ -22,13 +24,11 @@ const FOLDER_COLORS = [
   { color: "#4A3034", claro: false },
 ] as const;
 
-const FOLDER_OFFSETS = ["2%", "34%", "58%", "12%", "42%", "8%", "26%", "50%", "18%", "38%"];
-
 type FolderCourse = {
   id: string;
   n: string;
   title: string;
-  when: string;
+  created: string;
   subtitle: string;
   objective: string;
   modules: number;
@@ -36,8 +36,6 @@ type FolderCourse = {
   href: string;
   color: string;
   claro: boolean;
-  x: string;
-  stack: number;
 };
 
 function pad(index: number): string {
@@ -52,15 +50,32 @@ function shortDate(value: string): string {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(date);
 }
 
+function byCreation(items: LibraryCourse[]): LibraryCourse[] {
+  return [...items].sort((a, b) => {
+    const aTime = Date.parse(a.created_at);
+    const bTime = Date.parse(b.created_at);
+    const aKey = Number.isNaN(aTime) ? Number.POSITIVE_INFINITY : aTime;
+    const bKey = Number.isNaN(bTime) ? Number.POSITIVE_INFINITY : bTime;
+    if (aKey !== bKey) {
+      return aKey - bKey;
+    }
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function stamp(label: string, value: string): string {
+  const date = shortDate(value);
+  return date ? `${label} · ${date}` : label;
+}
+
 function folderFrom(item: LibraryCourse, index: number): FolderCourse {
   const palette = FOLDER_COLORS[index % FOLDER_COLORS.length];
-  const date = shortDate(item.updated_at);
 
   return {
     id: item.id,
     n: pad(index + 1),
     title: item.title,
-    when: date ? `Updated · ${date}` : "Updated",
+    created: stamp("Created", item.created_at),
     subtitle: item.subtitle.trim(),
     objective: item.objective_statement.trim(),
     modules: item.module_count,
@@ -68,8 +83,6 @@ function folderFrom(item: LibraryCourse, index: number): FolderCourse {
     href: `/courses/${item.id}`,
     color: palette.color,
     claro: palette.claro,
-    x: FOLDER_OFFSETS[index % FOLDER_OFFSETS.length],
-    stack: index + 1,
   };
 }
 
@@ -112,7 +125,9 @@ export function MyCoursesScreen() {
         if (cancelled) {
           return;
         }
-        setCreated(body.courses.map((item, index) => folderFrom(item, index)));
+        setCreated(
+          byCreation(body.courses).map((item, index) => folderFrom(item, index)),
+        );
       })
       .catch(() => {
         if (!cancelled) {
@@ -181,8 +196,6 @@ export function MyCoursesScreen() {
               style={{
                 ["--c" as string]: item.color,
                 ["--tabc" as string]: item.color,
-                ["--x" as string]: item.x,
-                ["--stack" as string]: String(item.stack),
               }}
             >
               <span className="pest folder-tab">
@@ -193,7 +206,7 @@ export function MyCoursesScreen() {
               </span>
               <div className="cu">
                 <div className="ficha-c">
-                  <span className="k">{item.when}</span>
+                  <span className="k">{item.created}</span>
                   {item.subtitle ? <p className="sub">{item.subtitle}</p> : null}
                   {item.objective ? <p className="obj">{item.objective}</p> : null}
                   <div className="datos">

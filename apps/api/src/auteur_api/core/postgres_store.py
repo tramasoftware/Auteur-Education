@@ -432,6 +432,7 @@ class PostgresStore:
                 objective_statement=row["objective_statement"],
                 state=CourseState(row["state"]),
                 updated_at=_dt(row.get("updated_at") or row["created_at"]),
+                created_at=_dt(row["created_at"]),
                 module_count=row.get("module_count") or 0,
                 lesson_count=row.get("lesson_count") or 0,
             )
@@ -551,6 +552,39 @@ class PostgresStore:
             birth_date=birth_date,
             gender=row.get("gender"),
             avatar_url=_https_avatar(row.get("avatar_url")),
+        )
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord:
+        """Replace the signed-in member's editable profile fields."""
+        current = self.get_profile(user_id)
+        birth_date = (
+            profile.birth_date.isoformat() if profile.birth_date else None
+        )
+        payload = {
+            "first_name": profile.first_name,
+            "last_name": profile.last_name,
+            "birth_date": birth_date,
+            "gender": profile.gender,
+        }
+        existing = (
+            self._table("profiles")
+            .select("id")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if existing:
+            self._table("profiles").update(payload).eq("id", user_id).execute()
+        else:
+            self._table("profiles").insert({"id": user_id, **payload}).execute()
+        return ProfileRecord(
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+            avatar_url=current.avatar_url,
         )
 
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:

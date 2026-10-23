@@ -383,7 +383,9 @@ class CourseListItem(BaseModel):
     """One generated course in the private library (BR-LIB-001..003).
 
     Custom title, level and learning progress are not stored on `courses`.
-    `updated_at` is the last build activity used for BR-LIB-002 ordering.
+    The list stays ordered by `updated_at`, the last build activity (BR-LIB-002).
+    `created_at` is the creation stamp. The folder stack sorts by it so the
+    oldest course keeps number 01 and the first palette color.
     `module_count` and `lesson_count` are written with the course so the
     library can show them without loading lesson bodies.
     """
@@ -394,6 +396,7 @@ class CourseListItem(BaseModel):
     objective_statement: str
     state: CourseState
     updated_at: datetime
+    created_at: datetime
     module_count: int
     lesson_count: int
 

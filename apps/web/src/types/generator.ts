@@ -243,6 +243,7 @@ export type LibraryCourse = {
   objective_statement: string;
   state: CourseState;
   updated_at: string;
+  created_at: string;
   module_count: number;
   lesson_count: number;
 };

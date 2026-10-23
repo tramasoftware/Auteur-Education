@@ -67,6 +67,7 @@ def course_list_item(
         objective_statement=course.objective_statement,
         state=course.state,
         updated_at=updated_at or _last_activity(course),
+        created_at=course.created_at,
         module_count=module_count,
         lesson_count=lesson_count,
     )
@@ -143,6 +144,8 @@ class Store(Protocol):
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None: ...
 
     def get_profile(self, user_id: str) -> ProfileRecord: ...
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord: ...
 
 
 class DemoStore:
@@ -257,6 +260,18 @@ class DemoStore:
 
     def get_profile(self, user_id: str) -> ProfileRecord:
         return self.profiles.get(user_id, ProfileRecord())
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord:
+        current = self.profiles.get(user_id, ProfileRecord())
+        saved = ProfileRecord(
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+            avatar_url=current.avatar_url,
+        )
+        self.profiles[user_id] = saved
+        return saved
 
 
 store = DemoStore()

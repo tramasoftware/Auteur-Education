@@ -1,20 +1,21 @@
 """Claim an anonymous visitor's learning request after sign-in (UF-06)."""
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from auteur_api.core.auth import (
     CurrentUserId,
+    PermanentUserId,
     bearer_token,
     discard_anonymous_user,
     user_from_access_token,
 )
 from auteur_api.core.errors import ApiError
+from auteur_api.core.store import ProfileRecord, get_store
 from auteur_api.core.store import Store as StoreBackend
-from auteur_api.core.store import get_store
 from auteur_api.modules.auth.service import attach_anonymous_owner
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -34,9 +35,37 @@ class ProfileResponse(BaseModel):
     avatar_url: str | None
 
 
-@router.get("/profile", response_model=ProfileResponse)
-def get_profile(store: Store, user_id: CurrentUserId) -> ProfileResponse:
-    profile = store.get_profile(user_id)
+class ProfileUpdate(BaseModel):
+    first_name: str
+    last_name: str
+    birth_date: date
+    gender: Literal["female", "male", "nonbinary", "undisclosed"]
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def trimmed_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned or len(cleaned) > 80:
+            raise ValueError("Enter a name between 1 and 80 characters.")
+        return cleaned
+
+    @field_validator("birth_date")
+    @classmethod
+    def age_window(cls, value: date) -> date:
+        today = date.today()
+        if value > _shift_years(today, -13) or value < _shift_years(today, -120):
+            raise ValueError("Enter a date of birth between 13 and 120 years ago.")
+        return value
+
+
+def _shift_years(value: date, years: int) -> date:
+    try:
+        return value.replace(year=value.year + years)
+    except ValueError:
+        return value.replace(year=value.year + years, day=28)
+
+
+def _profile_response(profile: ProfileRecord) -> ProfileResponse:
     return ProfileResponse(
         first_name=profile.first_name,
         last_name=profile.last_name,
@@ -44,6 +73,30 @@ def get_profile(store: Store, user_id: CurrentUserId) -> ProfileResponse:
         gender=profile.gender,
         avatar_url=profile.avatar_url,
     )
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def get_profile(store: Store, user_id: CurrentUserId) -> ProfileResponse:
+    return _profile_response(store.get_profile(user_id))
+
+
+@router.patch("/profile", response_model=ProfileResponse)
+def update_profile(
+    body: ProfileUpdate,
+    store: Store,
+    user_id: PermanentUserId,
+) -> ProfileResponse:
+    """Update the signed-in member's name, birth date, and gender."""
+    saved = store.update_profile(
+        user_id,
+        ProfileRecord(
+            first_name=body.first_name,
+            last_name=body.last_name,
+            birth_date=body.birth_date,
+            gender=body.gender,
+        ),
+    )
+    return _profile_response(saved)
 
 
 @router.post("/claim", response_model=ClaimResponse)

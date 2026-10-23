@@ -104,6 +104,18 @@ export function getAccountProfile(): Promise<AccountProfile> {
   return request<AccountProfile>("/auth/profile");
 }
 
+export function updateAccountProfile(profile: {
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string;
+}): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(profile),
+  });
+}
+
 export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
 }

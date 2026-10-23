@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter, Newsreader } from "next/font/google";
 
 import { SiteHeader } from "@/components/layout";
+import { OfflineScreen } from "@/features/offline/OfflineScreen";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col md:flex-row">
         <SiteHeader />
         <div className="flex min-h-full min-w-0 flex-1 flex-col">{children}</div>
+        <OfflineScreen />
       </body>
     </html>
   );

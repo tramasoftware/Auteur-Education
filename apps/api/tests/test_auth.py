@@ -122,6 +122,17 @@ def test_claim_without_tokens_is_unauthorized(open_client) -> None:
     assert response.headers["cache-control"] == "private, no-store"
 
 
+def _profile_body(**overrides: object) -> dict[str, object]:
+    body: dict[str, object] = {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "birth_date": "1990-12-10",
+        "gender": "female",
+    }
+    body.update(overrides)
+    return body
+
+
 def test_account_profile_is_not_publicly_cacheable(client) -> None:
     store.profiles[TEST_USER_ID] = ProfileRecord(
         first_name="Ada",
@@ -141,6 +152,78 @@ def test_account_profile_is_not_publicly_cacheable(client) -> None:
         "gender": "female",
         "avatar_url": None,
     }
+
+
+def test_profile_update_changes_only_the_signed_in_member(client) -> None:
+    store.profiles[TEST_USER_ID] = ProfileRecord(
+        avatar_url="https://example.com/ada.png",
+    )
+    store.profiles[OTHER_USER_ID] = ProfileRecord(
+        first_name="Grace",
+        last_name="Hopper",
+        birth_date=date(1906, 12, 9),
+        gender="female",
+    )
+
+    response = client.patch(
+        "/api/v1/auth/profile",
+        json={**_profile_body(), "email": "ada@example.com", "first_name": "  Ada  "},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json() == {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "birth_date": "1990-12-10",
+        "gender": "female",
+        "avatar_url": "https://example.com/ada.png",
+    }
+    assert "email" not in response.json()
+    other = store.get_profile(OTHER_USER_ID)
+    assert other.first_name == "Grace"
+    assert other.last_name == "Hopper"
+
+
+def test_profile_update_rejects_invalid_fields(client) -> None:
+    unknown_gender = client.patch(
+        "/api/v1/auth/profile",
+        json=_profile_body(gender="other"),
+    )
+    blank_name = client.patch(
+        "/api/v1/auth/profile",
+        json=_profile_body(first_name="   "),
+    )
+    too_young = client.patch(
+        "/api/v1/auth/profile",
+        json=_profile_body(birth_date=date.today().isoformat()),
+    )
+
+    assert unknown_gender.status_code == 422
+    assert blank_name.status_code == 422
+    assert too_young.status_code == 422
+    assert store.get_profile(TEST_USER_ID) == ProfileRecord()
+
+
+def test_profile_update_without_a_session_is_unauthorized(open_client) -> None:
+    response = open_client.patch("/api/v1/auth/profile", json=_profile_body())
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
+
+
+def test_profile_update_rejects_an_anonymous_session(open_client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "auteur_api.core.auth.user_from_access_token",
+        lambda _token: VerifiedUser(id=ANONYMOUS_USER_ID, is_anonymous=True),
+    )
+    response = open_client.patch(
+        "/api/v1/auth/profile",
+        headers={"Authorization": "Bearer anon-token"},
+        json=_profile_body(),
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
+    assert store.get_profile(ANONYMOUS_USER_ID) == ProfileRecord()
 
 
 def test_anonymous_session_can_read_but_cannot_start_a_blueprint(
