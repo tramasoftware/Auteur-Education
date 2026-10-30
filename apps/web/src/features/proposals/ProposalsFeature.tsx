@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { createPathRouteMotion } from "./pathRouteMotion";
 
@@ -41,6 +41,106 @@ const PAPER_PAGE_NEXT_LABEL =
   "Main advantage, trade-off, leaves out, and scope";
 const PAPER_PAGE_PREV_LABEL =
   "Learning path, a good fit, central question, and outcome";
+
+function ProposalPaperBackBody({ proposal }: { proposal: CourseProposal }) {
+  return (
+    <dl>
+      <dt>Main advantage</dt>
+      <dd>{proposal.main_advantage}</dd>
+      <dt>Trade-off</dt>
+      <dd>{proposal.trade_off}</dd>
+      <dt>Leaves out</dt>
+      <dd>
+        {proposal.exclusions.length > 0 ? proposal.exclusions.join(", ") : "None named."}
+      </dd>
+      <dt>Scope</dt>
+      <dd>
+        {proposal.scope.length > 0 ? (
+          <ol>
+            {proposal.scope.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ol>
+        ) : (
+          "None named."
+        )}
+      </dd>
+    </dl>
+  );
+}
+
+function RoutePaperStack({
+  proposal,
+  paperPage,
+  onGoPaperPage,
+}: {
+  proposal: CourseProposal;
+  paperPage: number;
+  onGoPaperPage: (page: number) => void;
+}) {
+  const stackRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const stack = stackRef.current;
+    const measure = measureRef.current;
+    if (!stack || !measure) {
+      return;
+    }
+    const syncHeight = () => {
+      stack.style.setProperty("--ae-paper-height", `${measure.offsetHeight}px`);
+    };
+    syncHeight();
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(measure);
+    return () => observer.disconnect();
+  }, [proposal]);
+
+  return (
+    <div className="ae-route-paper-stack" ref={stackRef}>
+      <div className="ae-route-paper ae-route-paper-visible">
+        {paperPage === 0 ? (
+          <>
+            <dl>
+              <dt>Learning path</dt>
+              <dd>{proposal.distinctive_trajectory}</dd>
+              <dt>A good fit if</dt>
+              <dd>{proposal.level_fit}</dd>
+              <dt>Central question</dt>
+              <dd>{proposal.central_question}</dd>
+              <dt>You will be able to</dt>
+              <dd>{proposal.intellectual_outcome}</dd>
+            </dl>
+            <button
+              className="ae-paper-turn next"
+              type="button"
+              onClick={() => onGoPaperPage(1)}
+            >
+              {PAPER_PAGE_NEXT_LABEL}
+            </button>
+          </>
+        ) : (
+          <>
+            <ProposalPaperBackBody proposal={proposal} />
+            <button
+              className="ae-paper-turn prev"
+              type="button"
+              onClick={() => onGoPaperPage(0)}
+            >
+              {PAPER_PAGE_PREV_LABEL}
+            </button>
+          </>
+        )}
+      </div>
+      <div className="ae-route-paper-measure" aria-hidden="true" ref={measureRef}>
+        <div className="ae-route-paper">
+          <ProposalPaperBackBody proposal={proposal} />
+          <span className="ae-paper-turn prev">{PAPER_PAGE_PREV_LABEL}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function turnPaperSheet(
   sheet: HTMLElement,
@@ -110,7 +210,7 @@ async function loadProposalsForRequest(requestId: string): Promise<LearningReque
   return generation;
 }
 
-/** UF-03: 1-5 differentiated learning directions; select one, then Blueprint. */
+/** UF-04: exactly four learning directions (DEC-019); select one, then Blueprint. */
 export function ProposalsFeature() {
   const router = useRouter();
   const params = useSearchParams();
@@ -347,7 +447,7 @@ function Paths({
       return;
     }
     const sheet = rootRef.current?.querySelector<HTMLElement>(
-      ".ae-route-folder.on .ae-route-paper",
+      ".ae-route-folder.on .ae-route-paper-visible",
     );
     const commit = () => setPaperPage(next);
     if (!sheet) {
@@ -453,65 +553,11 @@ function Paths({
                     </div>
                   </div>
                 </div>
-                <div className="ae-route-paper-stack">
-                  <div className="ae-route-paper">
-                    {paperPage === 0 ? (
-                      <>
-                        <dl>
-                          <dt>Learning path</dt>
-                          <dd>{proposal.distinctive_trajectory}</dd>
-                          <dt>A good fit if</dt>
-                          <dd>{proposal.level_fit}</dd>
-                          <dt>Central question</dt>
-                          <dd>{proposal.central_question}</dd>
-                          <dt>You will be able to</dt>
-                          <dd>{proposal.intellectual_outcome}</dd>
-                        </dl>
-                        <button
-                          className="ae-paper-turn next"
-                          type="button"
-                          onClick={() => goPaperPage(1)}
-                        >
-                          {PAPER_PAGE_NEXT_LABEL}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <dl>
-                          <dt>Main advantage</dt>
-                          <dd>{proposal.main_advantage}</dd>
-                          <dt>Trade-off</dt>
-                          <dd>{proposal.trade_off}</dd>
-                          <dt>Leaves out</dt>
-                          <dd>
-                            {proposal.exclusions.length > 0
-                              ? proposal.exclusions.join(", ")
-                              : "None named."}
-                          </dd>
-                          <dt>Scope</dt>
-                          <dd>
-                            {proposal.scope.length > 0 ? (
-                              <ol>
-                                {proposal.scope.map((item) => (
-                                  <li key={item}>{item}</li>
-                                ))}
-                              </ol>
-                            ) : (
-                              "None named."
-                            )}
-                          </dd>
-                        </dl>
-                        <button
-                          className="ae-paper-turn prev"
-                          type="button"
-                          onClick={() => goPaperPage(0)}
-                        >
-                          {PAPER_PAGE_PREV_LABEL}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <RoutePaperStack
+                  proposal={proposal}
+                  paperPage={openId === proposal.id ? paperPage : 0}
+                  onGoPaperPage={goPaperPage}
+                />
                 <div className="ae-route-actions">
                   <button
                     className="btn ae-route-choose"

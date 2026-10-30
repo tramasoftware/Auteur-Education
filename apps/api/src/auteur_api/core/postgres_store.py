@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Callable
 from datetime import date, datetime
 from functools import lru_cache
@@ -12,13 +14,15 @@ from supabase import Client, create_client
 
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
-from auteur_api.core.errors import not_found
+from auteur_api.core.errors import ApiError, invalid_state, not_found
 from auteur_api.core.store import (
     CourseBuildSnapshot,
     ProfileRecord,
     assert_owner,
     course_structure_counts,
+    normalize_text_size,
 )
+from auteur_api.modules.auth.profile_photo import BUCKET, profile_photo_object_path
 from auteur_api.modules.blueprints.schemas import (
     BlueprintInternal,
     BlueprintRecord,
@@ -55,6 +59,8 @@ from auteur_api.modules.onboarding.schemas import (
     SelectedPrecision,
 )
 from auteur_api.modules.proposals.schemas import ProposalSetRecord
+
+logger = logging.getLogger("auteur_api.profile_photo")
 
 
 def _dt(value: object) -> datetime:
@@ -534,7 +540,10 @@ class PostgresStore:
     def get_profile(self, user_id: str) -> ProfileRecord:
         rows = (
             self._table("profiles")
-            .select("first_name,last_name,birth_date,gender,avatar_url")
+            .select(
+                "first_name,last_name,birth_date,gender,avatar_url,image_url,"
+                "text_size,generated_course_count"
+            )
             .eq("id", user_id)
             .limit(1)
             .execute()
@@ -552,6 +561,9 @@ class PostgresStore:
             birth_date=birth_date,
             gender=row.get("gender"),
             avatar_url=_https_avatar(row.get("avatar_url")),
+            image_url=_https_avatar(row.get("image_url")),
+            text_size=normalize_text_size(row.get("text_size")),
+            generated_course_count=int(row.get("generated_course_count") or 0),
         )
 
     def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord:
@@ -585,7 +597,112 @@ class PostgresStore:
             birth_date=profile.birth_date,
             gender=profile.gender,
             avatar_url=current.avatar_url,
+            image_url=current.image_url,
+            text_size=current.text_size,
+            generated_course_count=current.generated_course_count,
         )
+
+    def update_text_size(self, user_id: str, text_size: str) -> ProfileRecord:
+        """Store the signed-in member's reading text size."""
+        self._ensure_profile(user_id)
+        self._table("profiles").update(
+            {"text_size": normalize_text_size(text_size)}
+        ).eq("id", user_id).execute()
+        return self.get_profile(user_id)
+
+    def create_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if current.image_url:
+            raise invalid_state("A profile photo already exists. Update it instead.")
+        self._ensure_profile(user_id)
+        url = self._store_profile_photo(user_id, content, content_type)
+        try:
+            self._write_image_url(user_id, url)
+        except Exception:
+            self._remove_profile_photo(user_id)
+            logger.warning("profile_photo_url_save_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not save your photo. Try again.",
+            ) from None
+        return self.get_profile(user_id)
+
+    def replace_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if not current.image_url:
+            raise not_found("Profile photo")
+        url = self._store_profile_photo(user_id, content, content_type)
+        self._write_image_url(user_id, url)
+        return self.get_profile(user_id)
+
+    def delete_profile_photo(self, user_id: str) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if not current.image_url:
+            raise not_found("Profile photo")
+        self._remove_profile_photo(user_id)
+        self._write_image_url(user_id, None)
+        return self.get_profile(user_id)
+
+    def _ensure_profile(self, user_id: str) -> None:
+        existing = (
+            self._table("profiles")
+            .select("id")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not existing:
+            self._table("profiles").insert({"id": user_id}).execute()
+
+    def _write_image_url(self, user_id: str, image_url: str | None) -> None:
+        self._table("profiles").update({"image_url": image_url}).eq(
+            "id", user_id
+        ).execute()
+
+    def _store_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> str:
+        path = profile_photo_object_path(user_id)
+        try:
+            self._client.storage.from_(BUCKET).upload(
+                path,
+                content,
+                file_options={
+                    "content-type": content_type,
+                    "upsert": "true",
+                    "cache-control": "3600",
+                },
+            )
+        except Exception:
+            logger.warning("profile_photo_upload_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not save your photo. Try again.",
+            ) from None
+        base = self._client.storage.from_(BUCKET).get_public_url(path)
+        url = f"{base}{'&' if '?' in base else '?'}v={time.time_ns()}"
+        if not url.startswith("https://") or len(url) > 500:
+            self._remove_profile_photo(user_id)
+            raise ApiError("internal_error", "Could not save your photo. Try again.")
+        return url
+
+    def _remove_profile_photo(self, user_id: str) -> None:
+        try:
+            self._client.storage.from_(BUCKET).remove(
+                [profile_photo_object_path(user_id)]
+            )
+        except Exception:
+            logger.warning("profile_photo_delete_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not remove your photo. Try again.",
+            ) from None
 
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
         """Move one visitor's rows onto a permanent account (BR-AUT-005)."""

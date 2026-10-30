@@ -15,7 +15,7 @@
   margin-bottom: 22px;
   color: var(--m-3);
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -27,7 +27,7 @@
   color: var(--m-1);
   font-family: var(--font-editorial), Georgia, serif;
   font-weight: 400;
-  font-size: clamp(32px, 3.4vw, 50px);
+  font-size: clamp(calc(32px * var(--ft, 1)), calc(3.4vw * var(--ft, 1)), calc(50px * var(--ft, 1)));
   line-height: 1.06;
   letter-spacing: -0.02em;
 }
@@ -37,7 +37,7 @@
   margin: 0 0 18px;
   color: var(--m-2);
   font-family: var(--font-ui);
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -47,7 +47,7 @@
   border-bottom: 1px solid rgba(37, 42, 64, 0.22);
   color: var(--m-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -68,7 +68,7 @@
   padding-top: 0;
   color: var(--m-2);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(30px, 3vw, 42px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(42px * var(--ft, 1)));
   line-height: 1;
   letter-spacing: -0.02em;
   font-feature-settings: "lnum" 1;
@@ -79,7 +79,7 @@
   color: var(--m-1);
   font-family: var(--font-editorial), Georgia, serif;
   font-weight: 400;
-  font-size: 25px;
+  font-size: calc(25px * var(--ft, 1));
   line-height: 1.15;
   letter-spacing: -0.016em;
 }
@@ -92,7 +92,7 @@
   margin: 0 0 16px;
   color: var(--m-2);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.4;
 }
 
@@ -119,7 +119,7 @@
   border-radius: 3px;
   color: var(--m-2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   letter-spacing: 0.06em;
   vertical-align: 4px;
   white-space: nowrap;
@@ -160,7 +160,7 @@
   max-width: 64ch;
   margin: 0 0 16px;
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -181,7 +181,7 @@
 
 .landing.course-outline-screen .module-detail summary::after {
   content: "+";
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   font-weight: 400;
 }
 
@@ -198,7 +198,7 @@
   margin: 4px 0 8px;
   color: var(--m-3);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -256,7 +256,7 @@
   margin: 0;
   color: var(--m-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: none;
@@ -267,7 +267,7 @@
   min-width: 0;
   color: var(--m-1);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.4;
 }
 
@@ -275,7 +275,7 @@
   flex: none;
   color: var(--m-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
@@ -285,7 +285,7 @@
 }
 
 .landing.course-outline-screen .ren li.nog .d {
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--ft, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -363,7 +363,7 @@
   max-width: 44ch;
   color: var(--m-3);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -371,7 +371,7 @@
   max-width: 62ch;
   margin: 28px 0 0;
   color: var(--m-2);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -392,13 +392,13 @@
 
 .landing.course-outline-screen .sintesis h2 {
   margin: 0 0 12px;
-  font-size: clamp(20px, 2.1vw, 25px);
+  font-size: clamp(calc(20px * var(--ft, 1)), calc(2.1vw * var(--ft, 1)), calc(25px * var(--ft, 1)));
   line-height: 1.18;
 }
 
 .landing.course-outline-screen .sintesis h3 {
   margin: 18px 0 8px;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
 }
 
 .landing.course-outline-screen .sintesis ul {
@@ -408,7 +408,7 @@
 
 .landing.course-outline-screen .sintesis li {
   margin: 0 0 6px;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -430,7 +430,7 @@
 
   .landing.course-outline-screen .cur h1 {
     max-width: 100%;
-    font-size: clamp(34px, 9vw, 48px);
+    font-size: clamp(calc(34px * var(--ft, 1)), calc(9vw * var(--ft, 1)), calc(48px * var(--ft, 1)));
   }
 
   .landing.course-outline-screen .cur-mod {
@@ -440,7 +440,7 @@
   }
 
   .landing.course-outline-screen .cur-mod h2 {
-    font-size: 22px;
+    font-size: calc(22px * var(--ft, 1));
   }
 
   .landing.course-outline-screen .cur-mod .est-m {
@@ -456,6 +456,6 @@
   }
 
   .landing.course-outline-screen .ren .t {
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--ft, 1));
   }
 }

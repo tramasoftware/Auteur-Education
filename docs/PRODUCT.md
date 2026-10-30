@@ -100,7 +100,7 @@ El recorrido principal comienza con una intención, una pregunta o una capacidad
 3. Define qué resultado espera alcanzar.
 4. Si la solicitud es demasiado amplia, Auteur ayuda a precisar el objeto de aprendizaje.
 5. Auteur formula un objetivo concreto y el usuario lo confirma o corrige.
-6. El sistema presenta entre una y cinco propuestas de curso realmente diferentes.
+6. El sistema presenta exactamente cuatro propuestas de curso realmente diferentes (`DEC-019`).
 7. El usuario elige una dirección.
 8. Auteur genera un Blueprint que explica qué se enseñará, qué quedará fuera, cómo se organizará el recorrido y por qué.
 9. El usuario revisa, modifica o aprueba el Blueprint.

@@ -118,7 +118,7 @@ La IA nunca debe completar por intuición autores, títulos, citas, cifras, fech
 
 ### AI-PRN-07 Diferenciación sustantiva
 
-Las propuestas deben representar recorridos intelectuales realmente distintos. No se generan variantes cosméticas para completar una cantidad.
+Las propuestas deben representar recorridos intelectuales realmente distintos. El conjunto exige exactamente cuatro direcciones (`DEC-019` / `BR-PRP-001`); no se rellena con variantes cosméticas.
 
 ### AI-PRN-08 Control humano
 
@@ -276,7 +276,7 @@ Presentar direcciones intelectuales comparables antes del registro y del pago.
 
 ### Salida requerida: `ProposalSet`
 
-El conjunto contiene entre una y cinco propuestas. Cada `CourseProposal` incluye:
+El conjunto contiene exactamente cuatro propuestas (`DEC-019`). Cada `CourseProposal` incluye:
 
 - título;
 - descripción;
@@ -295,7 +295,7 @@ El conjunto contiene entre una y cinco propuestas. Cada `CourseProposal` incluye
 
 ### Validaciones
 
-- Puede devolver una sola propuesta cuando no existan alternativas genuinas.
+- Debe devolver exactamente cuatro propuestas; la etapa reintenta si el conteo o la diferenciación no cumplen.
 - Cada par de propuestas debe diferenciarse en al menos tres dimensiones significativas.
 - El conjunto no puede contener variantes cosméticas.
 - Ninguna propuesta puede contradecir el objetivo confirmado.

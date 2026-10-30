@@ -29,6 +29,10 @@ El plano de datos para el navegador sigue siendo FastAPI (DEC-012). El frontend 
 
 El visitante sin cuenta es un usuario anónimo de Supabase. Al crear la cuenta, el mismo `id` se conserva, o FastAPI mueve las filas si entra a una cuenta que ya existía (DEC-011).
 
+`generated_course_count` es el número de filas en `courses` de ese perfil. Un trigger lo mantiene al insertar, borrar o reasignar un curso. El login lee este campo; no lista la tabla de cursos (DEC-018).
+
+`text_size` es la preferencia de lectura del miembro: `small`, `standard`, `large` o `extra_large`. El valor por defecto es `standard`, que conserva el tamaño actual del texto de una lesson. No autoriza nada.
+
 ### `learning_requests`
 
 Equivalente a `LearningRequestRecord` sin las versiones de objetivo.

@@ -59,6 +59,8 @@ Only use a dimension when it creates a meaningful difference in the resulting le
 
 Each proposal should represent a distinct way of organizing understanding around the objective.
 
+The set must contain exactly four proposals (`DEC-019`).
+
 The differences should affect the intellectual trajectory, not merely:
 
 * wording;
@@ -102,7 +104,7 @@ The learner's choice is a product interaction and must follow the approved user 
 
 Never:
 
-* force a fixed number of proposals unless explicitly required by an approved document;
+* return other than exactly four proposals (`DEC-019`, `BR-PRP-001`, `AI-STG-04`);
 * rank proposals;
 * assign arbitrary quality scores;
 * present one proposal as objectively best;

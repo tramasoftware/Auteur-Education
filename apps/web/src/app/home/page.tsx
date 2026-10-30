@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
-import { requireRegistered } from "@/lib/auth/require-registered";
+import { requireMemberHome } from "@/lib/auth/require-member-home";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  await requireRegistered();
-  return <HomeScreen />;
+  const generatedCourseCount = await requireMemberHome();
+  return <HomeScreen hasCourseInProgress={generatedCourseCount > 0} />;
 }

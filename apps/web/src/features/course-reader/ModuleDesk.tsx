@@ -562,6 +562,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
       backAriaLabel="Back to the course"
       mainClassName="desk-main"
       screenClassName="module-desk"
+      showFooter
     >
       <div className="archivo" data-pane={pane}>
         <Link className="archive-tab" href={`/courses/${courseId}`}>

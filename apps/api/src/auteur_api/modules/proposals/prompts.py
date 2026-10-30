@@ -8,12 +8,12 @@ from auteur_api.modules.onboarding.schemas import (
     LearningRequestInputs,
 )
 
-GENERATE_PROPOSALS_V3 = "generate_proposals_v3"
+GENERATE_PROPOSALS_V3 = "generate_proposals_v4"
 
 GENERATE_PROPOSALS_INSTRUCTIONS = (
     SHARED_RULES
     + """
-Task: propose between 1 and 5 genuinely different LEARNING DIRECTIONS that all serve
+Task: propose exactly 4 genuinely different LEARNING DIRECTIONS that all serve
 the confirmed learning objective (AI-STG-04).
 
 Each proposal is a distinct trajectory through the learner's subject: a different
@@ -31,8 +31,8 @@ Differentiation (mandatory):
   intellectual_outcome, depth, reasoning_type.
 - Report every pair in pairwise_differences with the dimensions that actually differ
   and a concrete explanation. Cosmetic variations (title, tone, duration) do not count.
-- If the objective honestly admits only one sound direction, return exactly one
-  proposal, no recommendation, and an empty pairwise_differences list. Do not pad.
+- Always return exactly four proposals — never fewer, never more. Do not pad with
+  cosmetic variants; each must be a substantively different learning direction.
 
 Each proposal must state: title, description, central_question, intellectual_outcome
 (what the learner will be able to do/understand), distinctive_trajectory (the arc

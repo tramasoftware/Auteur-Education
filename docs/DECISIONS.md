@@ -90,7 +90,7 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Necesidad:** `BR-AUT-004` a `BR-AUT-007` y `UF-06` exigen una cuenta real. El perfil sembrado compartía todas las filas de quien no enviaba un JWT.
 - **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user` en todos los entornos. Sin un JWT válido la respuesta es 401. El visitante es un usuario anónimo de Supabase, con su propio `id`. Al registrarse o iniciar sesión, esa solicitud pasa a la cuenta permanente. El usuario `00000000-0000-0000-0000-000000000001` fue eliminado. No hay `DEMO_USER_BYPASS`. Los tests sustituyen la dependencia solo en el arnés.
 - **Impacto:** `core/auth.py`, `apps/web` (cookies de sesión), migración que borra el usuario demo y revoca el Data API a `anon` y `authenticated`.
-- **Configuración de Auth que queda en el proyecto de Supabase:** confirmación de email ya obligatoria. Usuarios anónimos y manual linking hay que activarlos en el dashboard (el navegador de esta sesión no tenía la cuenta de Supabase abierta). Google sigue apagado hasta que existan client id y secret; el botón no se muestra mientras `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED` no sea `true`.
+- **Configuración de Auth que queda en el proyecto de Supabase:** confirmación de email ya obligatoria. Usuarios anónimos y manual linking hay que activarlos en el dashboard (el navegador de esta sesión no tenía la cuenta de Supabase abierta). Google sigue apagado hasta que existan client id y secret. Los botones de Apple y Microsoft son visuales; todavía no inician OAuth.
 
 ### DEC-012 — FastAPI como único plano de datos del generador
 
@@ -135,6 +135,21 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Necesidad:** analizar la intención no debe empezar para quien no está en una cuenta.
 - **Decisión:** «Analyze my intention» comprueba el token con Auth. Una sesión anónima o un token rechazado no cuentan como cuenta iniciada. Si no hay cuenta, se guarda el formulario y se abre `/login?next=/onboarding`. Si hay cuenta, se crea la solicitud y sigue el análisis. El visitante anónimo sigue existiendo para el resto del recorrido (`DEC-011`).
 - **Impacto:** formulario de onboarding. No cambia el requisito de cuenta permanente del Blueprint (`BR-AUT-004`).
+
+### DEC-018 — Destino después del login sin cursos generados
+
+- **Estatus:** APROBADA (pedido de implementación, octubre 2026)
+- **Necesidad:** UF-06 abre la biblioteca si no hay una solicitud en curso. Un miembro sin ningún curso generado debe entrar al onboarding.
+- **Decisión:** `profiles.generated_course_count` cuenta las filas de `courses` de esa cuenta. Tras login, registro o OAuth, si `next` es `/home` o `/` y el recuento es 0, el destino es `/onboarding`. Un `next` explícito (por ejemplo `/onboarding` o una propuesta) se respeta. El formulario de intención se guarda en `localStorage` para no perderlo al pasar por login o registro (`UF-01`, `BR-AUT-005`).
+- **Impacto:** pantalla de auth, callback OAuth, confirmación de email, `GET /auth/profile`.
+
+### DEC-019 — Cuatro propuestas de curso por solicitud
+
+- **Estatus:** APROBADA (pedido del cliente, octubre 2026)
+- **Necesidad:** la pantalla «Your learning path» compara direcciones en una grilla 2×2; un número variable (1–5) dejaba filas incompletas y obligaba a excepciones en prompt y validación.
+- **Decisión:** tras confirmar el objetivo, `AI-STG-04` devuelve **exactamente cuatro** propuestas de curso genuinamente diferentes. Ni más ni menos. Si el modelo no alcanza cuatro direcciones sustantivas, la etapa reintenta; no se rellena con variantes cosméticas ni se acepta un conjunto incompleto. Se elimina la excepción de «una sola propuesta cuando no hay alternativas». La recomendación opcional (`BR-PRP-004`, `DEC-009`) sigue vigente cuando una opción es claramente superior.
+- **Impacto:** `BR-PRP-001`, `AI-STG-04`, `UF-04`, `MVP.md` §5, prompts y validación en `modules/proposals`, pantalla de propuestas (`apps/web`).
+- **Límite:** no cambia la diferenciación mínima entre pares (`BR-PRP-002`) ni confunde propuestas con alternativas de intención incompatible (`DEC-016` / `AI-STG-01`).
 
 ## Pendientes sin decisión
 

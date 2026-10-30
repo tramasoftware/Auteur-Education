@@ -36,7 +36,7 @@
   max-width: 16ch;
   margin: 0 0 18px;
   color: var(--m-1);
-  font-size: clamp(30px, 3.6vw, 50px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.6vw * var(--ft, 1)), calc(50px * var(--ft, 1)));
   line-height: 1.04;
   letter-spacing: -0.02em;
 }
@@ -45,7 +45,7 @@
   max-width: 36ch;
   margin: 0 0 24px;
   color: var(--m-2);
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -53,7 +53,7 @@
   min-height: 24px;
   margin: 0;
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -94,7 +94,7 @@
   min-width: 4ch;
   color: var(--m-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   letter-spacing: 0.05em;
   text-align: right;
 }
@@ -114,7 +114,7 @@
   padding: 0 22px 0 24px;
   border-radius: 12px 12px 4px 4px;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.008em;
   text-decoration: none;
@@ -154,7 +154,7 @@
   background: var(--tabc);
   color: #f2f0ef;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   letter-spacing: -0.012em;
   white-space: nowrap;
 }
@@ -212,7 +212,7 @@
   display: block;
   margin-bottom: 8px;
   color: rgba(37, 42, 64, 0.62);
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -223,7 +223,7 @@
   margin-bottom: 12px;
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 19px;
+  font-size: calc(19px * var(--ft, 1));
   line-height: 1.15;
   letter-spacing: -0.014em;
 }
@@ -255,7 +255,7 @@
   margin-bottom: 26px;
   color: rgba(37, 42, 64, 0.8);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--ft, 1));
   letter-spacing: 0.05em;
 }
 
@@ -263,7 +263,7 @@
   display: block;
   margin-bottom: 10px;
   color: rgba(37, 42, 64, 0.62);
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -273,7 +273,7 @@
   display: block;
   max-width: 10ch;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(26px, 3vw, 38px);
+  font-size: clamp(calc(26px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(38px * var(--ft, 1)));
   line-height: 1;
   letter-spacing: -0.02em;
 }

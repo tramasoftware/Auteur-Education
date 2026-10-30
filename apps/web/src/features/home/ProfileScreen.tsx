@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
-import { ApiError, getAccountProfile, updateAccountProfile, type AccountProfile } from "@/lib/api";
+import {
+  ApiError,
+  createAccountPhoto,
+  deleteAccountPhoto,
+  getAccountProfile,
+  updateAccountPhoto,
+  updateAccountProfile,
+  updateAccountTextSize,
+  type AccountProfile,
+} from "@/lib/api";
 import {
   GENDERS,
   birthDateLimits,
@@ -10,17 +19,23 @@ import {
   genderLabel,
   registrationProfile,
 } from "@/lib/auth/profile";
+import {
+  LESSON_BODY_PX,
+  TEXT_SIZES,
+  clearReadingPreference,
+  rememberReadingPreference,
+  textSizeOrStandard,
+  textSizeScale,
+  type TextSizeId,
+} from "@/lib/reading-preference";
 import { createClient } from "@/lib/supabase/browser";
+
+import { ExitDoorIcon } from "@/components/icons/ExitDoorIcon";
+import { LogoutDialog } from "@/features/auth/LogoutDialog";
+import { ProfilePhotoDialog } from "@/features/auth/ProfilePhotoDialog";
 
 import { MemberFrame } from "./MemberFrame";
 import { Portrait } from "./Portrait";
-
-const sizes = [
-  ["chico", "Small", 0.93],
-  ["normal", "Standard", 1],
-  ["grande", "Large", 1.14],
-  ["xl", "Extra large", 1.3],
-] as const;
 
 type Draft = {
   firstName: string;
@@ -36,8 +51,18 @@ const emptyDraft: Draft = {
   gender: "",
 };
 
-export function ProfileScreen() {
-  const [size, setSize] = useState<(typeof sizes)[number][0]>("normal");
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+export function ProfileScreen({
+  initialTextSize = "standard",
+}: {
+  initialTextSize?: TextSizeId;
+}) {
+  const [size, setSize] = useState<TextSizeId>(initialTextSize);
+  const [savedSize, setSavedSize] = useState<TextSizeId>(initialTextSize);
+  const [savingSize, setSavingSize] = useState(false);
+  const [sizeError, setSizeError] = useState("");
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [email, setEmail] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -46,8 +71,17 @@ export function ProfileScreen() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const previewUrlRef = useRef<string | null>(null);
   const birthLimits = useMemo(() => birthDateLimits(), []);
-  const scale = sizes.find((item) => item[0] === size)?.[2] ?? 1;
   const name = accountName(profile);
 
   useEffect(() => {
@@ -61,7 +95,11 @@ export function ProfileScreen() {
         if (cancelled) {
           return;
         }
+        const saved = textSizeOrStandard(account.text_size);
         setProfile(account);
+        setSize(saved);
+        setSavedSize(saved);
+        rememberReadingPreference(saved);
         setEmail(userResult.data.user?.email ?? "");
       } catch (error) {
         if (!cancelled) {
@@ -80,6 +118,22 @@ export function ProfileScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
+
+  function rememberPreview(next: string | null) {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    previewUrlRef.current = next;
+    setPreviewUrl(next);
+  }
 
   function startEdit() {
     if (!profile) {
@@ -133,9 +187,133 @@ export function ProfileScreen() {
     }
   }
 
+  async function confirmLogout() {
+    setLoggingOut(true);
+    setLogoutError("");
+    const { error } = await createClient().auth.signOut();
+    if (error) {
+      setLogoutError("Could not log out. Try again.");
+      setLoggingOut(false);
+      return;
+    }
+    clearReadingPreference();
+    window.location.replace("/");
+  }
+
+  async function saveTextSize() {
+    if (size === savedSize) {
+      return;
+    }
+    setSavingSize(true);
+    setSizeError("");
+    try {
+      const saved = await updateAccountTextSize(size);
+      const next = textSizeOrStandard(saved.text_size);
+      setProfile(saved);
+      setSize(next);
+      setSavedSize(next);
+      rememberReadingPreference(next);
+    } catch (error) {
+      setSizeError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Could not save your text size. Try again.",
+      );
+    } finally {
+      setSavingSize(false);
+    }
+  }
+
+  function resetPhotoDraft() {
+    setPendingFile(null);
+    setPendingRemoval(false);
+    setPhotoError("");
+    rememberPreview(null);
+  }
+
+  function openPhoto() {
+    resetPhotoDraft();
+    setPhotoOpen(true);
+  }
+
+  function closePhoto() {
+    if (photoBusy) {
+      return;
+    }
+    setPhotoOpen(false);
+    resetPhotoDraft();
+  }
+
+  function selectPhoto(file: File) {
+    const name = file.name.toLowerCase();
+    const allowedName =
+      name.endsWith(".jpg") ||
+      name.endsWith(".jpeg") ||
+      name.endsWith(".png") ||
+      name.endsWith(".webp");
+    if (
+      file.size <= 0 ||
+      file.size > PHOTO_MAX_BYTES ||
+      (!PHOTO_TYPES.has(file.type) && !allowedName)
+    ) {
+      setPhotoError("Choose a JPEG, PNG, or WebP photo under 5 MB.");
+      return;
+    }
+    setPendingFile(file);
+    setPendingRemoval(false);
+    setPhotoError("");
+    rememberPreview(URL.createObjectURL(file));
+  }
+
+  function stageRemoval() {
+    setPhotoError("");
+    if (pendingFile) {
+      setPendingFile(null);
+      rememberPreview(null);
+      return;
+    }
+    if (profile?.image_url) {
+      setPendingRemoval(true);
+      rememberPreview(null);
+    }
+  }
+
+  async function confirmPhoto() {
+    if (!pendingFile && !pendingRemoval) {
+      return;
+    }
+    setPhotoBusy(true);
+    setPhotoError("");
+    try {
+      const saved = pendingFile
+        ? profile?.image_url
+          ? await updateAccountPhoto(pendingFile)
+          : await createAccountPhoto(pendingFile)
+        : await deleteAccountPhoto();
+      setProfile(saved);
+      setPhotoOpen(false);
+      resetPhotoDraft();
+    } catch (error) {
+      setPhotoError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Could not save your photo. Try again.",
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  const savedPhoto = profile?.image_url ?? profile?.avatar_url ?? null;
+  const modalPhoto = previewUrl ?? (pendingRemoval ? null : savedPhoto);
+
   return (
-    <MemberFrame current="profile" status={loaded ? name || "Your profile" : "…"}>
-      <main className="per" style={{ ["--ft" as string]: scale }}>
+    <MemberFrame
+      current="profile"
+      status={loaded ? name || "Your profile" : "…"}
+      portraitSrc={loaded ? savedPhoto : undefined}
+    >
+      <main className="per">
         <header className="per-cab">
           <div>
             <span className="k">Profile</span>
@@ -146,12 +324,18 @@ export function ProfileScreen() {
               Member since <b>August 2026</b> · Plan: <b>Monthly · 4 courses</b>
             </p>
             <div className="acc">
-              <span className="btn fantasma chico">Change photo</span>
-              <span className="btn fantasma chico">Remove</span>
+              <button
+                type="button"
+                className="btn fantasma chico"
+                onClick={openPhoto}
+                disabled={!loaded || !profile}
+              >
+                Edit photo
+              </button>
             </div>
           </div>
           <div className="foto" aria-hidden="true">
-            <Portrait />
+            <Portrait src={savedPhoto} />
           </div>
         </header>
         <form onSubmit={save} onKeyDown={onFormKeyDown}>
@@ -282,29 +466,104 @@ export function ProfileScreen() {
             <h2>Your reading preferences</h2>
           </div>
           <div>
-            <div className="fila">
+            <div className="fila reading">
               <span className="tx">
                 Text size<small>For lesson text</small>
               </span>
-              <span className="tam" role="group" aria-label="Text size">
-                {sizes.map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={size === id ? "act" : undefined}
-                    onClick={() => setSize(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <span className="acc">
+                <span className="tam" role="group" aria-label="Text size">
+                  {TEXT_SIZES.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={size === option.id ? "act" : undefined}
+                      aria-pressed={size === option.id}
+                      disabled={!loaded || !profile}
+                      onClick={() => {
+                        setSizeError("");
+                        setSize(option.id);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </span>
+                <button
+                  type="button"
+                  className="btn fantasma chico"
+                  onClick={() => void saveTextSize()}
+                  disabled={!loaded || !profile || savingSize || size === savedSize}
+                >
+                  {savingSize ? "Saving…" : "Save"}
+                </button>
               </span>
             </div>
-            <p className="prev-t">
+            <p
+              className="prev-t"
+              style={{ fontSize: `${LESSON_BODY_PX * textSizeScale(size)}px` }}
+            >
               No city begins from nothing. Every modern intervention arrives in a place that already
               exists, and what is there shapes the outcome more than we tend to admit.
             </p>
+            {sizeError ? (
+              <p className="nota" role="alert">
+                {sizeError}
+              </p>
+            ) : null}
           </div>
         </section>
+        <section className="per-sec per-fin">
+          <div>
+            <h2>Log out</h2>
+          </div>
+          <div>
+            <div className="fila">
+              <span className="tx">
+                Log out
+                <small>
+                  Logging out clears your session on this device. You will need to sign in again to
+                  open your account and courses.
+                </small>
+              </span>
+              <span className="acc">
+                <button
+                  type="button"
+                  className="btn fantasma chico"
+                  onClick={() => {
+                    setLogoutError("");
+                    setLogoutOpen(true);
+                  }}
+                >
+                  <ExitDoorIcon />
+                  Log out
+                </button>
+              </span>
+            </div>
+          </div>
+        </section>
+        <ProfilePhotoDialog
+          open={photoOpen}
+          previewSrc={modalPhoto}
+          canRemove={Boolean(profile?.image_url) || Boolean(pendingFile)}
+          canConfirm={Boolean(pendingFile) || pendingRemoval}
+          busy={photoBusy}
+          error={photoError}
+          onClose={closePhoto}
+          onSelectFile={selectPhoto}
+          onRemove={stageRemoval}
+          onConfirm={() => void confirmPhoto()}
+        />
+        <LogoutDialog
+          open={logoutOpen}
+          busy={loggingOut}
+          error={logoutError}
+          onClose={() => {
+            if (!loggingOut) {
+              setLogoutOpen(false);
+            }
+          }}
+          onConfirm={() => void confirmLogout()}
+        />
       </main>
     </MemberFrame>
   );

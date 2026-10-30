@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, File, Header, UploadFile
 from pydantic import BaseModel, field_validator
 
 from auteur_api.core.auth import (
@@ -14,8 +14,14 @@ from auteur_api.core.auth import (
     user_from_access_token,
 )
 from auteur_api.core.errors import ApiError
-from auteur_api.core.store import ProfileRecord, get_store
+from auteur_api.core.store import (
+    ProfileRecord,
+    TextSizeName,
+    get_store,
+    normalize_text_size,
+)
 from auteur_api.core.store import Store as StoreBackend
+from auteur_api.modules.auth import profile_photo
 from auteur_api.modules.auth.service import attach_anonymous_owner
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,6 +39,13 @@ class ProfileResponse(BaseModel):
     birth_date: date | None
     gender: str | None
     avatar_url: str | None
+    image_url: str | None
+    text_size: TextSizeName
+    generated_course_count: int
+
+
+class TextSizeUpdate(BaseModel):
+    text_size: TextSizeName
 
 
 class ProfileUpdate(BaseModel):
@@ -72,6 +85,9 @@ def _profile_response(profile: ProfileRecord) -> ProfileResponse:
         birth_date=profile.birth_date,
         gender=profile.gender,
         avatar_url=profile.avatar_url,
+        image_url=profile.image_url,
+        text_size=normalize_text_size(profile.text_size),
+        generated_course_count=profile.generated_course_count,
     )
 
 
@@ -97,6 +113,51 @@ def update_profile(
         ),
     )
     return _profile_response(saved)
+
+
+@router.patch("/profile/text-size", response_model=ProfileResponse)
+def update_text_size(
+    body: TextSizeUpdate,
+    store: Store,
+    user_id: PermanentUserId,
+) -> ProfileResponse:
+    """Save the signed-in member's reading text size."""
+    return _profile_response(store.update_text_size(user_id, body.text_size))
+
+
+async def _incoming_photo(file: UploadFile) -> tuple[bytes, str]:
+    content = await file.read(profile_photo.MAX_BYTES + 1)
+    return content, profile_photo.validated_profile_photo(content)
+
+
+@router.post("/profile/photo", response_model=ProfileResponse)
+async def create_profile_photo(
+    store: Store,
+    user_id: PermanentUserId,
+    file: Annotated[UploadFile, File()],
+) -> ProfileResponse:
+    """Store the signed-in member's first profile photo."""
+    content, content_type = await _incoming_photo(file)
+    saved = store.create_profile_photo(user_id, content, content_type)
+    return _profile_response(saved)
+
+
+@router.put("/profile/photo", response_model=ProfileResponse)
+async def replace_profile_photo(
+    store: Store,
+    user_id: PermanentUserId,
+    file: Annotated[UploadFile, File()],
+) -> ProfileResponse:
+    """Replace the signed-in member's saved profile photo."""
+    content, content_type = await _incoming_photo(file)
+    saved = store.replace_profile_photo(user_id, content, content_type)
+    return _profile_response(saved)
+
+
+@router.delete("/profile/photo", response_model=ProfileResponse)
+def delete_profile_photo(store: Store, user_id: PermanentUserId) -> ProfileResponse:
+    """Remove the signed-in member's saved profile photo."""
+    return _profile_response(store.delete_profile_photo(user_id))
 
 
 @router.post("/claim", response_model=ClaimResponse)

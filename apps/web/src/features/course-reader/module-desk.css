@@ -32,7 +32,7 @@
   background: var(--tabc);
   color: var(--marfil);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.012em;
@@ -222,7 +222,7 @@
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -238,7 +238,7 @@
 .landing.module-desk .head h1 {
   width: 100%;
   max-width: none;
-  font-size: clamp(26px, 2.6vw, 36px);
+  font-size: clamp(calc(26px * var(--ft, 1)), calc(2.6vw * var(--ft, 1)), calc(36px * var(--ft, 1)));
   line-height: 1.12;
   text-wrap: pretty;
 }
@@ -255,7 +255,7 @@
   padding-left: 14px;
   border-left: 2px solid var(--borgona);
   font-family: var(--font-ui);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -266,7 +266,7 @@
   margin: 18px 0 28px;
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
   letter-spacing: 0.04em;
 }
 
@@ -307,7 +307,7 @@
 
 .landing.module-desk .meta-src-icon {
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   line-height: 1;
 }
@@ -326,7 +326,7 @@
 .landing.module-desk .meta-src-list a {
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
   letter-spacing: 0.04em;
   line-height: 1.45;
   text-decoration: underline;
@@ -342,7 +342,7 @@
 .landing.module-desk .body p {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.75;
   letter-spacing: -0.006em;
 }
@@ -356,21 +356,21 @@
 .landing.module-desk .body h2 {
   max-width: 24ch;
   margin: 1.6em 0 0.6em;
-  font-size: clamp(20px, 1.8vw, 24px);
+  font-size: clamp(calc(20px * var(--ft, 1)), calc(1.8vw * var(--ft, 1)), calc(24px * var(--ft, 1)));
   line-height: 1.2;
 }
 
 .landing.module-desk .cover .mono,
 .landing.module-desk .cover .esq {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   letter-spacing: 0.05em;
   color: var(--t-2);
 }
 
 .landing.module-desk .cover .esq {
   position: absolute;
-  font-size: 9px;
+  font-size: calc(9px * var(--ft, 1));
 }
 
 .landing.module-desk .cover .esq.a { top: 12px; left: 44px; }
@@ -399,7 +399,7 @@
 .landing.module-desk .cover .mn-l,
 .landing.module-desk .cover .mn-d {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -408,7 +408,7 @@
 
 .landing.module-desk .cover .mn-n {
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(42px, 5vw, 64px);
+  font-size: clamp(calc(42px * var(--ft, 1)), calc(5vw * var(--ft, 1)), calc(64px * var(--ft, 1)));
   line-height: 0.9;
   letter-spacing: -0.03em;
 }
@@ -416,7 +416,7 @@
 .landing.module-desk .cover h2 {
   width: 100%;
   max-width: none;
-  font-size: clamp(32px, 4vw, 52px);
+  font-size: clamp(calc(32px * var(--ft, 1)), calc(4vw * var(--ft, 1)), calc(52px * var(--ft, 1)));
   line-height: 1.08;
   text-wrap: pretty;
 }
@@ -425,7 +425,7 @@
   max-width: 46ch;
   margin: 16px 0 0;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(17px, 1.5vw, 20px);
+  font-size: clamp(calc(17px * var(--ft, 1)), calc(1.5vw * var(--ft, 1)), calc(20px * var(--ft, 1)));
   line-height: 1.4;
 }
 
@@ -433,7 +433,7 @@
   margin: 22px 0 8px;
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -449,7 +449,7 @@
   display: list-item;
   margin: 0 0 6px;
   font-family: var(--font-ui);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -457,7 +457,7 @@
   max-width: 48ch;
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -481,7 +481,7 @@
   border-bottom: 1px solid rgba(37, 42, 64, 0.16);
   color: inherit;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   text-decoration: none;
   transition: padding-left 240ms var(--desk-ease);
 }
@@ -494,7 +494,7 @@
   flex: none;
   width: 28px;
   color: var(--t-3);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -508,7 +508,7 @@
   flex: none;
   color: var(--t-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   white-space: nowrap;
 }
 
@@ -533,7 +533,7 @@
 .landing.module-desk .prose p {
   margin: 0 0 1em;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.75;
 }
 
@@ -554,13 +554,13 @@
 .landing.module-desk .fuentes .s {
   color: var(--t-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
 }
 
 .landing.module-desk .fuentes a {
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   letter-spacing: -0.012em;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -577,7 +577,7 @@
   margin-top: 2px;
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--ft, 1));
 }
 
 .landing.module-desk .next {
@@ -608,7 +608,7 @@
   background: none;
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: 0.01em;
@@ -666,7 +666,7 @@
   margin-bottom: 10px;
   color: var(--t-3);
   font-family: var(--font-ui), sans-serif;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.18em;
   line-height: 1.4;
@@ -678,7 +678,7 @@
   max-width: none;
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(19px, 2vw, 24px);
+  font-size: clamp(calc(19px * var(--ft, 1)), calc(2vw * var(--ft, 1)), calc(24px * var(--ft, 1)));
   font-weight: 400;
   letter-spacing: -0.014em;
   line-height: 1.24;
@@ -717,7 +717,7 @@
 .landing.module-desk .kc .opt-copy {
   color: var(--tinta);
   font-family: var(--font-ui), system-ui, sans-serif;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -770,7 +770,7 @@
   border-left: 2px solid var(--borgona);
   color: var(--t-2);
   font-family: var(--font-ui), system-ui, sans-serif;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -794,7 +794,7 @@
   background: var(--noche);
   color: var(--marfil);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.008em;
   line-height: 1;
@@ -902,7 +902,7 @@
   display: block;
   margin-bottom: 4px;
   color: #49576a;
-  font-size: 8px;
+  font-size: calc(8px * var(--ft, 1));
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -911,7 +911,7 @@
 .landing.module-desk .ae-audio-title {
   display: block;
   overflow: hidden;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.35;
   white-space: nowrap;
@@ -1039,7 +1039,7 @@
 .landing.module-desk .ae-audio-note {
   margin: 10px 0 0;
   color: #49576a;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   line-height: 1.45;
   text-align: center;
 }
@@ -1048,7 +1048,7 @@
   margin: 0;
   color: var(--t-3);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
 }
 
 @media (max-width: 920px) {
@@ -1122,7 +1122,7 @@
     max-width: 7.2rem;
     writing-mode: horizontal-tb;
     transform: none;
-    font-size: 11px;
+    font-size: calc(11px * var(--ft, 1));
   }
 
   .landing.module-desk .sheet {

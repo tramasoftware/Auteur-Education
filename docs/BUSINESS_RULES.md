@@ -94,7 +94,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 
 | ID | Regla | Consecuencia verificable |
 | --- | --- | --- |
-| `BR-PRP-001` | El sistema genera entre una y cinco propuestas genuinamente diferentes. | Puede devolver menos de cinco; nunca agrega variantes cosméticas para completar una cantidad. |
+| `BR-PRP-001` | El sistema genera exactamente cuatro propuestas genuinamente diferentes (`DEC-019`). | Siempre cuatro; nunca rellena con variantes cosméticas ni acepta un conjunto incompleto. |
 | `BR-PRP-002` | Las propuestas deben diferenciarse en al menos tres dimensiones significativas, como pregunta central, alcance, orden, tradición, profundidad o tipo de razonamiento. | La comparación permite reconocer recorridos intelectuales distintos. |
 | `BR-PRP-003` | Cada propuesta informa título, descripción, pregunta central, resultado, recorrido, alcance, exclusiones, adecuación al nivel, estimaciones y principal ventaja o trade-off. | El visitante comprende qué clase de curso recibiría antes de registrarse y pagar. |
 | `BR-PRP-004` | Si una propuesta es claramente superior para el objetivo, el sistema puede recomendarla con una razón concreta. | La recomendación no oculta alternativas ni se basa en una preferencia arbitraria. |

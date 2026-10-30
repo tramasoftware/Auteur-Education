@@ -205,7 +205,7 @@ La solicitud incompatible no continúa. Una intención nueva puede entrar en un 
 
 #### Recorrido principal
 
-1. El sistema genera entre una y cinco propuestas sustantivamente diferentes.
+1. El sistema genera exactamente cuatro propuestas sustantivamente diferentes (`DEC-019`).
 2. Cada propuesta muestra título, descripción, pregunta central, resultado, recorrido distintivo, alcance, exclusiones, nivel estimado, duración aproximada y trade-off.
 3. Si existe una opción claramente más adecuada, el sistema la recomienda con una razón concreta.
 4. El visitante compara las propuestas.
@@ -215,8 +215,7 @@ La solicitud incompatible no continúa. Una intención nueva puede entrar en un 
 
 #### Variantes y errores
 
-- El sistema puede devolver menos de cinco propuestas cuando no existan alternativas genuinas.
-- No se crean variantes cosméticas para completar una cantidad.
+- Si no se alcanzan cuatro direcciones genuinamente distintas, la generación reintenta; no se publica un conjunto incompleto ni variantes cosméticas.
 - El visitante puede volver y modificar entradas sustantivas.
 - Si modifica entradas, el sistema advierte que las propuestas actuales dejarán de ser vigentes.
 - Al confirmar la modificación, se crea un nuevo conjunto y el anterior no puede seleccionarse accidentalmente.

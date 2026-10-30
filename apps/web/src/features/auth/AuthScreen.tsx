@@ -5,9 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { LandingFooter } from "@/features/landing/LandingFooter";
+import { getAccountProfile } from "@/lib/api";
+import { rememberReadingPreference } from "@/lib/reading-preference";
 import { isAnonymousClaim } from "@/lib/auth/claims";
 import { GENDERS, birthDateLimits, registrationProfile } from "@/lib/auth/profile";
-import { safeInternalPath } from "@/lib/auth/redirect";
+import {
+  DEFAULT_MEMBER_PATH,
+  isDefaultMemberPath,
+  pathAfterSignIn,
+  safeInternalPath,
+} from "@/lib/auth/redirect";
 import { claimAnonymousSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -39,7 +46,7 @@ export function AuthScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const mode = modeFrom(params.get("mode"));
-  const next = safeInternalPath(params.get("next"), "/home");
+  const next = safeInternalPath(params.get("next"), DEFAULT_MEMBER_PATH);
   const linkError = params.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,11 +59,9 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const askPassword = mode === "password" || mode === "sign-in" || (mode === "register" && !anonymous);
-  const showGoogle =
-    mode !== "password" &&
-    mode !== "forgot" &&
-    process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === "true";
+  const showOauth = mode !== "password" && mode !== "forgot";
   const screen = copy[mode];
 
   useEffect(() => {
@@ -81,8 +86,7 @@ export function AuthScreen() {
       }
       if (mode === "password") {
         await setNewPassword(password);
-        router.push(next);
-        router.refresh();
+        await goToApp(router, next);
         return;
       }
       if (mode === "register") {
@@ -97,17 +101,19 @@ export function AuthScreen() {
           setMessage("Check your email to confirm this address, then choose a password.");
           return;
         }
+        if (pending === "exists") {
+          setMessage("This email is already in use.");
+          return;
+        }
         if (pending === "check") {
           setMessage("Check your email to finish creating your account.");
           return;
         }
-        router.push(next);
-        router.refresh();
+        await goToApp(router, next);
         return;
       }
       await signIn(email, password);
-      router.push(next);
-      router.refresh();
+      await goToApp(router, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in is required to continue.");
     } finally {
@@ -140,8 +146,7 @@ export function AuthScreen() {
           "We could not keep your learning request with this account. Try again.",
         );
       }
-      router.push(next);
-      router.refresh();
+      await goToApp(router, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Try again.");
     } finally {
@@ -197,16 +202,6 @@ export function AuthScreen() {
             </p>
           ) : null}
 
-          {showGoogle ? (
-            <>
-              <button type="button" className="google" disabled={busy} onClick={onGoogle}>
-                Continue with Google
-                <img src="/google-icon-logo.svg" alt="" width={18} height={18} />
-              </button>
-              <p className="sep">or</p>
-            </>
-          ) : null}
-
           <form onSubmit={onSubmit}>
             {mode !== "password" ? (
               <AuthField id="email" label="Email">
@@ -234,16 +229,28 @@ export function AuthScreen() {
                   ) : null
                 }
               >
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+                <>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    disabled={busy}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </>
               </AuthField>
             ) : null}
             {mode === "register" ? (
@@ -321,6 +328,26 @@ export function AuthScreen() {
             </button>
           </form>
 
+          {showOauth ? (
+            <>
+              <p className="sep">or sign with</p>
+              <div className="oauth-list">
+                <button type="button" className="oauth" disabled={busy} onClick={onGoogle}>
+                  Continue with Google
+                  <img src="/google-icon-logo.svg" alt="" width={18} height={18} />
+                </button>
+                <button type="button" className="oauth" disabled={busy}>
+                  Continue with Apple
+                  <img src="/apple-icon-logo.svg" alt="" width={18} height={18} />
+                </button>
+                <button type="button" className="oauth" disabled={busy}>
+                  Continue with Microsoft
+                  <img src="/microsoft-icon-logo.svg" alt="" width={18} height={18} />
+                </button>
+              </div>
+            </>
+          ) : null}
+
           {mode === "sign-in" ? (
             <p className="pie-f">
               New here? <Link href={withNext("/login?mode=register", next)}>Create an account</Link>
@@ -336,6 +363,34 @@ export function AuthScreen() {
         <LandingFooter />
       </div>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 3l18 18M10.5 10.5a3 3 0 0 0 4.24 4.24M9.88 9.88A3 3 0 0 1 14.12 14.12M6.1 6.1C4.06 7.52 2.5 9.87 2 12s3.5 7 10 7c1.63 0 3.14-.35 4.5-.97M17.9 17.9C19.94 16.48 21.5 14.13 22 12s-3.5-7-10-7c-1.63 0-3.14.35-4.5.97"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -377,13 +432,34 @@ function withNext(href: string, next: string): string {
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
+async function goToApp(
+  router: { push: (href: string) => void; refresh: () => void },
+  next: string,
+): Promise<void> {
+  router.push(await destinationAfterSignIn(next));
+  router.refresh();
+}
+
+async function destinationAfterSignIn(next: string): Promise<string> {
+  if (!isDefaultMemberPath(next)) {
+    return next;
+  }
+  try {
+    const profile = await getAccountProfile();
+    rememberReadingPreference(profile.text_size);
+    return pathAfterSignIn(next, profile.generated_course_count ?? 0);
+  } catch {
+    return next;
+  }
+}
+
 async function registerAccount(
   email: string,
   password: string,
   next: string,
   anonymous: boolean,
   profile: ReturnType<typeof registrationProfile>,
-): Promise<"confirm" | "check" | "session"> {
+): Promise<"confirm" | "exists" | "check" | "session"> {
   const supabase = createClient();
   const origin = window.location.origin;
   const data = {
@@ -396,6 +472,9 @@ async function registerAccount(
     const { error } = await supabase.auth.updateUser({ email, data });
     if (error && !accountAlreadyExists(error)) {
       throw new Error("Check the email address and try again.");
+    }
+    if (error) {
+      return "exists";
     }
     return "confirm";
   }
@@ -410,10 +489,15 @@ async function registerAccount(
   if (error && !accountAlreadyExists(error)) {
     throw new Error("Check the email address and try again.");
   }
-  if (error) {
-    return "check";
+  if (error || alreadyRegisteredUser(signedUp.user)) {
+    return "exists";
   }
   return signedUp.session ? "session" : "check";
+}
+
+function alreadyRegisteredUser(user: { identities?: { provider?: string }[] } | null): boolean {
+  // Enumeration-safe repeated signup: 200 with an empty identities list.
+  return Boolean(user) && (user?.identities?.length ?? 0) === 0;
 }
 
 function accountAlreadyExists(error: { code?: string; message?: string }): boolean {

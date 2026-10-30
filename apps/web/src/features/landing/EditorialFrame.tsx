@@ -1,18 +1,23 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { getLandingAccountSummary } from "@/lib/auth/landing-account";
+
 import { LandingFooter } from "./LandingFooter";
+import { LandingHeaderAccount } from "./LandingHeaderAccount";
 import "./landing.css";
 
 type EditorialPage = "about" | "plans";
 
-export function EditorialFrame({
+export async function EditorialFrame({
   current,
   children,
 }: {
   current?: EditorialPage;
   children: ReactNode;
 }) {
+  const account = await getLandingAccountSummary();
+
   return (
     <div className="landing">
       <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
@@ -42,9 +47,7 @@ export function EditorialFrame({
             <span className="m1">Auteur</span>
             <span className="m2">Education</span>
           </Link>
-          <Link className="ae-header-account" href="/login">
-            Log in
-          </Link>
+          <LandingHeaderAccount account={account} />
         </div>
       </header>
       {children}

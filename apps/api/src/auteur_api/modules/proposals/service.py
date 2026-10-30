@@ -28,8 +28,8 @@ def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[s
     out = result.parsed
     codes: list[str] = []
     count = len(out.proposals)
-    if not 1 <= count <= 5:
-        codes.append("proposal_count_out_of_range")  # BR-PRP-001
+    if count != 4:
+        codes.append("proposal_count_out_of_range")  # BR-PRP-001, DEC-019
         return codes
 
     titles = {p.title.strip().lower() for p in out.proposals}

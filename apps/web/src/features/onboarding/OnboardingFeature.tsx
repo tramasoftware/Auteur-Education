@@ -22,6 +22,7 @@ import {
   recallRequestId,
   rememberOnboardingDraft,
   rememberRequestId,
+  subscribeOnboardingDraft,
   type OnboardingDraft,
 } from "@/lib/session";
 import { createClient } from "@/lib/supabase/browser";
@@ -271,10 +272,6 @@ type IntentFormProps = {
   onSubmit: (payload: OnboardingDraft) => void;
 };
 
-function subscribeOnboardingDraft(): () => void {
-  return () => {};
-}
-
 function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
   const draft = useSyncExternalStore(
     subscribeOnboardingDraft,
@@ -318,6 +315,20 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       error.code !== "non_english_input") ||
     (!(error instanceof ApiError) && Boolean(error));
 
+  const persistDraft = (
+    nextIntent: string,
+    nextLevel: ExperienceLevel,
+    nextPrior: string,
+    nextOutcome: string,
+  ) => {
+    rememberOnboardingDraft({
+      initial_intent: nextIntent,
+      experience_level: nextLevel,
+      prior_knowledge: nextPrior.trim() || null,
+      expected_outcome: nextOutcome,
+    });
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit({
@@ -344,7 +355,11 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
             maxLength={MAX_FREE_TEXT_CHARS}
             value={intentValue}
             placeholder="For example: why my neighborhood has changed so much in ten years."
-            onChange={(e) => setIntent(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setIntent(value);
+              persistDraft(value, levelValue, priorValue, outcomeValue);
+            }}
             aria-labelledby="intent-label"
             aria-invalid={intentError ? true : undefined}
             aria-describedby={intentError ? "intent-error" : "intent-hint"}
@@ -368,7 +383,11 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
             maxLength={MAX_FREE_TEXT_CHARS}
             value={outcomeValue}
             placeholder="For example: explain why one neighborhood draws people in while another empties out."
-            onChange={(e) => setOutcome(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setOutcome(value);
+              persistDraft(intentValue, levelValue, priorValue, value);
+            }}
             aria-labelledby="outcome-label"
             aria-invalid={fieldError("expected_outcome") ? true : undefined}
             aria-describedby={fieldError("expected_outcome") ? "outcome-error" : undefined}
@@ -391,7 +410,10 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
                 name="experience_level"
                 value={option}
                 checked={levelValue === option}
-                onChange={() => setLevel(option)}
+                onChange={() => {
+                  setLevel(option);
+                  persistDraft(intentValue, option, priorValue, outcomeValue);
+                }}
               />
               <span className="c" aria-hidden="true" />
               <b>{option}</b>
@@ -429,7 +451,11 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
               maxLength={MAX_FREE_TEXT_CHARS}
               value={priorValue}
               placeholder="For example: I’ve read Jane Jacobs; I’ve taken an art history course."
-              onChange={(e) => setPrior(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPrior(value);
+                persistDraft(intentValue, levelValue, value, outcomeValue);
+              }}
               aria-invalid={fieldError("prior_knowledge") ? true : undefined}
               aria-describedby={fieldError("prior_knowledge") ? "prior-error" : undefined}
             />

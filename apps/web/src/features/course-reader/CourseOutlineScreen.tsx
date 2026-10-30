@@ -21,6 +21,7 @@ export function CourseOutlineScreen({
       backAriaLabel="Back to My courses"
       mainClassName="cur"
       screenClassName="course-outline-screen"
+      showFooter
     >
       {children}
     </CourseSetupFrame>

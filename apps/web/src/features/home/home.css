@@ -17,7 +17,7 @@
   gap: 12px;
   margin: 0;
   color: var(--t-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   white-space: nowrap;
 }
 
@@ -42,7 +42,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: grayscale(1);
 }
 
 .member .avatar:hover {
@@ -61,7 +60,7 @@
   background: var(--noche);
   color: var(--marfil);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   font-weight: 550;
   line-height: 1.3;
   letter-spacing: 0;
@@ -120,7 +119,7 @@
 .member .btn.chico {
   min-height: 36px;
   padding: 0 16px;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
 }
 
 .member #ae-home-main {
@@ -170,7 +169,7 @@
 .member .ae-home-kicker {
   display: block;
   color: var(--t-2);
-  font: 550 10px/1.5 var(--font-ui);
+  font: 550 calc(10px * var(--ft, 1))/1.5 var(--font-ui);
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
@@ -179,7 +178,7 @@
   max-width: none;
   margin: 16px 0 0;
   color: var(--noche-2);
-  font: 400 clamp(46px, 5.3vw, 72px) / 1.03 var(--font-editorial), Georgia, serif;
+  font: 400 clamp(calc(46px * var(--ft, 1)), calc(5.3vw * var(--ft, 1)), calc(72px * var(--ft, 1))) / 1.03 var(--font-editorial), Georgia, serif;
   letter-spacing: -0.035em;
 }
 
@@ -189,12 +188,12 @@
   gap: 16px;
   min-height: 44px;
   color: var(--noche-2);
-  font: 500 13px/1.4 var(--font-ui);
+  font: 500 calc(13px * var(--ft, 1))/1.4 var(--font-ui);
   text-decoration: none;
 }
 
 .member .ae-home-text-link .ae-link-arrow {
-  font-size: 23px;
+  font-size: calc(23px * var(--ft, 1));
   transition: transform 300ms ease;
 }
 
@@ -254,7 +253,7 @@
   margin: 0 0 24px;
   color: var(--m-1);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(32px, 3.4vw, 46px);
+  font-size: clamp(calc(32px * var(--ft, 1)), calc(3.4vw * var(--ft, 1)), calc(46px * var(--ft, 1)));
   font-weight: 400;
   line-height: 1.09;
   letter-spacing: -0.02em;
@@ -263,7 +262,7 @@
 .member .intro .pista {
   margin: 0 0 32px;
   color: var(--t-2);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
   letter-spacing: 0;
   text-transform: none;
 }
@@ -275,7 +274,7 @@
   width: min(100%, 312px);
   margin: 0 0 10px;
   color: var(--t-2);
-  font: 400 11px/1.4 var(--font-ui);
+  font: 400 calc(11px * var(--ft, 1))/1.4 var(--font-ui);
 }
 
 .member .ae-resume-progress {
@@ -372,7 +371,7 @@
 .member .hn {
   min-width: 13ch;
   font-family: var(--font-ui), sans-serif;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.14em;
   text-align: center;
@@ -391,7 +390,7 @@
   min-height: 44px;
   padding: 0 12px;
   border-radius: 22px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -427,7 +426,7 @@
   display: block;
   margin-bottom: 14px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -437,7 +436,7 @@
   max-width: 16ch;
   margin: 24px 0 16px;
   color: var(--tinta);
-  font-size: clamp(28px, 2.8vw, 40px);
+  font-size: clamp(calc(28px * var(--ft, 1)), calc(2.8vw * var(--ft, 1)), calc(40px * var(--ft, 1)));
   line-height: 1.15;
 }
 
@@ -446,14 +445,14 @@
   margin-top: 10px;
   color: var(--t-2);
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--ft, 1));
   line-height: 1.6;
 }
 
 .member .hoja-s .meta {
   margin-top: 20px;
   color: var(--t-3);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
 }
 
 .member .hoja-s .acciones {
@@ -484,21 +483,21 @@
 
 .member .cls-s .k {
   color: var(--t-3);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.1em;
 }
 
 .member .cls-s .t {
   color: var(--tinta);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.4;
 }
 
 .member .cls-s .e {
   color: var(--t-3);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   white-space: nowrap;
 }
 
@@ -567,7 +566,7 @@
   background: var(--tabc);
   color: #f2f0ef;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   white-space: nowrap;
 }
 
@@ -583,7 +582,7 @@
   gap: 16px;
   margin-bottom: 34px;
   color: rgba(252, 252, 250, 0.66);
-  font: 500 9px/1.5 var(--font-ui);
+  font: 500 calc(9px * var(--ft, 1))/1.5 var(--font-ui);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -592,7 +591,7 @@
   max-width: 15ch;
   margin: 0;
   color: #f2f0ef;
-  font-size: clamp(34px, 3.25vw, 48px);
+  font-size: clamp(calc(34px * var(--ft, 1)), calc(3.25vw * var(--ft, 1)), calc(48px * var(--ft, 1)));
   line-height: 1.04;
 }
 
@@ -610,7 +609,7 @@
   max-width: 30ch;
   margin: 0;
   color: rgba(252, 252, 250, 0.74);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -619,7 +618,7 @@
   align-items: center;
   gap: 12px;
   color: var(--marfil);
-  font: 500 11px/1.4 var(--font-ui);
+  font: 500 calc(11px * var(--ft, 1))/1.4 var(--font-ui);
   white-space: nowrap;
 }
 
@@ -638,7 +637,7 @@
   display: block;
   margin-bottom: 20px;
   color: rgba(252, 252, 250, 0.55);
-  font: 500 10px/1.5 var(--font-ui);
+  font: 500 calc(10px * var(--ft, 1))/1.5 var(--font-ui);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -647,7 +646,7 @@
   max-width: 15ch;
   color: rgba(252, 252, 250, 0.85);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(30px, 3vw, 44px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(44px * var(--ft, 1)));
   line-height: 1.1;
 }
 
@@ -676,14 +675,14 @@
 
 .member .postit-a b {
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 22px;
+  font-size: calc(22px * var(--ft, 1));
   font-weight: 400;
   line-height: 1.1;
 }
 
 .member .postit-a span {
   color: rgba(37, 42, 64, 0.8);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
 }
 
 .member .ae-home-path {
@@ -700,13 +699,13 @@
 
 .member .ae-home-path-head h2 {
   margin: 0;
-  font: 500 12px/1.4 var(--font-ui);
+  font: 500 calc(12px * var(--ft, 1))/1.4 var(--font-ui);
   letter-spacing: 0.02em;
 }
 
 .member .ae-home-path-head .ae-home-text-link {
   min-height: 32px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
 }
 
 .member .ae-home-steps {
@@ -750,19 +749,19 @@
 
 .member .ae-home-steps .n {
   color: var(--t-2);
-  font: 400 24px/1 var(--font-editorial), Georgia, serif;
+  font: 400 calc(24px * var(--ft, 1))/1 var(--font-editorial), Georgia, serif;
 }
 
 .member .ae-home-steps strong {
   display: block;
-  font: 400 18px/1.25 var(--font-editorial), Georgia, serif;
+  font: 400 calc(18px * var(--ft, 1))/1.25 var(--font-editorial), Georgia, serif;
 }
 
 .member .ae-home-steps small {
   display: block;
   margin-top: 9px;
   color: var(--t-2);
-  font: 400 10px/1.4 var(--font-ui);
+  font: 400 calc(10px * var(--ft, 1))/1.4 var(--font-ui);
 }
 
 .member .ae-home-steps .current small {
@@ -779,7 +778,8 @@
 }
 
 .member .cnuevo {
-  margin-top: 16px;
+  margin-top: 0;
+  margin-bottom: 104px;
   padding: 48px 52px 44px;
   border: 0;
   border-radius: 3px;
@@ -797,18 +797,23 @@
   grid-column: 1;
   margin: 0;
   color: var(--noche-2);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   letter-spacing: 0.1em;
 }
 
 .member .cn-h1 {
+  display: block;
   grid-column: 1;
   grid-row: 2 / 4;
   max-width: 14ch;
   margin: 18px 0 0;
-  color: var(--noche-2);
-  font-size: clamp(30px, 3.3vw, 44px);
+  color: var(--m-1);
+  font-family: var(--font-editorial), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.3vw * var(--ft, 1)), calc(44px * var(--ft, 1)));
   line-height: 1.08;
+  letter-spacing: -0.018em;
+  cursor: text;
 }
 
 .member .cn-der {
@@ -832,7 +837,7 @@
   background: transparent;
   color: var(--noche-2);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(23px, 2.3vw, 30px);
+  font-size: clamp(calc(23px * var(--ft, 1)), calc(2.3vw * var(--ft, 1)), calc(30px * var(--ft, 1)));
   outline: none;
 }
 
@@ -860,7 +865,7 @@
 
 .member .ae-home-suggestions > span {
   color: var(--t-2);
-  font: 400 10px/1.4 var(--font-ui);
+  font: 400 calc(10px * var(--ft, 1))/1.4 var(--font-ui);
 }
 
 .member .ae-home-suggestions button {
@@ -870,7 +875,7 @@
   border-bottom: 1px solid rgba(22, 32, 63, 0.3);
   background: none;
   color: var(--noche-2);
-  font: 500 11px/1.3 var(--font-ui);
+  font: 500 calc(11px * var(--ft, 1))/1.3 var(--font-ui);
   cursor: pointer;
 }
 
@@ -886,7 +891,7 @@
 .member .ae-home-explore-head h2 {
   margin: 16px 0 0;
   color: var(--noche-2);
-  font: 400 clamp(34px, 4vw, 52px) / 1.05 var(--font-editorial), Georgia, serif;
+  font: 400 clamp(calc(34px * var(--ft, 1)), calc(4vw * var(--ft, 1)), calc(52px * var(--ft, 1))) / 1.05 var(--font-editorial), Georgia, serif;
   letter-spacing: -0.025em;
 }
 
@@ -916,7 +921,7 @@
 
 .member .cursos .carp-c h3 {
   max-width: 12ch;
-  font-size: clamp(29px, 2.6vw, 38px);
+  font-size: clamp(calc(29px * var(--ft, 1)), calc(2.6vw * var(--ft, 1)), calc(38px * var(--ft, 1)));
   line-height: 1.07;
 }
 
@@ -955,7 +960,7 @@
   display: block;
   margin-bottom: 10px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -965,14 +970,14 @@
   max-width: 16ch;
   margin: 0 0 12px;
   color: var(--tinta);
-  font-size: clamp(22px, 2.2vw, 30px);
+  font-size: clamp(calc(22px * var(--ft, 1)), calc(2.2vw * var(--ft, 1)), calc(30px * var(--ft, 1)));
 }
 
 .member .pliego .tarj p,
 .member .pliego .sint {
   margin: 0 0 12px;
   color: var(--tinta);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -988,7 +993,7 @@
 
 .member .pliego .nums div {
   color: var(--t-3);
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--ft, 1));
   letter-spacing: 0.06em;
   line-height: 1.5;
   text-transform: uppercase;
@@ -999,7 +1004,7 @@
   margin-bottom: 3px;
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 24px;
+  font-size: calc(24px * var(--ft, 1));
   font-weight: 400;
   line-height: 1.05;
   text-transform: none;
@@ -1029,7 +1034,7 @@
   padding: 9px 0;
   border-bottom: 1px solid var(--regla-2);
   break-inside: avoid;
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
 }
 
 .member .pliego .pie-p {
@@ -1044,7 +1049,7 @@
   border: 0;
   background: none;
   color: inherit;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1062,14 +1067,14 @@
 .member .hola h1 {
   max-width: 14ch;
   color: var(--m-1);
-  font-size: clamp(30px, 3.2vw, 46px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.2vw * var(--ft, 1)), calc(46px * var(--ft, 1)));
   line-height: 1.02;
 }
 
 .member .hola .estado {
   margin: 0;
   color: var(--t-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.7;
   text-align: right;
 }
@@ -1083,7 +1088,7 @@
   display: block;
   margin-bottom: 32px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -1121,7 +1126,7 @@
   max-width: 14ch;
   margin-bottom: 8px;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(19px, 1.8vw, 23px);
+  font-size: clamp(calc(19px * var(--ft, 1)), calc(1.8vw * var(--ft, 1)), calc(23px * var(--ft, 1)));
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.12;
@@ -1131,7 +1136,7 @@
 .member .cf .d {
   max-width: 36ch;
   color: rgba(242, 240, 239, 0.66);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.5;
@@ -1218,7 +1223,7 @@
   margin-right: 14px;
   color: var(--tx2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   letter-spacing: 0.06em;
 }
 
@@ -1266,7 +1271,7 @@
 .member .cajon .ficha-c .k {
   margin: 0 0 8px;
   color: var(--tx2);
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--ft, 1));
   letter-spacing: 0.18em;
 }
 
@@ -1282,7 +1287,7 @@
   border-radius: 2px;
   color: var(--tx2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   letter-spacing: 0.06em;
   text-align: left;
   text-transform: uppercase;
@@ -1302,7 +1307,7 @@
   overflow: hidden;
   color: #12141c;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(22px, 1.9vw, 28px);
+  font-size: clamp(calc(22px * var(--ft, 1)), calc(1.9vw * var(--ft, 1)), calc(28px * var(--ft, 1)));
   font-weight: 500;
   line-height: 1.08;
   letter-spacing: -0.025em;
@@ -1321,7 +1326,7 @@
   overflow: hidden;
   color: var(--tx2);
   font-family: var(--font-ui), "Segoe UI", sans-serif;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
   font-weight: 400;
   line-height: 1.45;
   letter-spacing: 0;
@@ -1351,7 +1356,7 @@
   gap: 18px;
   color: var(--tx2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   letter-spacing: 0.06em;
   line-height: 1.5;
   text-transform: uppercase;
@@ -1363,7 +1368,7 @@
   margin-bottom: 2px;
   color: var(--tx);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 19px;
+  font-size: calc(19px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -1380,7 +1385,7 @@
   color: var(--tx);
   cursor: pointer;
   font-family: var(--font-ui), sans-serif;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1420,7 +1425,7 @@
 
 .member .per-cab {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px;
+  grid-template-columns: minmax(0, 1fr) 200px;
   gap: 48px;
   align-items: start;
   padding-bottom: 44px;
@@ -1431,7 +1436,7 @@
   display: block;
   margin-bottom: 22px;
   color: var(--m-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -1440,7 +1445,7 @@
 .member .per-cab h1 {
   max-width: 14ch;
   margin: 0 0 18px;
-  font-size: clamp(32px, 3.4vw, 50px);
+  font-size: clamp(calc(32px * var(--ft, 1)), calc(3.4vw * var(--ft, 1)), calc(50px * var(--ft, 1)));
   line-height: 1.06;
 }
 
@@ -1448,7 +1453,7 @@
   margin: 0 0 22px;
   color: var(--m-2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   letter-spacing: 0.08em;
   line-height: 1.9;
   text-transform: uppercase;
@@ -1467,30 +1472,32 @@
 
 .member .foto {
   justify-self: end;
-  width: 150px;
-  aspect-ratio: 3 / 4;
+  width: 200px;
+  height: 200px;
   overflow: hidden;
   border-radius: 2px;
   background: #efedea;
-  filter: grayscale(1) contrast(1.05);
 }
 
+.member .foto img,
 .member .foto svg {
+  display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 
 .member .cursos > p {
   margin: 8px 0 24px;
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.5;
 }
 
 .member .cc p {
   margin: 18px 0 0;
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -1506,9 +1513,13 @@
   border-bottom: 1px solid rgba(37, 42, 64, 0.14);
 }
 
+.member .per-fin {
+  border-bottom: 0;
+}
+
 .member .per-sec h2 {
   margin: 0 0 8px;
-  font-size: 25px;
+  font-size: calc(25px * var(--ft, 1));
   line-height: 1.15;
 }
 
@@ -1516,7 +1527,7 @@
   max-width: 36ch;
   margin: 0;
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -1535,14 +1546,14 @@
 }
 
 .member .fila .tx {
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--ft, 1));
 }
 
 .member .fila .tx small {
   display: block;
   margin-top: 3px;
   color: var(--m-3);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -1556,7 +1567,7 @@
   background: #fff;
   color: var(--m-1);
   font: inherit;
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
 }
 
 .member .fila .campo:focus {
@@ -1570,6 +1581,72 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.member .reform-modal {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.member .reform-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(17, 25, 54, 0.46);
+  cursor: pointer;
+}
+
+.member .reform-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  padding: 32px 32px 28px;
+  border-radius: 2px;
+  background: #fff;
+  color: var(--m-1);
+}
+
+.member .reform-sheet h2 {
+  max-width: 16ch;
+  margin: 0 0 12px;
+  color: var(--m-1);
+  font-family: var(--font-editorial), Georgia, serif;
+  font-size: clamp(calc(26px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(34px * var(--ft, 1)));
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.member .reform-sheet p {
+  max-width: 42ch;
+  margin: 0 0 28px;
+  color: var(--m-2);
+  font-family: var(--font-ui);
+  font-size: calc(15px * var(--ft, 1));
+  line-height: 1.6;
+}
+
+.member .reform-sheet .acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.member .reform-sheet .btn.fantasma {
+  background: none;
+  color: var(--tinta);
+  outline: 1px solid rgba(37, 42, 64, 0.3);
+  outline-offset: -1px;
+}
+
+.member .reform-sheet .btn.fantasma:hover:not(:disabled) {
+  background: rgba(37, 42, 64, 0.05);
+  outline-color: var(--tinta);
 }
 
 .member .sw {
@@ -1625,7 +1702,7 @@
   border-radius: 2px;
   background: none;
   color: var(--m-3);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 600;
   cursor: pointer;
 }
@@ -1642,7 +1719,6 @@
   padding: 14px 0 14px 14px;
   border-left: 2px solid var(--borgona);
   color: var(--m-1);
-  font-size: calc(15.5px * var(--ft, 1));
   line-height: 1.75;
 }
 
@@ -1654,7 +1730,7 @@
   padding: 13px 0;
   border-top: 1px solid rgba(37, 42, 64, 0.14);
   color: var(--m-2);
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--ft, 1));
 }
 
 .member .factura:first-child {
@@ -1672,7 +1748,7 @@
   border-bottom: 1px solid var(--m-1);
   background: none;
   color: var(--m-1);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1729,7 +1805,7 @@
   }
 
   .member .ae-home-welcome h1 {
-    font-size: 52px;
+    font-size: calc(52px * var(--ft, 1));
   }
 
   .member .escena {
@@ -1828,7 +1904,7 @@
   }
 
   .member .cn-h1 {
-    font-size: 34px;
+    font-size: calc(34px * var(--ft, 1));
   }
 
   .member .cursos {
@@ -1868,6 +1944,7 @@
   .member .foto {
     justify-self: start;
     width: 120px;
+    height: 120px;
   }
 }
 
@@ -1890,7 +1967,7 @@
 
   .member .ae-home-welcome h1 {
     max-width: 10ch;
-    font-size: 45px;
+    font-size: calc(45px * var(--ft, 1));
   }
 
   .member .tapa-c .dorso {
@@ -1912,13 +1989,19 @@
     grid-row: auto;
   }
 
+  .member .cn-h1 {
+    max-width: 16ch;
+    margin: 16px 0 28px;
+    font-size: calc(34px * var(--ft, 1));
+  }
+
   .member .cnuevo .btn {
     justify-content: center;
     width: 100%;
   }
 
   .member .ae-home-explore-head h2 {
-    font-size: 40px;
+    font-size: calc(40px * var(--ft, 1));
   }
 
   .member .hola {
@@ -1936,6 +2019,15 @@
 
   .member .factura {
     grid-template-columns: 1fr auto;
+  }
+
+  .member .fila.reading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .member .fila.reading .acc {
+    justify-content: flex-start;
   }
 }
 

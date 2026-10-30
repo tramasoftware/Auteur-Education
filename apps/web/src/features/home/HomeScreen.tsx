@@ -10,6 +10,10 @@ import { MemberFrame } from "./MemberFrame";
 
 const topics = ["Photography", "Music", "Everyday economics"] as const;
 
+function pad(step: number): string {
+  return String(step).padStart(2, "0");
+}
+
 const modules = [
   {
     label: "Module 01 · complete",
@@ -103,9 +107,23 @@ const ideas = [
   },
 ] as const;
 
-export function HomeScreen() {
+export function HomeScreen({ hasCourseInProgress }: { hasCourseInProgress: boolean }) {
+  const recommendStep = hasCourseInProgress ? 2 : 1;
+  const questionStep = hasCourseInProgress ? 3 : 2;
+
   return (
-    <MemberFrame current="home" status={<Status />}>
+    <MemberFrame
+      current="home"
+      status={
+        hasCourseInProgress ? (
+          <>
+            <b>1</b> course in progress
+          </>
+        ) : (
+          <>No course in progress</>
+        )
+      }
+    >
       <main id="ae-home-main">
         <header className="ae-home-welcome">
           <div>
@@ -116,19 +134,11 @@ export function HomeScreen() {
             Create a new course <span className="ae-link-arrow" aria-hidden="true">↗</span>
           </Link>
         </header>
-        <ReadingDesk />
-        <NewQuestion />
-        <Curiosity />
+        {hasCourseInProgress ? <ReadingDesk /> : null}
+        <Curiosity step={recommendStep} fromCurrentCourse={hasCourseInProgress} />
+        <NewQuestion step={questionStep} />
       </main>
     </MemberFrame>
-  );
-}
-
-function Status() {
-  return (
-    <>
-      <b>1</b> course in progress
-    </>
   );
 }
 
@@ -331,7 +341,7 @@ function ReadingDesk() {
   );
 }
 
-function NewQuestion() {
+function NewQuestion({ step }: { step: number }) {
   const router = useRouter();
   const [question, setQuestion] = useState("");
 
@@ -352,9 +362,9 @@ function NewQuestion() {
   return (
     <section className="cnuevo" aria-labelledby="qNueva">
       <form className="cn-f" onSubmit={submit}>
-        <span className="k">02 / A new question</span>
+        <span className="k">{pad(step)} / A new question</span>
         <label id="qNueva" className="cn-h1" htmlFor="q1">
-          What’s on your mind?
+          What would you like to understand?
         </label>
         <div className="cn-der">
           <div className="cn-linea">
@@ -384,7 +394,7 @@ function NewQuestion() {
   );
 }
 
-function Curiosity() {
+function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCourse: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const idea = open === null ? null : ideas[open];
 
@@ -392,7 +402,9 @@ function Curiosity() {
     <section className="cursos">
       <div className="ae-home-explore-head">
         <div>
-          <span className="ae-home-kicker">03 / Follow your curiosity</span>
+          <span className="ae-home-kicker">
+            {pad(step)} / {fromCurrentCourse ? "From your current course" : "Follow your curiosity"}
+          </span>
           <h2>Worth exploring.</h2>
         </div>
       </div>

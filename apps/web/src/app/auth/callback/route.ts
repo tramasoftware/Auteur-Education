@@ -1,11 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { safeInternalPath } from "@/lib/auth/redirect";
+import { resolveSignIn } from "@/lib/auth/entry";
+import { DEFAULT_MEMBER_PATH, safeInternalPath } from "@/lib/auth/redirect";
 import { ANON_TRANSFER_COOKIE, claimWithTokens } from "@/lib/auth/transfer";
+import { assignTextSizeCookie } from "@/lib/reading-preference";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
-  const next = safeInternalPath(request.nextUrl.searchParams.get("next"));
+  const next = safeInternalPath(
+    request.nextUrl.searchParams.get("next"),
+    DEFAULT_MEMBER_PATH,
+  );
   const code = request.nextUrl.searchParams.get("code");
   const supabase = await createClient();
 
@@ -24,10 +29,14 @@ export async function GET(request: NextRequest) {
     claimFailed = !(await claimWithTokens(anonymous, permanent));
   }
 
-  const destination = claimFailed
-    ? `/login?error=claim&next=${encodeURIComponent(next)}`
-    : next;
+  const resolved = claimFailed ? null : await resolveSignIn(next, permanent);
+  const destination = resolved
+    ? resolved.path
+    : `/login?error=claim&next=${encodeURIComponent(next)}`;
   const response = NextResponse.redirect(new URL(destination, request.url));
+  if (resolved) {
+    assignTextSizeCookie(response, resolved.textSize);
+  }
   if (!claimFailed) {
     response.cookies.set(ANON_TRANSFER_COOKIE, "", { path: "/", maxAge: 0 });
   }

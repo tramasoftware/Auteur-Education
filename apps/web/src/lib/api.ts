@@ -46,7 +46,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       cache: "no-store",
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
@@ -98,6 +98,9 @@ export type AccountProfile = {
   birth_date: string | null;
   gender: string | null;
   avatar_url: string | null;
+  image_url: string | null;
+  text_size: string | null;
+  generated_course_count: number;
 };
 
 export function getAccountProfile(): Promise<AccountProfile> {
@@ -114,6 +117,31 @@ export function updateAccountProfile(profile: {
     method: "PATCH",
     body: JSON.stringify(profile),
   });
+}
+
+export function updateAccountTextSize(textSize: string): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile/text-size", {
+    method: "PATCH",
+    body: JSON.stringify({ text_size: textSize }),
+  });
+}
+
+function sendAccountPhoto(method: "POST" | "PUT", file: File): Promise<AccountProfile> {
+  const body = new FormData();
+  body.append("file", file);
+  return request<AccountProfile>("/auth/profile/photo", { method, body });
+}
+
+export function createAccountPhoto(file: File): Promise<AccountProfile> {
+  return sendAccountPhoto("POST", file);
+}
+
+export function updateAccountPhoto(file: File): Promise<AccountProfile> {
+  return sendAccountPhoto("PUT", file);
+}
+
+export function deleteAccountPhoto(): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile/photo", { method: "DELETE" });
 }
 
 export async function getHealth(): Promise<HealthResponse> {

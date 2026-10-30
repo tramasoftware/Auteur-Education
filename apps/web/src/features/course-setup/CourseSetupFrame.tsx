@@ -17,6 +17,8 @@ type CourseSetupFrameProps = {
   backAriaLabel?: string;
   mainClassName?: string;
   screenClassName?: string;
+  /** Public footer chrome; omitted during onboarding, proposals, and Blueprint. */
+  showFooter?: boolean;
 };
 
 /**
@@ -42,6 +44,7 @@ export function CourseSetupFrame({
   backAriaLabel = "Exit course setup",
   mainClassName = "question-main",
   screenClassName,
+  showFooter = false,
 }: CourseSetupFrameProps) {
   return (
     <div className={`landing course-setup${screenClassName ? ` ${screenClassName}` : ""}`}>
@@ -65,7 +68,7 @@ export function CourseSetupFrame({
           </div>
         </header>
         <main className={mainClassName}>{children}</main>
-        <LandingFooter />
+        {showFooter ? <LandingFooter /> : null}
       </JourneyFrame>
     </div>
   );

@@ -142,7 +142,7 @@ El sistema no debe inventar ensayos, proyectos, portfolios, presentaciones, carg
 
 ### 5. Propuestas de curso
 
-El sistema genera entre una y cinco propuestas de curso. Puede generar menos de cinco cuando el objetivo sea específico o no existan alternativas sustantivas.
+El sistema genera exactamente cuatro propuestas de curso (`DEC-019`). Si no existen cuatro direcciones sustantivamente distintas, la etapa reintenta; no se acepta un conjunto incompleto.
 
 Las propuestas deben diferenciarse realmente por dimensiones como:
 
@@ -658,7 +658,7 @@ El MVP debe superar, como mínimo, los siguientes escenarios:
 2. Una intención específica omite precisión innecesaria.
 3. Una entrada no inglesa solicita reformulación y no genera contenido en otro idioma.
 4. Un objetivo práctico incompatible se reformula honestamente o se rechaza.
-5. Un tema específico genera menos de cinco propuestas sin variantes artificiales.
+5. Tras confirmar el objetivo, el visitante recibe exactamente cuatro propuestas diferenciadas, sin variantes artificiales.
 6. Registro, login y pago conservan la intención y propuesta seleccionada.
 7. El primer curso utiliza el beneficio de bienvenida sin consumir créditos.
 8. Un Blueprint flexible puede aprobarse sin cumplir cantidades orientativas cuando existe justificación pedagógica.

@@ -48,7 +48,7 @@ def selected_request(client, fake_ai) -> str:
     client.post(
         f"/api/v1/learning-requests/{rid}/objective/confirm", json={"version": 1}
     )
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(2))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
     body = client.post(f"/api/v1/learning-requests/{rid}/proposals").json()
     pid = body["proposals"]["proposals"][0]["id"]
     client.post(

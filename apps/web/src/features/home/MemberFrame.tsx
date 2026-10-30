@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { LandingFooter } from "@/features/landing/LandingFooter";
 import "@/features/landing/landing.css";
+import { getAccountProfile } from "@/lib/api";
 
 import { Portrait } from "./Portrait";
 import { RegisteredSessionWatch } from "./RegisteredSessionWatch";
@@ -13,12 +16,39 @@ type MemberPage = "home" | "courses" | "profile";
 export function MemberFrame({
   current,
   status,
+  portraitSrc,
   children,
 }: {
   current: MemberPage;
   status: ReactNode;
+  portraitSrc?: string | null;
   children: ReactNode;
 }) {
+  const [fetchedSrc, setFetchedSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (portraitSrc !== undefined) {
+      return;
+    }
+    let cancelled = false;
+    getAccountProfile()
+      .then((account) => {
+        if (!cancelled) {
+          setFetchedSrc(account.image_url ?? account.avatar_url);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFetchedSrc(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [portraitSrc]);
+
+  const photo = portraitSrc !== undefined ? portraitSrc : fetchedSrc;
+
   return (
     <div className="landing member">
       <RegisteredSessionWatch />
@@ -44,7 +74,7 @@ export function MemberFrame({
           <p className="donde">
             <span>{status}</span>
             <Link className="avatar" href="/profile" aria-label="Your profile">
-              <Portrait />
+              <Portrait src={photo} />
             </Link>
           </p>
         </div>

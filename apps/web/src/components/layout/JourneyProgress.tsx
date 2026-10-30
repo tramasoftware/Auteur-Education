@@ -250,7 +250,9 @@ export function JourneyFrame({ title, description, bare = false, children }: Jou
           <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-8">
             {shown.hidden ? null : <JourneyProgress step={shown} />}
             {title ? (
-              <h1 className="font-display text-[1.75rem] font-semibold tracking-tight">{title}</h1>
+              <h1 className="font-display text-[length:calc(1.75rem*var(--ft,1))] font-semibold tracking-tight">
+                {title}
+              </h1>
             ) : null}
             {description ? <p className="text-muted">{description}</p> : null}
             {children}

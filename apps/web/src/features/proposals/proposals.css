@@ -13,7 +13,7 @@
   display: block;
   margin-bottom: 12px;
   color: var(--borgona);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -21,7 +21,7 @@
 
 .proposals-screen .caminos-h h2 {
   margin-bottom: 10px;
-  font-size: clamp(26px, 2.8vw, 38px);
+  font-size: clamp(calc(26px * var(--ft, 1)), calc(2.8vw * var(--ft, 1)), calc(38px * var(--ft, 1)));
   line-height: 1.08;
   letter-spacing: -0.018em;
 }
@@ -32,7 +32,7 @@
   margin-bottom: 24px;
   color: var(--m-2);
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -93,7 +93,7 @@
   max-width: min(220px, calc(100% - 48px));
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.012em;
   text-transform: none;
@@ -103,7 +103,7 @@
 .proposals-screen .ae-route-folder > .folder-tab .n {
   margin-right: 10px;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: 0.06em;
   opacity: 0.7;
@@ -144,10 +144,11 @@
 }
 
 .proposals-screen .abierto b {
-  max-width: 20ch;
+  width: 100%;
+  max-width: none;
   margin-bottom: 12px;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(23px, 2.3vw, 30px);
+  font-size: clamp(calc(23px * var(--ft, 1)), calc(2.3vw * var(--ft, 1)), calc(30px * var(--ft, 1)));
   font-weight: 400;
   line-height: 1.08;
   letter-spacing: -0.018em;
@@ -157,7 +158,7 @@
   max-width: 44ch;
   margin: 0 0 16px;
   color: rgba(37, 42, 64, 0.82);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -175,7 +176,7 @@
   grid-column: 1 / -1;
   color: rgba(37, 42, 64, 0.7);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
   letter-spacing: 0;
   line-height: 1.5;
 }
@@ -190,21 +191,21 @@
   border: 0;
   color: inherit;
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.4;
 }
 
 .proposals-screen .ver::after {
   content: "→";
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
 }
 
 .proposals-screen .marca-path {
   justify-self: end;
   color: var(--borgona);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -269,7 +270,7 @@
   max-width: min(220px, calc(100% - 48px));
   color: var(--tinta);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.012em;
   text-transform: none;
@@ -297,7 +298,7 @@
 .proposals-screen .ae-route-summary h3 {
   max-width: 19ch;
   margin: 0 0 20px;
-  font-size: clamp(30px, 3.2vw, 42px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.2vw * var(--ft, 1)), calc(42px * var(--ft, 1)));
   line-height: 1.08;
   letter-spacing: -0.025em;
 }
@@ -305,7 +306,7 @@
 .proposals-screen .ae-route-summary > p {
   max-width: 40ch;
   margin: 0 0 32px;
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -314,13 +315,13 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 28px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.6;
 }
 
 .proposals-screen .aut > span,
 .proposals-screen .ae-route-paper > .lab {
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 550;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -332,14 +333,14 @@
   gap: 12px;
   padding-top: 20px;
   border-top: 1px solid rgba(37, 42, 64, 0.2);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
 }
 
 .proposals-screen .ae-route-facts b {
   display: block;
   margin-bottom: 6px;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(24px, 2.6vw, 32px);
+  font-size: clamp(calc(24px * var(--ft, 1)), calc(2.6vw * var(--ft, 1)), calc(32px * var(--ft, 1)));
   font-weight: 400;
   line-height: 1.1;
 }
@@ -350,10 +351,21 @@
   perspective-origin: left 40%;
 }
 
+.proposals-screen .ae-route-paper-measure {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: -1;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .proposals-screen .ae-route-paper {
   position: relative;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  min-height: var(--ae-paper-height, auto);
   padding: 30px 28px 30px 56px;
   border-radius: 2px;
   background: var(--marfil);
@@ -385,14 +397,20 @@
 }
 
 .proposals-screen .ae-route-paper dl {
+  flex: 1 1 auto;
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.65;
+}
+
+.proposals-screen .ae-route-paper .ae-paper-turn {
+  flex: none;
+  margin-top: auto;
 }
 
 .proposals-screen .ae-route-paper dt {
   margin: 0 0 8px;
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 550;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -419,7 +437,7 @@
   border-top: 1px solid rgba(37, 42, 64, 0.14);
   background: none;
   color: var(--tinta);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   cursor: pointer;
 }
@@ -432,7 +450,7 @@
 .proposals-screen .ae-paper-turn.next::after,
 .proposals-screen .ae-paper-turn.prev::before {
   flex: none;
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   line-height: 1;
 }
 
@@ -458,7 +476,7 @@
   padding: 12px 0;
   border-top: 1px solid rgba(37, 42, 64, 0.14);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 19px;
+  font-size: calc(19px * var(--ft, 1));
   line-height: 1.25;
   counter-increment: path-item;
 }
@@ -467,7 +485,7 @@
   content: counter(path-item, decimal-leading-zero);
   color: var(--borgona);
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 500;
 }
 
@@ -493,14 +511,14 @@
   border: 0;
   background: none;
   color: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   cursor: pointer;
 }
 
 .proposals-screen .ae-route-close::before {
   content: "←";
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
 }
 
 .proposals-screen .cierre-o {
@@ -519,7 +537,7 @@
 .proposals-screen .cierre-o .nota {
   max-width: 36ch;
   color: var(--m-3);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.5;
 }
 

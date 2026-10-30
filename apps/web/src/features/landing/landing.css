@@ -25,7 +25,7 @@
   background: #fff;
   color: var(--m-1);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   line-height: 1.5;
   overflow-x: clip;
 }
@@ -75,7 +75,7 @@
   margin-bottom: 22px;
   color: var(--m-3);
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.2em;
   line-height: 1.5;
@@ -114,7 +114,7 @@
   align-items: center;
   min-height: 44px;
   color: var(--m-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
@@ -129,6 +129,109 @@
 .landing .ae-header-account {
   justify-self: end;
   color: var(--m-1);
+}
+
+.landing .ae-header-account-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.landing button.ae-header-account {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: none;
+}
+
+.landing .ae-header-account--member {
+  gap: 10px;
+  padding-right: 2px;
+}
+
+.landing .ae-header-account-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 12;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid rgba(37, 42, 64, 0.22);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(17, 25, 54, 0.12);
+}
+
+.landing .ae-header-account-logout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--m-1);
+  font-family: var(--font-ui);
+  font-size: calc(13px * var(--ft, 1));
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.landing .ae-header-account-logout:hover {
+  background: rgba(37, 42, 64, 0.06);
+}
+
+.landing .ae-header-account-logout:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.landing .ae-header-account-error {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  color: var(--borgona);
+  font-size: calc(12px * var(--ft, 1));
+  line-height: 1.4;
+}
+
+.landing .ae-header-account--member::after {
+  display: none;
+}
+
+.landing .ae-header-account-name {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.landing .ae-header-account-avatar {
+  display: inline-grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
+  place-items: center;
+}
+
+.landing .ae-header-account-avatar img,
+.landing .ae-header-account-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (hover: hover) {
+  .landing .ae-header-account--member:hover .ae-header-account-avatar {
+    outline: 1px solid var(--m-1);
+    outline-offset: -1px;
+  }
 }
 
 .landing .ae-nav-link::before,
@@ -185,7 +288,7 @@
 .landing .marca .m1 {
   color: var(--m-1);
   font-family: var(--font-editorial);
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   line-height: 1;
   letter-spacing: 0.055em;
 }
@@ -193,7 +296,7 @@
 .landing .marca .m2 {
   padding-left: 0.3em;
   color: var(--m-2);
-  font-size: 8px;
+  font-size: calc(8px * var(--ft, 1));
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.3em;
@@ -242,7 +345,7 @@
 .landing .lp-hero h1 {
   max-width: 12ch;
   margin-bottom: 28px;
-  font-size: clamp(48px, 5.3vw, 80px);
+  font-size: clamp(calc(48px * var(--ft, 1)), calc(5.3vw * var(--ft, 1)), calc(80px * var(--ft, 1)));
   line-height: 1.02;
   letter-spacing: -0.03em;
 }
@@ -251,7 +354,7 @@
   max-width: 38ch;
   margin-bottom: 36px;
   color: var(--m-2);
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -259,7 +362,7 @@
   max-width: 36ch;
   margin-top: 16px;
   color: var(--m-3);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -279,7 +382,7 @@
   border-radius: 10px 10px 4px 4px;
   background: var(--noche-2);
   color: var(--marfil);
-  font-size: 17px;
+  font-size: calc(17px * var(--ft, 1));
   font-weight: 600;
   line-height: 1.2;
   box-shadow: 0 8px 20px -12px rgba(22, 32, 63, 0.55);
@@ -345,7 +448,7 @@
 
 .landing .lp h2 {
   max-width: 18ch;
-  font-size: clamp(36px, 3.8vw, 56px);
+  font-size: clamp(calc(36px * var(--ft, 1)), calc(3.8vw * var(--ft, 1)), calc(56px * var(--ft, 1)));
   line-height: 1.08;
 }
 
@@ -509,7 +612,7 @@
 
 .landing #coleccion .ae-arrival-sheet > span {
   display: block;
-  font: 500 9px/1.4 var(--font-ui);
+  font: 500 calc(9px * var(--ft, 1))/1.4 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -548,7 +651,7 @@
   background: var(--tabc);
   color: #f2f0ef;
   font-family: var(--font-editorial);
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.012em;
@@ -598,7 +701,7 @@
   justify-content: space-between;
   margin-bottom: 24px;
   color: rgba(242, 240, 239, 0.62);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -609,7 +712,7 @@
   margin: 0 0 auto;
   padding-bottom: 22px;
   color: #f2f0ef;
-  font-size: clamp(25px, 2.2vw, 32px);
+  font-size: clamp(calc(25px * var(--ft, 1)), calc(2.2vw * var(--ft, 1)), calc(32px * var(--ft, 1)));
   line-height: 1.12;
   letter-spacing: -0.02em;
 }
@@ -621,7 +724,7 @@
   padding-top: 12px;
   border-top: 1px solid rgba(242, 240, 239, 0.2);
   color: rgba(242, 240, 239, 0.8);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
 }
 
 .landing .cc.niebla .carp-c,
@@ -686,7 +789,7 @@
 .landing .ae-topics-head h2 {
   max-width: none;
   color: var(--noche-2);
-  font-size: clamp(28px, 2.8vw, 40px);
+  font-size: clamp(calc(28px * var(--ft, 1)), calc(2.8vw * var(--ft, 1)), calc(40px * var(--ft, 1)));
 }
 
 .landing .ae-topic-window {
@@ -718,7 +821,7 @@
   width: max-content;
   max-width: none;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: clamp(52px, 6.6vw, 100px);
+  font-size: clamp(calc(52px * var(--ft, 1)), calc(6.6vw * var(--ft, 1)), calc(100px * var(--ft, 1)));
   font-weight: 400;
   line-height: 1.13;
   letter-spacing: -0.035em;
@@ -782,7 +885,7 @@
 .landing .ae-ai-panel h2 {
   max-width: 14ch;
   color: #fcfcfa;
-  font-size: clamp(42px, 4.3vw, 64px);
+  font-size: clamp(calc(42px * var(--ft, 1)), calc(4.3vw * var(--ft, 1)), calc(64px * var(--ft, 1)));
   line-height: 1.06;
   letter-spacing: -0.035em;
 }
@@ -795,7 +898,7 @@
   max-width: 42ch;
   margin: 28px 0 0;
   color: #fcfcfa;
-  font-size: 17px;
+  font-size: calc(17px * var(--ft, 1));
   line-height: 1.65;
 }
 
@@ -805,7 +908,7 @@
   padding-top: 24px;
   border-top: 1px solid rgba(198, 212, 223, 0.28);
   color: var(--niebla);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.65;
 }
 
@@ -828,7 +931,7 @@
   padding-bottom: 20px;
   border-bottom: 1px solid var(--regla);
   color: var(--t-2);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -836,7 +939,7 @@
 
 .landing .ae-ai-brief-top > span:last-child {
   font-family: var(--font-editorial);
-  font-size: 22px;
+  font-size: calc(22px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -853,7 +956,7 @@
 .landing .ae-ai-brief dt {
   margin: 0 0 7px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -863,12 +966,12 @@
   margin: 0;
   color: var(--tinta);
   font-family: var(--font-editorial);
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   line-height: 1.25;
 }
 
 .landing .ae-ai-brief dl > div:first-child dd {
-  font-size: 26px;
+  font-size: calc(26px * var(--ft, 1));
   letter-spacing: -0.02em;
 }
 
@@ -877,7 +980,7 @@
   padding-top: 16px;
   border-top: 1px solid var(--regla);
   color: var(--t-2);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   line-height: 1.6;
 }
 
@@ -885,7 +988,7 @@
   max-width: 420px;
   margin: 22px auto 0;
   color: var(--niebla);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   line-height: 1.6;
   text-align: center;
 }
@@ -917,7 +1020,7 @@
 .landing .ae-source-editorial h2 {
   max-width: 22ch;
   margin-inline: auto;
-  font-size: clamp(42px, 4.8vw, 70px);
+  font-size: clamp(calc(42px * var(--ft, 1)), calc(4.8vw * var(--ft, 1)), calc(70px * var(--ft, 1)));
   line-height: 1.02;
   letter-spacing: -0.035em;
 }
@@ -925,7 +1028,7 @@
 .landing .ae-source-deck {
   margin: 24px auto 0;
   color: var(--t-2);
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   line-height: 1.65;
 }
 
@@ -939,7 +1042,7 @@
   display: block;
   margin-bottom: 14px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -968,7 +1071,7 @@
   display: block;
   margin-bottom: 10px;
   color: var(--t-3);
-  font-size: 11px;
+  font-size: calc(11px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -978,13 +1081,13 @@
   justify-content: space-between;
   gap: 20px;
   font-family: var(--font-editorial);
-  font-size: 22px;
+  font-size: calc(22px * var(--ft, 1));
   line-height: 1.25;
 }
 
 .landing .ae-reference-title > span {
   font-family: var(--font-ui);
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   transition: transform 250ms ease;
 }
 
@@ -999,7 +1102,7 @@
 
 .landing .ae-landing-close h2 {
   max-width: 14ch;
-  font-size: clamp(36px, 4.2vw, 62px);
+  font-size: clamp(calc(36px * var(--ft, 1)), calc(4.2vw * var(--ft, 1)), calc(62px * var(--ft, 1)));
   line-height: 1.1;
   letter-spacing: -0.035em;
 }
@@ -1008,7 +1111,7 @@
   max-width: 64ch;
   margin: 22px 0 0;
   color: var(--t-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.65;
 }
 
@@ -1025,7 +1128,7 @@
   border-radius: 10px 10px 4px 4px;
   background: var(--noche-2);
   color: var(--marfil);
-  font-size: 17px;
+  font-size: calc(17px * var(--ft, 1));
   font-weight: 600;
   line-height: 1.2;
 }
@@ -1034,7 +1137,7 @@
   padding: 32px 0 48px;
   border-top: 1px solid rgba(37, 42, 64, 0.12);
   color: var(--m-3);
-  font-size: 12px;
+  font-size: calc(12px * var(--ft, 1));
 }
 
 .landing .ae-footer-links {
@@ -1060,7 +1163,7 @@
 
 .landing .ae-footer-faq-toggle > span {
   display: inline-block;
-  font-size: 16px;
+  font-size: calc(16px * var(--ft, 1));
   font-weight: 400;
   line-height: 1;
   transition: transform 220ms ease;
@@ -1093,7 +1196,7 @@
   display: block;
   margin-bottom: 18px;
   color: var(--t-3);
-  font-size: 10px;
+  font-size: calc(10px * var(--ft, 1));
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1101,7 +1204,7 @@
 
 .landing .ae-footer-faq-heading h2 {
   max-width: none;
-  font-size: clamp(32px, 3.2vw, 46px);
+  font-size: clamp(calc(32px * var(--ft, 1)), calc(3.2vw * var(--ft, 1)), calc(46px * var(--ft, 1)));
   line-height: 1.08;
   letter-spacing: -0.025em;
 }
@@ -1121,7 +1224,7 @@
   gap: 24px;
   padding: 19px 0;
   color: var(--tinta);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.5;
   list-style: none;
@@ -1136,7 +1239,7 @@
   content: "+";
   flex: 0 0 auto;
   color: var(--t-2);
-  font-size: 20px;
+  font-size: calc(20px * var(--ft, 1));
   font-weight: 400;
 }
 
@@ -1148,7 +1251,7 @@
   max-width: 68ch;
   margin: 0 36px 22px 0;
   color: var(--t-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.7;
 }
 
@@ -1258,7 +1361,7 @@
   left: 28px;
   color: #191c37;
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 31px;
+  font-size: calc(31px * var(--ft, 1));
   font-weight: 400;
   line-height: 1.24;
   letter-spacing: -0.6px;
@@ -1470,7 +1573,7 @@
 
   .landing .lp-hero h1 {
     max-width: 13ch;
-    font-size: clamp(48px, 8vw, 68px);
+    font-size: clamp(calc(48px * var(--ft, 1)), calc(8vw * var(--ft, 1)), calc(68px * var(--ft, 1)));
   }
 
   .landing .lp-sec {
@@ -1486,7 +1589,7 @@
   }
 
   .landing .ae-topic-track {
-    font-size: 64px;
+    font-size: calc(64px * var(--ft, 1));
   }
 
   .landing .ae-course-film {
@@ -1519,10 +1622,11 @@
     grid-row: 1;
   }
 
+  .landing .ae-header-account-menu,
   .landing .ae-header-account {
     grid-column: 3;
     grid-row: 1;
-    font-size: 12px;
+    font-size: calc(12px * var(--ft, 1));
   }
 
   .landing .ae-header-links {
@@ -1551,20 +1655,20 @@
   }
 
   .landing .lp-hero h1 {
-    font-size: 46px;
+    font-size: calc(46px * var(--ft, 1));
   }
 
   .landing .lp-hero .sub {
-    font-size: 18px;
+    font-size: calc(18px * var(--ft, 1));
   }
 
   .landing .lp h2,
   .landing .ae-topics-head h2 {
-    font-size: 36px;
+    font-size: calc(36px * var(--ft, 1));
   }
 
   .landing .ae-topics-head h2 {
-    font-size: 28px;
+    font-size: calc(28px * var(--ft, 1));
   }
 
   .landing .lp-sec {
@@ -1598,7 +1702,7 @@
   }
 
   .landing .ae-topic-track {
-    font-size: 52px;
+    font-size: calc(52px * var(--ft, 1));
   }
 
   .landing .ae-topic-group,
@@ -1637,14 +1741,14 @@
 
   .landing .folder-tab {
     max-width: calc(100% - 48px);
-    font-size: 14px;
+    font-size: calc(14px * var(--ft, 1));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing .ae-topic-track {
     width: auto;
-    font-size: clamp(24px, 3vw, 40px);
+    font-size: clamp(calc(24px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(40px * var(--ft, 1)));
     animation: none !important;
     transform: none;
   }
@@ -1731,7 +1835,7 @@
 
 .landing .lp-port h1 {
   max-width: 14ch;
-  font-size: clamp(34px, 3.8vw, 54px);
+  font-size: clamp(calc(34px * var(--ft, 1)), calc(3.8vw * var(--ft, 1)), calc(54px * var(--ft, 1)));
   line-height: 1.02;
   letter-spacing: -0.024em;
 }
@@ -1740,7 +1844,7 @@
   max-width: 44ch;
   margin: 22px 0 0;
   color: var(--m-2);
-  font-size: 17px;
+  font-size: calc(17px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -1758,7 +1862,7 @@
 .landing .lp-dos h2 {
   max-width: 16ch;
   margin: 0 0 18px;
-  font-size: clamp(30px, 3.4vw, 44px);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.4vw * var(--ft, 1)), calc(44px * var(--ft, 1)));
   line-height: 1.06;
   letter-spacing: -0.022em;
 }
@@ -1767,7 +1871,7 @@
   max-width: 56ch;
   margin: 0 0 16px;
   color: var(--m-2);
-  font-size: 15.5px;
+  font-size: calc(15.5px * var(--ft, 1));
   line-height: 1.65;
 }
 
@@ -1775,7 +1879,7 @@
   margin: 28px 0 0;
   color: var(--m-2);
   font-family: var(--font-editorial);
-  font-size: 17px;
+  font-size: calc(17px * var(--ft, 1));
   font-style: normal;
 }
 
@@ -1797,7 +1901,7 @@
 .landing .lista-m .r {
   color: var(--borgona);
   font-family: var(--font-editorial);
-  font-size: 15px;
+  font-size: calc(15px * var(--ft, 1));
 }
 
 .landing .lista-m b {
@@ -1805,7 +1909,7 @@
   margin-bottom: 6px;
   color: var(--m-1);
   font-family: var(--font-editorial);
-  font-size: 21px;
+  font-size: calc(21px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.014em;
 }
@@ -1814,7 +1918,7 @@
   max-width: 48ch;
   margin: 0;
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.55;
 }
 
@@ -1846,7 +1950,7 @@
 .landing .plan h3 {
   margin: 0 0 18px;
   color: var(--m-1);
-  font-size: clamp(24px, 2.4vw, 32px);
+  font-size: clamp(calc(24px * var(--ft, 1)), calc(2.4vw * var(--ft, 1)), calc(32px * var(--ft, 1)));
   line-height: 1.08;
   letter-spacing: -0.018em;
 }
@@ -1855,7 +1959,7 @@
   margin: 0;
   color: var(--m-1);
   font-family: var(--font-editorial);
-  font-size: clamp(34px, 3.6vw, 48px);
+  font-size: clamp(calc(34px * var(--ft, 1)), calc(3.6vw * var(--ft, 1)), calc(48px * var(--ft, 1)));
   line-height: 1;
   letter-spacing: -0.02em;
 }
@@ -1865,7 +1969,7 @@
   margin: 10px 0 0;
   color: var(--m-3);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: calc(13px * var(--ft, 1));
   line-height: 1.5;
   letter-spacing: 0;
 }
@@ -1873,7 +1977,7 @@
 .landing .ae-plan-terms {
   margin: 16px 0 0;
   color: var(--m-1);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   font-weight: 500;
   line-height: 1.5;
 }
@@ -1889,7 +1993,7 @@
   padding: 10px 0;
   border-bottom: 1px solid rgba(37, 42, 64, 0.1);
   color: var(--m-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--ft, 1));
   line-height: 1.5;
 }
 
@@ -1929,7 +2033,7 @@
   background: var(--noche);
   color: var(--marfil);
   font-family: var(--font-editorial);
-  font-size: 19px;
+  font-size: calc(19px * var(--ft, 1));
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.01em;

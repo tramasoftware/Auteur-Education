@@ -103,6 +103,7 @@ export function forgetRequestId(): void {
 }
 
 const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
+const DRAFT_CHANGE_EVENT = "auteur-onboarding-draft";
 const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
   "None",
   "Beginner",
@@ -110,7 +111,7 @@ const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
   "Advanced",
 ]);
 
-/** Form values kept while sign-in interrupts "Analyze my intention". */
+/** Form values kept in the browser while sign-in or registration interrupts onboarding. */
 export type OnboardingDraft = {
   initial_intent: string;
   experience_level: ExperienceLevel;
@@ -151,6 +152,19 @@ function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
   }
 }
 
+function readOnboardingDraftRaw(): string | null {
+  const local = window.localStorage.getItem(ONBOARDING_DRAFT_KEY);
+  if (local) {
+    return local;
+  }
+  const session = window.sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
+  if (session) {
+    window.localStorage.setItem(ONBOARDING_DRAFT_KEY, session);
+    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  }
+  return session;
+}
+
 export function rememberOnboardingDraft(draft: OnboardingDraft): void {
   if (typeof window === "undefined") {
     return;
@@ -158,14 +172,16 @@ export function rememberOnboardingDraft(draft: OnboardingDraft): void {
   const raw = JSON.stringify(draft);
   cachedDraftRaw = raw;
   cachedDraft = draft;
-  window.sessionStorage.setItem(ONBOARDING_DRAFT_KEY, raw);
+  window.localStorage.setItem(ONBOARDING_DRAFT_KEY, raw);
+  window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
 }
 
 export function recallOnboardingDraft(): OnboardingDraft | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const raw = window.sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
+  const raw = readOnboardingDraftRaw();
   if (raw === cachedDraftRaw) {
     return cachedDraft;
   }
@@ -178,6 +194,20 @@ export function forgetOnboardingDraft(): void {
   cachedDraftRaw = null;
   cachedDraft = null;
   if (typeof window !== "undefined") {
+    window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
     window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+    window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
   }
+}
+
+export function subscribeOnboardingDraft(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+  window.addEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
 }
