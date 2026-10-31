@@ -81,6 +81,12 @@
   cursor: pointer;
 }
 
+.ae-logout-dialog__photo-actions .ae-logout-dialog__btn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 0;
+}
+
 .ae-logout-dialog__btn:hover:not(:disabled) {
   background: #111936;
   transform: translateY(-1px);

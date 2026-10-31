@@ -571,61 +571,6 @@
   line-height: 1.3;
 }
 
-.landing.course-setup .form-avisos [role="status"] {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  column-gap: 12px;
-  row-gap: 3px;
-  align-items: center;
-  margin: 0;
-  padding: 14px 16px;
-  border: 1px solid rgba(37, 42, 64, 0.22);
-  border-radius: 4px;
-  background: #fff;
-  color: var(--t-2);
-  font-family: var(--font-ui);
-  font-size: calc(13px * var(--ft, 1));
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 1.5;
-}
-
-.landing.course-setup .form-avisos [role="status"] > div {
-  display: contents;
-}
-
-.landing.course-setup .form-avisos [role="status"] > span {
-  display: block;
-  grid-column: 1;
-  grid-row: 1;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  border-color: rgba(37, 42, 64, 0.22);
-  border-top-color: var(--tinta);
-}
-
-.landing.course-setup .form-avisos [role="status"] .font-medium {
-  grid-column: 2;
-  grid-row: 1;
-  margin: 0;
-  color: var(--m-1);
-  font-family: var(--font-ui);
-  font-size: calc(14px * var(--ft, 1));
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.3;
-}
-
-.landing.course-setup .form-avisos [role="status"] p:last-child {
-  grid-column: 2;
-  grid-row: 2;
-  color: var(--m-2);
-  font-family: var(--font-ui);
-  font-size: calc(13px * var(--ft, 1));
-  line-height: 1.5;
-}
-
 .landing.course-setup .btn {
   display: inline-flex;
   align-items: center;

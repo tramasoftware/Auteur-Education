@@ -9,6 +9,7 @@ import { blueprintJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   BulletList,
   Button,
+  CheckingGenerationStatus,
   DefinitionList,
   outlineButtonClass,
   ErrorNotice,
@@ -19,6 +20,11 @@ import {
   textareaClass,
 } from "@/components/ui";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
+import {
+  BLUEPRINT_APPROACH_MS,
+  BLUEPRINT_PHASES,
+  StagePreparing,
+} from "@/features/course-setup/StagePreparing";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
@@ -77,6 +83,8 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   const [revising, setRevising] = useState(false);
   const [preparingCourseId, setPreparingCourseId] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [enteredBlueprint, setEnteredBlueprint] = useState(false);
+  const [holdBlueprint, setHoldBlueprint] = useState(false);
   const blockingActiveBuild = useRedirectIfActiveBuild(!preparing);
 
   useJourneyStep(blueprintJourneyStep(blueprint?.state ?? null));
@@ -86,6 +94,9 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
       blueprints.get(blueprintId).then(
         (next) => {
           setBlueprint(next);
+          if (next.state === "generating" && !next.blueprint) {
+            setHoldBlueprint(true);
+          }
           setError(null);
         },
         (err: unknown) => setError(err),
@@ -174,18 +185,39 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   }
 
   if (blockingActiveBuild) {
-    return <p className="text-sm text-muted">Checking generation status…</p>;
+    return <CheckingGenerationStatus />;
   }
 
   if (!blueprint) {
     return (
-      <div className="flex flex-col gap-3">
-        <GenerationStatus
-          title="Opening your Blueprint"
-          description="Loading the pedagogical contract for this course."
-        />
-        <ErrorNotice error={error} />
+      <div className="ae-status-check">
+        <div className="ae-status-check-stack">
+          <GenerationStatus
+            title="Opening your Blueprint"
+            description="Loading the pedagogical contract for this course."
+          />
+          <ErrorNotice error={error} />
+        </div>
       </div>
+    );
+  }
+
+  if (holdBlueprint && !enteredBlueprint && blueprint.state !== "failed") {
+    return (
+      <StagePreparing
+        frameTitle="Blueprint"
+        backHref={`/proposals?request=${blueprint.request_id}`}
+        backLabel="Learning paths"
+        backAriaLabel="Back to your learning paths"
+        heading="Your Blueprint is taking shape"
+        readyHeading="Your Blueprint is ready"
+        phases={BLUEPRINT_PHASES}
+        approachMs={BLUEPRINT_APPROACH_MS}
+        crawlMs={30000}
+        ready={blueprint.state !== "generating" && blueprint.blueprint !== null}
+        actionLabel="Review the Blueprint"
+        onContinue={() => setEnteredBlueprint(true)}
+      />
     );
   }
 
@@ -226,10 +258,10 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
         </div>
       </div>
 
-      {blueprint.state === "generating" ? (
+      {blueprint.state === "generating" && blueprint.blueprint ? (
         <GenerationStatus
-          title="Drafting your Blueprint"
-          description="Turning your objective and chosen direction into the pedagogical contract. This page updates automatically."
+          title="Rewriting your Blueprint"
+          description="Applying your notes to a new version of the pedagogical contract."
         />
       ) : null}
 

@@ -5,11 +5,17 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEven
 
 import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
+  CheckingGenerationStatus,
   DefinitionList,
   ErrorNotice,
   GenerationStatus,
   StatusBadge,
 } from "@/components/ui";
+import {
+  PROPOSAL_APPROACH_MS,
+  PROPOSAL_PHASES,
+  StagePreparing,
+} from "@/features/course-setup/StagePreparing";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { ApiError, learningRequests } from "@/lib/api";
@@ -55,6 +61,9 @@ export function OnboardingFeature() {
   const blockingActiveBuild = useRedirectIfActiveBuild();
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [loading, setLoading] = useState(false);
+  const [preparingDirections, setPreparingDirections] = useState(false);
+  const [directionsReady, setDirectionsReady] = useState(false);
+  const [directionsHref, setDirectionsHref] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [failure, setFailure] = useState<(typeof stageFailureCopy)[keyof typeof stageFailureCopy] | null>(
     null,
@@ -108,23 +117,52 @@ export function OnboardingFeature() {
     if (!request?.objective) {
       return;
     }
+    if (request.proposals) {
+      setLoading(true);
+      setError(null);
+      try {
+        const confirmed = await learningRequests.confirmObjective(
+          request.id,
+          request.objective.version,
+        );
+        rememberRequestId(confirmed.id);
+        setFailure(null);
+        router.push(`/proposals?request=${confirmed.id}`);
+      } catch {
+        retryRef.current = () => {
+          void continueToLearningDirections();
+        };
+        setFailure(stageFailureCopy.directions);
+        setError(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setDirectionsReady(false);
+    setPreparingDirections(true);
     try {
-      const next = await learningRequests.confirmObjective(
+      const confirmed = await learningRequests.confirmObjective(
         request.id,
         request.objective.version,
       );
+      rememberRequestId(confirmed.id);
+      const next = await learningRequests.generateProposals(confirmed.id);
       rememberRequestId(next.id);
+      setDirectionsHref(`/proposals?request=${next.id}`);
       setFailure(null);
-      router.push(`/proposals?request=${next.id}`);
+      setDirectionsReady(true);
     } catch {
       retryRef.current = () => {
         void continueToLearningDirections();
       };
+      setPreparingDirections(false);
+      setDirectionsReady(false);
       setFailure(stageFailureCopy.directions);
       setError(null);
-    } finally {
       setLoading(false);
     }
   };
@@ -179,8 +217,28 @@ export function OnboardingFeature() {
   };
 
   if (blockingActiveBuild) {
-    return <p className="text-sm text-muted">Checking generation status…</p>;
+    return <CheckingGenerationStatus />;
   }
+
+  const directionsScreen = preparingDirections ? (
+    <StagePreparing
+      frameTitle="Your learning path"
+      backHref={request ? `/onboarding?request=${request.id}` : "/onboarding"}
+      backLabel="Learning objective"
+      backAriaLabel="Back to your learning objective"
+      heading="Your learning paths are taking shape"
+      readyHeading="Your learning paths are ready"
+      phases={PROPOSAL_PHASES}
+      approachMs={PROPOSAL_APPROACH_MS}
+      ready={directionsReady}
+      actionLabel="View learning paths"
+      onContinue={() => {
+        if (directionsHref) {
+          router.push(directionsHref);
+        }
+      }}
+    />
+  ) : null;
 
   const failureScreen = failure ? (
     <StageFailure
@@ -194,6 +252,7 @@ export function OnboardingFeature() {
   if (!request) {
     return (
       <>
+      {directionsScreen}
       <article className="lect" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
         <div className="pasosf">
           <i className="hoy" />
@@ -217,6 +276,7 @@ export function OnboardingFeature() {
 
   return (
     <>
+    {directionsScreen}
     <div className="flex flex-col gap-8" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
       {request.state === "precision_required" ||
       request.state === "incompatible" ||
@@ -486,7 +546,7 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
           {busy ? (
             <GenerationStatus
               title="Reading your intention"
-              description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
+              description="Checking what you want to learn and whether text and audio can teach it."
             />
           ) : null}
         </div>
@@ -795,7 +855,7 @@ function IncompatibleIntention({
           <div className="form-avisos">
             <GenerationStatus
               title="Reading your intention"
-              description="Checking what can be taught through text and audio, and whether the learning object needs to be narrowed."
+              description="Checking what you want to learn and whether text and audio can teach it."
             />
           </div>
         ) : null}
@@ -1044,7 +1104,7 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
         <div className="form-avisos">
           <GenerationStatus
             title="Formulating your objective"
-            description="Turning the chosen learning object into a precise objective you can review."
+            description="Turning the learning object you chose into an objective you can review."
           />
         </div>
       ) : null}
@@ -1070,6 +1130,7 @@ function ObjectivePanel({
   onRevise,
 }: ObjectivePanelProps) {
   const [feedback, setFeedback] = useState("");
+  const [activity, setActivity] = useState<{ title: string; description: string } | null>(null);
   const o = request.objective!;
   const locked = request.state !== "objective_confirmation" && !o.confirmed;
   const hasFeedback = feedback.trim().length > 0;
@@ -1222,16 +1283,25 @@ function ObjectivePanel({
             aria-busy={busy || undefined}
             onClick={() => {
               if (hasFeedback && o.confirmed) {
+                setActivity({
+                  title: "Rewriting your objective",
+                  description: "Applying this change so the objective stays precise.",
+                });
                 onRevise(feedback.trim());
                 setFeedback("");
                 return;
               }
               if (hasFeedback) {
+                setActivity({
+                  title: "Updating your objective",
+                  description: "Saving this change, then confirming the objective.",
+                });
                 onConfirmWithChanges(feedback.trim());
                 setFeedback("");
                 return;
               }
               void onContinueToDirections();
+              setActivity(null);
             }}
           >
             {busy ? "Working…" : primaryLabel}
@@ -1239,12 +1309,9 @@ function ObjectivePanel({
           </button>
         </div>
       </div>
-      {busy ? (
+      {busy && activity ? (
         <div className="form-avisos">
-          <GenerationStatus
-            title="Updating your objective"
-            description="Applying this change so the objective stays precise before the next step."
-          />
+          <GenerationStatus title={activity.title} description={activity.description} />
         </div>
       ) : null}
     </article>
