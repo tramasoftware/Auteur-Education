@@ -87,7 +87,9 @@ def test_published_course_get_does_not_call_ai(client, fake_ai) -> None:
     calls_before = len(fake_ai.calls)
     response = client.get(f"/api/v1/courses/{course_id}")
     assert response.status_code == 200
-    assert response.json()["modules"][0]["state"] == "published"
+    body = response.json()
+    assert body["modules"][0]["state"] == "published"
+    assert body["created_at"]
     assert len(fake_ai.calls) == calls_before
 
 

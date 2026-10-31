@@ -377,6 +377,7 @@ class CourseResponse(BaseModel):
     final_synthesis: CourseSynthesisOutput | None
     failure: str | None
     module_limit: int | None
+    created_at: datetime
 
 
 class CourseListItem(BaseModel):

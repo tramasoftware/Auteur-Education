@@ -155,6 +155,7 @@ def course_view(course: CourseRecord) -> CourseResponse:
         final_synthesis=course.final_synthesis,
         failure=course.failure,
         module_limit=course.module_limit,
+        created_at=course.created_at,
     )
 
 

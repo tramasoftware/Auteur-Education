@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button, RetryIcon } from "@/components/ui";
 import type { KnowledgeCheck as KnowledgeCheckData } from "@/types/generator";
@@ -34,20 +34,44 @@ function conciseCorrection(
 export function KnowledgeCheck({
   check,
   sheet = false,
+  questionIndex,
+  showActions = true,
+  revealed: revealedProp,
+  onRevealedChange,
+  onAnsweredChange,
+  omitContinue = false,
   continueHref,
   continueLabel,
   overviewHref,
 }: {
   check: KnowledgeCheckData;
   sheet?: boolean;
+  questionIndex?: number;
+  showActions?: boolean;
+  revealed?: boolean;
+  onRevealedChange?: (revealed: boolean) => void;
+  onAnsweredChange?: (answered: boolean) => void;
+  omitContinue?: boolean;
   continueHref?: string;
   continueLabel?: string;
   overviewHref?: string;
 }) {
   const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [revealed, setRevealed] = useState(false);
+  const [ownRevealed, setOwnRevealed] = useState(false);
+  const revealed = revealedProp ?? ownRevealed;
+
+  const setRevealed = (value: boolean) => {
+    onRevealedChange?.(value);
+    if (revealedProp === undefined) {
+      setOwnRevealed(value);
+    }
+  };
 
   const answered = Object.keys(answers).length === check.questions.length;
+
+  useEffect(() => {
+    onAnsweredChange?.(answered);
+  }, [answered, onAnsweredChange]);
   const correct = check.questions.filter(
     (q, i) => answers[i] !== undefined && q.options[answers[i]]?.is_correct,
   ).length;
@@ -61,6 +85,9 @@ export function KnowledgeCheck({
     <div className={sheet ? `kc${revealed ? " graded" : ""}` : "flex flex-col gap-6"}>
       <ol className={sheet ? undefined : "flex flex-col gap-6"}>
         {check.questions.map((question, qi) => {
+          if (questionIndex !== undefined && qi !== questionIndex) {
+            return null;
+          }
           const correction = revealed ? conciseCorrection(question.options) : null;
           return (
             <li key={qi} className={sheet ? undefined : "flex flex-col gap-3"}>
@@ -138,6 +165,7 @@ export function KnowledgeCheck({
           );
         })}
       </ol>
+      {showActions ? (
       <div className={sheet ? "kc-actions" : "flex flex-wrap items-center gap-3"}>
         {!revealed ? (
           sheet ? (
@@ -152,10 +180,12 @@ export function KnowledgeCheck({
           )
         ) : sheet && continueHref && continueLabel && overviewHref ? (
           <>
-            <Link className="btn" href={continueHref}>
-              {continueLabel}
-              <span className="ar" aria-hidden="true" />
-            </Link>
+            {omitContinue ? null : (
+              <Link className="btn" href={continueHref}>
+                {continueLabel}
+                <span className="ar" aria-hidden="true" />
+              </Link>
+            )}
             <button className="btn ghost" type="button" onClick={reset}>
               Try again
             </button>
@@ -178,6 +208,7 @@ export function KnowledgeCheck({
           </>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

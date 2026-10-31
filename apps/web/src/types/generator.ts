@@ -266,6 +266,7 @@ export type Course = {
   final_synthesis: CourseSynthesis | null;
   failure: string | null;
   module_limit: number | null;
+  created_at: string;
 };
 
 export type LessonSummary = {

@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { ErrorNotice } from "@/components/ui";
+import { getAccountProfile } from "@/lib/api";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
 import type { Course, CourseModule, Lesson, SourceView } from "@/types/generator";
 
@@ -30,6 +38,52 @@ function pad(index: number): string {
   return String(index).padStart(2, "0");
 }
 
+const LESSON_COUNT_WORDS = [
+  "Zero",
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+  "Eleven",
+  "Twelve",
+];
+
+function lessonCountPhrase(count: number): string {
+  const word =
+    count >= 0 && count < LESSON_COUNT_WORDS.length ? LESSON_COUNT_WORDS[count] : String(count);
+  return `${word} ${count === 1 ? "lesson" : "lessons"}`;
+}
+
+function courseCreatedLabel(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function coverCredit(name: string | null, createdAt: string | null | undefined): string {
+  if (name === null) {
+    return "";
+  }
+  const prepared = name ? `Prepared by Auteur for ${name}` : "Prepared by Auteur";
+  const date = courseCreatedLabel(createdAt);
+  return date ? `${prepared} · ${date}` : prepared;
+}
+
 function readingMinutes(wordCount: number): number {
   return Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
 }
@@ -41,41 +95,254 @@ type DeskTab = {
   title: string;
 };
 
-type SheetNavLinks = {
-  prev: { href: string; label: string } | null;
-  next: { href: string; label: string } | null;
+type PageBlock = {
+  key: string;
+  node?: ReactNode;
+  breakBefore?: boolean;
+  keepWithNext?: boolean;
+  gap?: "para" | "section" | "sentence";
+  /** Sentences that share an id are one paragraph and may split across pages. */
+  paragraphId?: string;
+  text?: string;
+  heading?: string;
+  prose?: boolean;
 };
 
-function sheetNavFromTabs(tabs: DeskTab[], activeId: string | undefined): SheetNavLinks {
-  const index = tabs.findIndex((tab) => tab.id === activeId);
-  if (index < 0) {
-    return { prev: null, next: null };
+type FlowGroup = {
+  key: string;
+  paragraphId?: string;
+  gap?: "para" | "section";
+  prose: boolean;
+  heading?: string;
+  texts: string[];
+  node?: ReactNode;
+};
+
+const SENTENCE_ABBREVIATIONS = new Set([
+  "mr",
+  "mrs",
+  "ms",
+  "dr",
+  "prof",
+  "sr",
+  "jr",
+  "st",
+  "vs",
+  "etc",
+  "fig",
+  "no",
+  "pp",
+  "vol",
+  "cf",
+  "ed",
+  "al",
+  "e.g",
+  "i.e",
+  "u.s",
+  "u.k",
+  "a.m",
+  "p.m",
+]);
+
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function packBlockRanges(
+  blocks: PageBlock[],
+  tops: number[],
+  bottoms: number[],
+  available: number,
+): number[][] {
+  const count = blocks.length;
+  if (count === 0 || available <= 0) {
+    return count ? [blocks.map((_, index) => index)] : [];
   }
-  const prevTab = index > 0 ? tabs[index - 1] : null;
-  const nextTab = index < tabs.length - 1 ? tabs[index + 1] : null;
-  return {
-    prev: prevTab ? { href: prevTab.href, label: prevTab.label } : null,
-    next: nextTab ? { href: nextTab.href, label: nextTab.label } : null,
-  };
+  const pages: number[][] = [];
+  let start = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (index === start) {
+      continue;
+    }
+    const hardBreak = Boolean(blocks[index].breakBefore);
+    const overflow = bottoms[index] - tops[start] > available + 1;
+    if (!hardBreak && !overflow) {
+      continue;
+    }
+    let end = index;
+    if (!hardBreak && blocks[end - 1]?.keepWithNext && end - start > 1) {
+      end -= 1;
+    }
+    pages.push(Array.from({ length: end - start }, (_, offset) => start + offset));
+    start = end;
+    index = start - 1;
+  }
+  if (start < count) {
+    pages.push(Array.from({ length: count - start }, (_, offset) => start + offset));
+  }
+  return pages.length > 0 ? pages : [blocks.map((_, index) => index)];
 }
 
-function SheetNav({ prev, next }: SheetNavLinks) {
-  if (!prev && !next) {
-    return null;
-  }
+function SheetPager({
+  page,
+  total,
+  onPrev,
+  onNext,
+  nextControl,
+}: {
+  page: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+  nextControl?: ReactNode;
+}) {
+  const atStart = page <= 0;
+  const atEnd = page >= total - 1;
   return (
-    <nav className="next" aria-label="Section navigation">
-      {prev ? (
-        <Link className="prev" href={prev.href}>
-          ← {prev.label}
-        </Link>
-      ) : null}
-      {next ? (
-        <Link className="gonext" href={next.href}>
-          {next.label} →
-        </Link>
-      ) : null}
+    <nav className="ae-reading-nav" aria-label="Pages">
+      <button type="button" onClick={onPrev} disabled={atStart} aria-label="Previous page">
+        <span className="ar izq" aria-hidden="true" />
+        <span className="ae-page-button-label">Previous</span>
+      </button>
+      <output aria-live="polite" aria-atomic="true">
+        Page {page + 1} of {total}
+      </output>
+      {nextControl ?? (
+        <button type="button" onClick={onNext} disabled={atEnd} aria-label="Next page">
+          <span className="ae-page-button-label">Next</span>
+          <span className="ar" aria-hidden="true" />
+        </button>
+      )}
     </nav>
+  );
+}
+
+function PagedSheet({
+  blocks,
+  pageKey,
+  marks,
+}: {
+  blocks: PageBlock[];
+  pageKey: string;
+  marks?: ReactNode;
+}) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+  const blocksRef = useRef(blocks);
+  const [pages, setPages] = useState<number[][] | null>(null);
+  const [page, setPage] = useState(0);
+
+  blocksRef.current = blocks;
+  const pageKeyRef = useRef(pageKey);
+  const signature = blocks
+    .map((block) => `${block.key}:${block.breakBefore ? 1 : 0}:${block.keepWithNext ? 1 : 0}`)
+    .join("|");
+
+  useIsoLayoutEffect(() => {
+    const body = bodyRef.current;
+    const measure = measureRef.current;
+    if (!body || !measure) {
+      return;
+    }
+    let frame = 0;
+    const keyChanged = pageKeyRef.current !== pageKey;
+    if (keyChanged) {
+      pageKeyRef.current = pageKey;
+    }
+    const pack = (resetPage: boolean) => {
+      frame = 0;
+      const items = blocksRef.current;
+      measure.style.width = `${body.clientWidth}px`;
+      const available = body.clientHeight;
+      if (available <= 0) {
+        return;
+      }
+      const flowing = items.some((item) => item.text);
+      let next: number[][] | null;
+      if (flowing) {
+        next = packFlowRanges(items, probeRef.current, measure, available);
+      } else {
+        const nodes = [...measure.querySelectorAll<HTMLElement>("[data-block]")];
+        if (nodes.length !== items.length) {
+          return;
+        }
+        const tops = nodes.map((node) => node.offsetTop);
+        const bottoms = nodes.map((node) => node.offsetTop + node.offsetHeight);
+        next = packBlockRanges(items, tops, bottoms, available);
+      }
+      if (!next) {
+        return;
+      }
+      setPages((current) => {
+        if (
+          current &&
+          current.length === next.length &&
+          current.every((group, groupIndex) =>
+            group.every((value, valueIndex) => value === next[groupIndex]?.[valueIndex]),
+          )
+        ) {
+          return current;
+        }
+        return next;
+      });
+      setPage((current) => Math.min(resetPage ? 0 : current, Math.max(next.length - 1, 0)));
+    };
+    const schedule = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(() => pack(false));
+      }
+    };
+    pack(keyChanged);
+    const resize = new ResizeObserver(schedule);
+    resize.observe(body);
+    const fonts = document.fonts?.ready.then(schedule);
+    const html = document.documentElement;
+    const attributes = new MutationObserver(schedule);
+    attributes.observe(html, { attributes: true, attributeFilter: ["style", "data-text-size"] });
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      attributes.disconnect();
+      void fonts;
+    };
+  }, [pageKey, signature]);
+
+  const total = pages?.length ?? 1;
+  const safePage = Math.min(page, total - 1);
+  const visible = pages ? pages[safePage] ?? [] : [];
+
+  return (
+    <>
+      {safePage === 0 ? marks : null}
+      <div className="paged-sheet">
+        <div className="sheet-body" ref={bodyRef}>
+          <div className="sheet-measure" ref={measureRef} aria-hidden="true" inert>
+            {blocks.map((block) =>
+              block.text ? null : (
+                <div
+                  key={block.key}
+                  className="sheet-block"
+                  data-block=""
+                  data-flow-key={block.key}
+                  data-gap={block.gap}
+                >
+                  {block.node}
+                </div>
+              ),
+            )}
+            <div className="sheet-probe" ref={probeRef} />
+          </div>
+          <div className="sheet-page">
+            <FlowBlocks blocks={visible.flatMap((index) => blocks[index] ?? [])} />
+          </div>
+        </div>
+        <SheetPager
+          page={safePage}
+          total={total}
+          onPrev={() => setPage((current) => Math.max(0, current - 1))}
+          onNext={() => setPage((current) => Math.min(total - 1, current + 1))}
+        />
+      </div>
+    </>
   );
 }
 
@@ -84,6 +351,150 @@ function paragraphs(text: string): string[] {
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+function sentences(paragraph: string): string[] {
+  const text = paragraph.replace(/\s+/g, " ").trim();
+  if (!text) {
+    return [];
+  }
+  const out: string[] = [];
+  const marks = /[.!?]+(?:["'”’)\]]+)?/g;
+  let start = 0;
+  let match: RegExpExecArray | null;
+  while ((match = marks.exec(text))) {
+    const end = match.index + match[0].length;
+    const next = text.slice(end);
+    if (next.trim() && !/^\s+["'“‘(]*[A-Z]/.test(next)) {
+      continue;
+    }
+    const token = text
+      .slice(0, match.index)
+      .trimEnd()
+      .match(/([A-Za-z]+(?:\.[A-Za-z]+)*)\.?$/)?.[1]
+      ?.toLowerCase();
+    if (token && SENTENCE_ABBREVIATIONS.has(token)) {
+      continue;
+    }
+    const sentence = text.slice(start, end).trim();
+    if (sentence) {
+      out.push(sentence);
+    }
+    start = end;
+    const space = /^\s+/.exec(text.slice(start));
+    if (space) {
+      start += space[0].length;
+    }
+  }
+  const rest = text.slice(start).trim();
+  if (rest) {
+    out.push(rest);
+  }
+  return out.length > 0 ? out : [text];
+}
+
+function groupFlow(blocks: PageBlock[]): FlowGroup[] {
+  const groups: FlowGroup[] = [];
+  for (const block of blocks) {
+    const prev = groups[groups.length - 1];
+    if (
+      block.text &&
+      block.paragraphId &&
+      prev &&
+      !prev.node &&
+      prev.paragraphId === block.paragraphId
+    ) {
+      prev.texts.push(block.text);
+      if (block.heading && !prev.heading) {
+        prev.heading = block.heading;
+      }
+      continue;
+    }
+    groups.push({
+      key: block.key,
+      paragraphId: block.paragraphId,
+      gap: block.gap === "sentence" ? undefined : block.gap,
+      prose: Boolean(block.prose),
+      heading: block.heading,
+      texts: block.text ? [block.text] : [],
+      node: block.text ? undefined : block.node,
+    });
+  }
+  return groups;
+}
+
+function sliceHeight(blocks: PageBlock[], probe: HTMLElement, measure: HTMLElement): number {
+  probe.replaceChildren();
+  for (const group of groupFlow(blocks)) {
+    if (group.texts.length === 0) {
+      const source = measure.querySelector<HTMLElement>(
+        `[data-flow-key="${CSS.escape(group.key)}"]`,
+      );
+      if (source) {
+        probe.append(source.cloneNode(true));
+      }
+      continue;
+    }
+    const block = document.createElement("div");
+    block.className = "sheet-block";
+    if (group.gap) {
+      block.dataset.gap = group.gap;
+    }
+    const body = document.createElement("div");
+    body.className = group.prose ? "prose" : "body";
+    if (group.heading) {
+      const heading = document.createElement("h2");
+      heading.textContent = group.heading;
+      body.append(heading);
+    }
+    const paragraph = document.createElement("p");
+    paragraph.textContent = group.texts.join(" ");
+    body.append(paragraph);
+    block.append(body);
+    probe.append(block);
+  }
+  return probe.scrollHeight;
+}
+
+function packFlowRanges(
+  blocks: PageBlock[],
+  probe: HTMLElement | null,
+  measure: HTMLElement,
+  available: number,
+): number[][] | null {
+  if (!probe) {
+    return null;
+  }
+  const pages: number[][] = [];
+  let start = 0;
+  while (start < blocks.length) {
+    let end = start + 1;
+    while (end < blocks.length && !blocks[end]?.breakBefore) {
+      if (sliceHeight(blocks.slice(start, end + 1), probe, measure) > available + 1) {
+        break;
+      }
+      end += 1;
+    }
+    pages.push(Array.from({ length: end - start }, (_, offset) => start + offset));
+    start = end;
+  }
+  probe.replaceChildren();
+  return pages.length > 0 ? pages : [blocks.map((_, index) => index)];
+}
+
+function FlowBlocks({ blocks }: { blocks: PageBlock[] }) {
+  return groupFlow(blocks).map((group) => (
+    <div key={group.key} className="sheet-block" data-gap={group.gap}>
+      {group.texts.length > 0 ? (
+        <div className={group.prose ? "prose" : "body"}>
+          {group.heading ? <h2>{group.heading}</h2> : null}
+          <p>{group.texts.join(" ")}</p>
+        </div>
+      ) : (
+        group.node
+      )}
+    </div>
+  ));
 }
 
 /** Purpose sometimes ends with “(Source: …)”; links live in lesson.sources instead. */
@@ -135,14 +546,13 @@ function LessonMeta({ lesson }: { lesson: Lesson }) {
 function AudioRail({ title }: { title: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <aside className="side">
-      <div className="ae-audio-slot">
-        <section
-          className="ae-audio-reader"
-          data-expanded={open ? "true" : "false"}
-          data-state="idle"
-          aria-label="Lesson audio"
-        >
+    <div className="ae-audio-slot">
+      <section
+        className="ae-audio-reader"
+        data-expanded={open ? "true" : "false"}
+        data-state="idle"
+        aria-label="Lesson audio"
+      >
           <button
             className="ae-audio-disclosure"
             type="button"
@@ -205,48 +615,195 @@ function AudioRail({ title }: { title: string }) {
           </div>
         </section>
       </div>
-    </aside>
   );
 }
 
-function Cover({
-  courseId,
-  module,
-  moduleCount,
-  nav,
+function CompanionRail({
+  links,
+  activeId,
 }: {
-  courseId: string;
-  module: CourseModule;
-  moduleCount: number;
-  nav: SheetNavLinks;
+  links: DeskTab[];
+  activeId: string | undefined;
 }) {
-  const minutes = module.lessons.reduce(
-    (sum, lesson) => sum + readingMinutes(lesson.word_count),
-    0,
-  );
+  if (links.length === 0) {
+    return null;
+  }
   return (
-    <div className="cover">
+    <nav className="side-comps" aria-label="Module sections">
+      <ol>
+        {links.map((item) => (
+          <li key={item.id}>
+            <Link
+              href={item.href}
+              className={item.id === activeId ? "on" : undefined}
+              aria-current={item.id === activeId ? "page" : undefined}
+            >
+              <span className="n">—</span>
+              <span className="t">{item.title}</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function CoverMarks({ module }: { module: CourseModule }) {
+  return (
+    <>
       <span className="esq a">M{pad(module.index)}</span>
       <span className="esq b">
         {pad(module.lessons.length)} / {pad(module.lessons.length)}
       </span>
       <span className="esq c">AE</span>
       <span className="esq d">REV. 00</span>
-      <div className="cab-t">
-        <span className="mono">Auteur · Education</span>
-        <span className="mono">Module overview</span>
-        <span className="mono">
-          Mod. {pad(module.index)} / {pad(moduleCount)}
+    </>
+  );
+}
+
+function CoverSeal({
+  module,
+  summary,
+  credit,
+}: {
+  module: CourseModule;
+  summary: string;
+  credit: string;
+}) {
+  const ringId = `sello-${useId().replace(/:/g, "")}`;
+  return (
+    <div className="pie-t">
+      <div className="pie-copy">
+        {credit ? <p className="mono">{credit}</p> : null}
+        <p className="mono">{summary}</p>
+      </div>
+      <svg className="sello" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <path id={ringId} d="M50,50 m-36,0 a36,36 0 1,1 72,0 a36,36 0 1,1 -72,0" />
+        </defs>
+        <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" strokeWidth="1" />
+        <text
+          fontFamily="var(--font-ui), Inter, Arial, sans-serif"
+          fontSize="9.2"
+          fontWeight="600"
+          letterSpacing="2.2"
+          fill="currentColor"
+        >
+          <textPath href={`#${ringId}`}>AUTEUR · ARCHIVE · EDUCATION · MMXXVI · </textPath>
+        </text>
+        <text
+          x="50"
+          y="47"
+          textAnchor="middle"
+          fontFamily="var(--font-editorial), Georgia, serif"
+          fontSize="13"
+          fill="currentColor"
+        >
+          Mod.
+        </text>
+        <text
+          x="50"
+          y="62"
+          textAnchor="middle"
+          fontFamily="var(--font-editorial), Georgia, serif"
+          fontSize="15"
+          fill="currentColor"
+        >
+          {pad(module.index)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function coverBlocks(
+  courseId: string,
+  module: CourseModule,
+  moduleCount: number,
+  credit: string,
+): PageBlock[] {
+  const minutes = module.lessons.reduce(
+    (sum, lesson) => sum + readingMinutes(lesson.word_count),
+    0,
+  );
+  const summary = `${lessonCountPhrase(module.lessons.length)} · ${minutes} min read${module.knowledge_check ? " · one quiz" : ""}`;
+  const rows: { key: string; comp?: boolean; node: ReactNode }[] = module.lessons.map((lesson) => ({
+    key: lesson.id,
+    node: (
+      <Link href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>
+        <span className="n">{pad(lesson.index)}</span>
+        <span className="t">{lesson.title}</span>
+        <span className="d">{readingMinutes(lesson.word_count)} min</span>
+      </Link>
+    ),
+  }));
+  if (module.synthesis) {
+    rows.push({
+      key: "synthesis",
+      comp: true,
+      node: (
+        <Link href={`/courses/${courseId}/modules/${module.id}/synthesis`}>
+          <span className="n">—</span>
+          <span className="t">Module synthesis</span>
+        </Link>
+      ),
+    });
+  }
+  rows.push({
+    key: "sources",
+    comp: true,
+    node: (
+      <Link href={`/courses/${courseId}/modules/${module.id}/sources`}>
+        <span className="n">—</span>
+        <span className="t">Sources used in this module</span>
+        <span className="d">
+          {module.sources.length === 1 ? "1 source" : `${module.sources.length} sources`}
         </span>
-      </div>
-      <div className="mod-num">
-        <span className="mn-l">Module</span>
-        <span className="mn-n">{pad(module.index)}</span>
-        <span className="mn-d">of {pad(moduleCount)}</span>
-      </div>
-      <h2>{module.title}</h2>
-      {module.function ? <p className="tesis">{module.function}</p> : null}
-      {module.guiding_questions.length > 0 ? (
+      </Link>
+    ),
+  });
+  if (module.knowledge_check) {
+    rows.push({
+      key: "quiz",
+      comp: true,
+      node: (
+        <Link href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}>
+          <span className="n">—</span>
+          <span className="t">Module quiz</span>
+          <span className="d">{module.knowledge_check.questions.length} questions</span>
+        </Link>
+      ),
+    });
+  }
+
+  const blocks: PageBlock[] = [
+    {
+      key: "identity",
+      node: (
+        <>
+          <div className="cab-t">
+            <span className="mono">Auteur · Education</span>
+            <span className="mono">Module overview</span>
+            <span className="mono">
+              Mod. {pad(module.index)} / {pad(moduleCount)}
+            </span>
+          </div>
+          <div className="mod-num">
+            <span className="mn-l">Module</span>
+            <span className="mn-n">{pad(module.index)}</span>
+            <span className="mn-d">of {pad(moduleCount)}</span>
+          </div>
+          <h2>{module.title}</h2>
+          {module.function ? <p className="tesis">{module.function}</p> : null}
+        </>
+      ),
+    },
+  ];
+  if (module.guiding_questions.length > 0) {
+    blocks.push({
+      key: "questions",
+      node: (
         <>
           <h3>Guiding questions</h3>
           <ul className="preguntas">
@@ -255,167 +812,154 @@ function Cover({
             ))}
           </ul>
         </>
-      ) : null}
-      {module.outcome ? (
+      ),
+    });
+  }
+  if (module.outcome) {
+    blocks.push({
+      key: "outcome",
+      node: (
         <>
           <h3>Outcome</h3>
           <p className="outcome">{module.outcome}</p>
         </>
-      ) : null}
-      <ol className="lecciones">
-        {module.lessons.map((lesson) => (
-          <li key={lesson.id}>
-            <Link href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>
-              <span className="n">{pad(lesson.index)}</span>
-              <span className="t">{lesson.title}</span>
-              <span className="d">{readingMinutes(lesson.word_count)} min</span>
-            </Link>
-          </li>
-        ))}
-        {module.synthesis ? (
-          <li className="comp">
-            <Link href={`/courses/${courseId}/modules/${module.id}/synthesis`}>
-              <span className="n">—</span>
-              <span className="t">Module synthesis</span>
-            </Link>
-          </li>
-        ) : null}
-        <li className="comp">
-          <Link href={`/courses/${courseId}/modules/${module.id}/sources`}>
-            <span className="n">—</span>
-            <span className="t">Sources used in this module</span>
-            <span className="d">
-              {module.sources.length === 1 ? "1 source" : `${module.sources.length} sources`}
-            </span>
-          </Link>
-        </li>
-        {module.knowledge_check ? (
-          <li className="comp">
-            <Link href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}>
-              <span className="n">—</span>
-              <span className="t">Module quiz</span>
-              <span className="d">{module.knowledge_check.questions.length} questions</span>
-            </Link>
-          </li>
-        ) : null}
-      </ol>
-      <div className="pie-t">
-        <p className="mono">
-          {`${module.lessons.length} ${module.lessons.length === 1 ? "lesson" : "lessons"} · ${minutes} min read${module.knowledge_check ? " · one quiz" : ""}`}
-        </p>
-        <svg className="sello" viewBox="0 0 100 100" aria-hidden="true">
-          <defs>
-            <path
-              id={`sello-ring-${module.id}`}
-              d="M50,50 m-36,0 a36,36 0 1,1 72,0 a36,36 0 1,1 -72,0"
-            />
-          </defs>
-          <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="1.6" />
-          <circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" strokeWidth="1" />
-          <text
-            fontFamily="var(--font-ui), Inter, Arial, sans-serif"
-            fontSize="9.2"
-            fontWeight="600"
-            letterSpacing="2.2"
-            fill="currentColor"
-          >
-            <textPath href={`#sello-ring-${module.id}`}>
-              AUTEUR · ARCHIVE · EDUCATION · MMXXVI ·{" "}
-            </textPath>
-          </text>
-          <text
-            x="50"
-            y="47"
-            textAnchor="middle"
-            fontFamily="var(--font-editorial), Georgia, serif"
-            fontSize="13"
-            fill="currentColor"
-          >
-            Mod.
-          </text>
-          <text
-            x="50"
-            y="62"
-            textAnchor="middle"
-            fontFamily="var(--font-editorial), Georgia, serif"
-            fontSize="15"
-            fill="currentColor"
-          >
-            {pad(module.index)}
-          </text>
-        </svg>
-      </div>
-      <SheetNav {...nav} />
-    </div>
-  );
-}
-
-function LessonSheet({ lesson, nav }: { lesson: Lesson; nav: SheetNavLinks }) {
-  const purpose = lesson.purpose ? lessonPurposeText(lesson.purpose) : "";
-  return (
-    <>
-      <header className="head">
-        <h1>{lesson.title}</h1>
-        {purpose ? <p className="para">{purpose}</p> : null}
-        <LessonMeta lesson={lesson} />
-      </header>
-      <div className="body">
-        {lesson.sections.map((section, index) => {
-          const heading = section.heading.trim();
-          const blocks = paragraphs(section.body);
-          return (
-            <section key={index}>
-              {heading ? <h2>{heading}</h2> : null}
-              {blocks.map((block, blockIndex) => (
-                <p key={blockIndex}>{block}</p>
-              ))}
-            </section>
-          );
-        })}
-      </div>
-      <SheetNav {...nav} />
-    </>
-  );
-}
-
-function SynthesisSheet({ module, nav }: { module: CourseModule; nav: SheetNavLinks }) {
-  return (
-    <>
-      <header className="head">
-        <h1>Module synthesis</h1>
-        <p className="para">{module.title}</p>
-      </header>
-      <div className="prose">
-        {module.synthesis ? (
-          paragraphs(module.synthesis).map((paragraph, index) => <p key={index}>{paragraph}</p>)
-        ) : (
-          <p>This module does not have a synthesis yet.</p>
-        )}
-      </div>
-      <SheetNav {...nav} />
-    </>
-  );
-}
-
-function SourcesSheet({ module, nav }: { module: CourseModule; nav: SheetNavLinks }) {
-  return (
-    <>
-      <header className="head">
-        <h1>Sources</h1>
-        <p className="para">Sources used in {module.title}.</p>
-      </header>
-      {module.sources.length > 0 ? (
-        <ol className="fuentes">
-          {module.sources.map((source, index) => (
-            <SourceRow key={`${source.ref}:${source.url}:${index}`} index={index} source={source} />
-          ))}
+      ),
+    });
+  }
+  rows.forEach((row, index) => {
+    blocks.push({
+      key: row.key,
+      breakBefore: index === 0,
+      node: (
+        <ol className="lecciones sheet-rows">
+          <li className={row.comp ? "comp" : undefined}>{row.node}</li>
         </ol>
-      ) : (
-        <p className="sheet-loading">No sources were recorded for this module.</p>
-      )}
-      <SheetNav {...nav} />
-    </>
-  );
+      ),
+    });
+  });
+  blocks.push({
+    key: credit ? `seal:${credit}` : "seal",
+    node: <CoverSeal module={module} summary={summary} credit={credit} />,
+  });
+  return blocks;
+}
+
+function lessonBlocks(lesson: Lesson): PageBlock[] {
+  const purpose = lesson.purpose ? lessonPurposeText(lesson.purpose) : "";
+  const blocks: PageBlock[] = [
+    {
+      key: "head",
+      node: (
+        <header className="head">
+          <h1>{lesson.title}</h1>
+          {purpose ? <p className="para">{purpose}</p> : null}
+          <LessonMeta lesson={lesson} />
+        </header>
+      ),
+    },
+  ];
+  lesson.sections.forEach((section, index) => {
+    const heading = section.heading.trim();
+    const parts = paragraphs(section.body);
+    if (parts.length === 0) {
+      if (heading) {
+        blocks.push({
+          key: `s${index}`,
+          gap: "section",
+          node: (
+            <div className="body">
+              <h2>{heading}</h2>
+            </div>
+          ),
+        });
+      }
+      return;
+    }
+    parts.forEach((part, partIndex) => {
+      sentences(part).forEach((line, lineIndex) => {
+        blocks.push({
+          key: `s${index}-${partIndex}-${lineIndex}`,
+          paragraphId: `s${index}-${partIndex}`,
+          gap: lineIndex === 0 ? (partIndex === 0 ? "section" : "para") : "sentence",
+          text: line,
+          heading: lineIndex === 0 && partIndex === 0 && heading ? heading : undefined,
+        });
+      });
+    });
+  });
+  return blocks;
+}
+
+function synthesisBlocks(module: CourseModule): PageBlock[] {
+  const parts = module.synthesis ? paragraphs(module.synthesis) : [];
+  const blocks: PageBlock[] = [
+    {
+      key: "head",
+      node: (
+        <header className="head">
+          <h1>Module synthesis</h1>
+          <p className="para">{module.title}</p>
+        </header>
+      ),
+    },
+  ];
+  if (parts.length === 0) {
+    blocks.push({
+      key: "empty",
+      gap: "para",
+      node: (
+        <div className="prose">
+          <p>This module does not have a synthesis yet.</p>
+        </div>
+      ),
+    });
+    return blocks;
+  }
+  parts.forEach((part, index) => {
+    sentences(part).forEach((line, lineIndex) => {
+      blocks.push({
+        key: `p${index}-${lineIndex}`,
+        paragraphId: `p${index}`,
+        gap: lineIndex === 0 ? "para" : "sentence",
+        prose: true,
+        text: line,
+      });
+    });
+  });
+  return blocks;
+}
+
+function sourcesBlocks(module: CourseModule): PageBlock[] {
+  const blocks: PageBlock[] = [
+    {
+      key: "head",
+      node: (
+        <header className="head">
+          <h1>Sources</h1>
+          <p className="para">Sources used in {module.title}.</p>
+        </header>
+      ),
+    },
+  ];
+  if (module.sources.length === 0) {
+    blocks.push({
+      key: "empty",
+      gap: "para",
+      node: <p className="sheet-loading">No sources were recorded for this module.</p>,
+    });
+    return blocks;
+  }
+  module.sources.forEach((source, index) => {
+    blocks.push({
+      key: `${source.ref}:${source.url}:${index}`,
+      node: (
+        <ol className="fuentes">
+          <SourceRow index={index} source={source} />
+        </ol>
+      ),
+    });
+  });
+  return blocks;
 }
 
 function SourceRow({ source, index }: { source: SourceView; index: number }) {
@@ -441,39 +985,82 @@ function QuizSheet({
   courseId,
   course,
   module,
-  nav,
 }: {
   courseId: string;
   course: Course | null;
   module: CourseModule;
-  nav: SheetNavLinks;
 }) {
+  const check = module.knowledge_check;
+  const questionCount = check?.questions.length ?? 0;
+  const total = Math.max(questionCount, 1);
+  const [page, setPage] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [allAnswered, setAllAnswered] = useState(false);
   const next = course?.modules.find((item) => item.index === module.index + 1) ?? null;
   const continueHref =
     next && next.state === "published"
       ? `/courses/${courseId}/modules/${next.id}`
       : `/courses/${courseId}`;
   const continueLabel = next ? `Continue to module ${pad(next.index)}` : "Back to the course";
+  const safePage = Math.min(page, total - 1);
+  const onLastQuestion = questionCount > 0 && safePage >= questionCount - 1;
+
+  useEffect(() => {
+    setPage(0);
+    setRevealed(false);
+    setAllAnswered(false);
+  }, [module.id]);
 
   return (
-    <>
-      <header className="head">
-        <h1>Module quiz</h1>
-        <div className="regla" />
-      </header>
-      {module.knowledge_check ? (
-        <KnowledgeCheck
-          check={module.knowledge_check}
-          sheet
-          continueHref={continueHref}
-          continueLabel={continueLabel}
-          overviewHref={`/courses/${courseId}/modules/${module.id}`}
-        />
-      ) : (
-        <p className="sheet-loading">This module does not have a quiz yet.</p>
-      )}
-      <SheetNav {...nav} />
-    </>
+    <div className="paged-sheet">
+      <div className="sheet-body">
+        <div className="sheet-page">
+          {check ? (
+            <KnowledgeCheck
+              check={check}
+              sheet
+              questionIndex={safePage}
+              showActions={revealed && onLastQuestion}
+              revealed={revealed}
+              onRevealedChange={setRevealed}
+              onAnsweredChange={setAllAnswered}
+              omitContinue
+              continueHref={continueHref}
+              continueLabel={continueLabel}
+              overviewHref={`/courses/${courseId}/modules/${module.id}`}
+            />
+          ) : (
+            <p className="sheet-loading">This module does not have a quiz yet.</p>
+          )}
+        </div>
+      </div>
+      <SheetPager
+        page={safePage}
+        total={total}
+        onPrev={() => setPage((current) => Math.max(0, current - 1))}
+        onNext={() => setPage((current) => Math.min(total - 1, current + 1))}
+        nextControl={
+          onLastQuestion ? (
+            revealed ? (
+              <Link className="ae-page-forward" href={continueHref}>
+                <span className="ae-page-button-label">{continueLabel}</span>
+                <span className="ar" aria-hidden="true" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="ae-page-forward"
+                disabled={!allAnswered}
+                onClick={() => setRevealed(true)}
+              >
+                <span className="ae-page-button-label">Check my answers</span>
+                <span className="ar" aria-hidden="true" />
+              </button>
+            )
+          ) : undefined
+        }
+      />
+    </div>
   );
 }
 
@@ -482,6 +1069,30 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
     peekModuleReading(courseId, moduleId),
   );
   const [error, setError] = useState<unknown>(null);
+  const [learnerName, setLearnerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAccountProfile()
+      .then((profile) => {
+        if (cancelled) {
+          return;
+        }
+        const name = [profile.first_name, profile.last_name]
+          .map((part) => part?.trim() ?? "")
+          .filter(Boolean)
+          .join(" ");
+        setLearnerName(name);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLearnerName("");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const ready = peekModuleReading(courseId, moduleId);
@@ -512,20 +1123,34 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
 
   const base = `/courses/${courseId}/modules/${moduleId}`;
   const activeId = pane === "lesson" ? lessonId : pane;
-  const tabs = module
+  const companionActiveId = pane === "lesson" ? "lessons" : pane;
+  const lessonTabs = module
+    ? module.lessons.map((item) => ({
+        id: item.id,
+        href: `${base}/lessons/${item.id}`,
+        label: `Lesson ${item.index}`,
+        title: item.title,
+      }))
+    : [];
+  const firstLesson = module?.lessons[0] ?? null;
+  const companionLinks = module
     ? [
         {
           id: "overview",
           href: base,
           label: `Module ${pad(module.index)}`,
-          title: module.title,
+          title: `Module ${pad(module.index)}`,
         },
-        ...module.lessons.map((item) => ({
-          id: item.id,
-          href: `${base}/lessons/${item.id}`,
-          label: `Lesson ${item.index}`,
-          title: item.title,
-        })),
+        ...(firstLesson
+          ? [
+              {
+                id: "lessons",
+                href: `${base}/lessons/${firstLesson.id}`,
+                label: "Lessons",
+                title: "Lessons",
+              },
+            ]
+          : []),
         {
           id: "synthesis",
           href: `${base}/synthesis`,
@@ -546,13 +1171,41 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
         },
       ]
     : [];
-
   const audioTitle =
     pane === "lesson" && lesson
       ? lesson.title
-      : (tabs.find((tab) => tab.id === activeId)?.title ?? "This module");
+      : pane === "overview" && module
+        ? module.title
+        : (companionLinks.find((item) => item.id === activeId)?.title ?? "This module");
   const visibleLesson = lesson && lesson.id === lessonId ? lesson : null;
-  const sheetNav = sheetNavFromTabs(tabs, activeId);
+  const pageKey = `${moduleId}:${activeId ?? pane}`;
+  const blocks: PageBlock[] = !module
+    ? [{ key: "loading", node: <p className="sheet-loading">Loading…</p> }]
+    : pane === "overview"
+      ? coverBlocks(
+          courseId,
+          module,
+          course?.modules.length ?? module.index,
+          coverCredit(learnerName, course?.created_at),
+        )
+      : pane === "lesson"
+        ? visibleLesson
+          ? lessonBlocks(visibleLesson)
+          : [
+              {
+                key: "missing",
+                node: (
+                  <p className="sheet-loading">
+                    {pack ? "This lesson is not available." : "Loading…"}
+                  </p>
+                ),
+              },
+            ]
+        : pane === "synthesis"
+          ? synthesisBlocks(module)
+          : pane === "sources"
+            ? sourcesBlocks(module)
+            : [{ key: "loading", node: <p className="sheet-loading">Loading…</p> }];
 
   return (
     <CourseSetupFrame
@@ -569,55 +1222,26 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
           <span className="folder-tab-label">{course?.title ?? "Your course"}</span>
         </Link>
         <div className="carpeta">
-          <div
-            className="lectura"
-            style={{ "--tab-stack": `${Math.max(tabs.length, 1) * 124 + 48}px` } as CSSProperties}
-          >
+          <div className="lectura">
             <div className="col" key={activeId ?? "loading"}>
               <article className={pane === "overview" ? "sheet cover" : "sheet"}>
-                {!module ? (
-                  <p className="sheet-loading">Loading…</p>
-                ) : pane === "overview" ? (
-                  <Cover
-                    courseId={courseId}
-                    module={module}
-                    moduleCount={course?.modules.length ?? module.index}
-                    nav={sheetNav}
-                  />
-                ) : pane === "lesson" ? (
-                  visibleLesson ? (
-                    <LessonSheet lesson={visibleLesson} nav={sheetNav} />
-                  ) : (
-                    <p className="sheet-loading">
-                      {pack ? "This lesson is not available." : "Loading…"}
-                    </p>
-                  )
-                ) : pane === "synthesis" ? (
-                  <SynthesisSheet module={module} nav={sheetNav} />
-                ) : pane === "sources" ? (
-                  <SourcesSheet module={module} nav={sheetNav} />
+                {pane === "quiz" && module ? (
+                  <QuizSheet courseId={courseId} course={course} module={module} />
                 ) : (
-                  <QuizSheet
-                    courseId={courseId}
-                    course={course}
-                    module={module}
-                    nav={sheetNav}
+                  <PagedSheet
+                    pageKey={pageKey}
+                    blocks={blocks}
+                    marks={pane === "overview" && module ? <CoverMarks module={module} /> : null}
                   />
                 )}
               </article>
             </div>
-            {tabs.length > 0 ? (
-              <nav className="stabs" aria-label="Sections in this module">
-                {tabs.map((tab) => (
+            {pane === "lesson" && lessonTabs.length > 0 ? (
+              <nav className="stabs" aria-label="Lessons in this module">
+                {lessonTabs.map((tab) => (
                   <Link
                     key={tab.id}
-                    className={[
-                      "stab",
-                      tab.id === "overview" ? "cover" : "",
-                      tab.id === activeId ? "on" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
+                    className={["stab", tab.id === activeId ? "on" : ""].filter(Boolean).join(" ")}
                     href={tab.href}
                     aria-current={tab.id === activeId ? "page" : undefined}
                     title={tab.title}
@@ -628,7 +1252,10 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
               </nav>
             ) : null}
           </div>
-          <AudioRail title={audioTitle} />
+          <aside className="side">
+            <CompanionRail links={companionLinks} activeId={companionActiveId} />
+            <AudioRail title={audioTitle} />
+          </aside>
         </div>
         <div className="form-avisos">
           <ErrorNotice error={error} />
