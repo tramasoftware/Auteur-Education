@@ -233,10 +233,20 @@ type JourneyFrameProps = {
   title?: string;
   description?: string;
   bare?: boolean;
+  /** Replaces the stage bars with a caller-supplied step line. */
+  showProgress?: boolean;
+  eyebrow?: ReactNode;
   children: ReactNode;
 };
 
-export function JourneyFrame({ title, description, bare = false, children }: JourneyFrameProps) {
+export function JourneyFrame({
+  title,
+  description,
+  bare = false,
+  showProgress = true,
+  eyebrow,
+  children,
+}: JourneyFrameProps) {
   const pathname = usePathname();
   const [step, setStep] = useState<JourneyStep | null>(null);
   const shown = step ?? defaultStep(pathname);
@@ -248,7 +258,8 @@ export function JourneyFrame({ title, description, bare = false, children }: Jou
           children
         ) : (
           <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-8">
-            {shown.hidden ? null : <JourneyProgress step={shown} />}
+            {showProgress && !shown.hidden ? <JourneyProgress step={shown} /> : null}
+            {eyebrow}
             {title ? (
               <h1 className="font-display text-[length:calc(1.75rem*var(--ft,1))] font-semibold tracking-tight">
                 {title}

@@ -6,12 +6,13 @@ import { useEffect, useState } from "react";
 import { fetchActiveBuildCourseId } from "@/lib/activeBuild";
 
 /**
- * BR-GEN-002: while a build is running, block onboarding / proposals / Blueprint.
- * Sends the learner to the in-progress course overview.
+ * BR-GEN-002: a second creation attempt goes to the course already being built.
+ * The linear course-setup flow no longer waits on this check at every screen.
+ * The screen stays usable while the lookup runs, and only yields if a build exists.
  */
 export function useRedirectIfActiveBuild(enabled = true): boolean {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -22,19 +23,14 @@ export function useRedirectIfActiveBuild(enabled = true): boolean {
 
     fetchActiveBuildCourseId()
       .then((courseId) => {
-        if (cancelled) {
+        if (cancelled || !courseId) {
           return;
         }
-        if (courseId) {
-          router.replace(`/courses/${courseId}`);
-          return;
-        }
-        setChecking(false);
+        setRedirecting(true);
+        router.replace(`/courses/${courseId}`);
       })
       .catch(() => {
-        if (!cancelled) {
-          setChecking(false);
-        }
+        // The API still rejects a second build if this lookup fails.
       });
 
     return () => {
@@ -42,5 +38,5 @@ export function useRedirectIfActiveBuild(enabled = true): boolean {
     };
   }, [router, enabled]);
 
-  return enabled && checking;
+  return redirecting;
 }

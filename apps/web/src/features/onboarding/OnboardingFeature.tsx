@@ -16,6 +16,7 @@ import {
   PROPOSAL_PHASES,
   StagePreparing,
 } from "@/features/course-setup/StagePreparing";
+import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { ApiError, learningRequests } from "@/lib/api";
@@ -60,6 +61,8 @@ export function OnboardingFeature() {
   const params = useSearchParams();
   const blockingActiveBuild = useRedirectIfActiveBuild();
   const [request, setRequest] = useState<LearningRequest | null>(null);
+  const [resumeMiss, setResumeMiss] = useState(false);
+  const paramRequestId = params.get("request");
   const [loading, setLoading] = useState(false);
   const [preparingDirections, setPreparingDirections] = useState(false);
   const [directionsReady, setDirectionsReady] = useState(false);
@@ -73,15 +76,28 @@ export function OnboardingFeature() {
   useJourneyStep(onboardingJourneyStep(request));
 
   useEffect(() => {
-    const id = params.get("request") ?? recallRequestId();
+    const id = paramRequestId ?? recallRequestId();
     if (!id || request) {
       return;
     }
-    learningRequests
-      .get(id)
-      .then(setRequest)
-      .catch(() => forgetRequestId());
-  }, [params, request]);
+    let cancelled = false;
+    learningRequests.get(id).then(
+      (next) => {
+        if (!cancelled) {
+          setRequest(next);
+        }
+      },
+      () => {
+        if (!cancelled) {
+          forgetRequestId();
+          setResumeMiss(true);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [paramRequestId, request]);
 
   const run = async (
     action: () => Promise<LearningRequest>,
@@ -220,6 +236,17 @@ export function OnboardingFeature() {
     return <CheckingGenerationStatus />;
   }
 
+  if (paramRequestId && !request && !resumeMiss) {
+    return (
+      <div className="ae-status-check">
+        <GenerationStatus
+          title="Opening your question"
+          description="Loading the intention you already started."
+        />
+      </div>
+    );
+  }
+
   const directionsScreen = preparingDirections ? (
     <StagePreparing
       frameTitle="Your learning path"
@@ -254,13 +281,7 @@ export function OnboardingFeature() {
       <>
       {directionsScreen}
       <article className="lect" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
-        <div className="pasosf">
-          <i className="hoy" />
-          <i />
-          <i />
-          <i />
-          <span>Your question</span>
-        </div>
+        <CourseStepLabel step={1} label="Your question" />
         <IntentForm
           busy={loading}
           error={error}
@@ -779,7 +800,7 @@ function IncompatibleIntention({
   return (
     <div className="recovery">
       <section className="caminos-h">
-        <span className="paso-n">Step 1 of 4 · Your question</span>
+        <CourseStepLabel label="Suggested subjects" tight />
         <h2>
           {alternatives.length > 0
             ? "Three ways into your question"
@@ -1020,12 +1041,7 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
 
   return (
     <article className="refine">
-      <div className="pasosf">
-        <i className="fue" />
-        <i className="hoy" />
-        <i />
-        <i />
-      </div>
+      <CourseStepLabel label="Refine your subject" />
 
       <h1 className="t" id="precision-label">
         Where should we look closer?
@@ -1136,8 +1152,6 @@ function ObjectivePanel({
   const hasFeedback = feedback.trim().length > 0;
   const canRevise =
     o.confirmed && request.state !== "approved" && !request.blueprint_id;
-  const hadPrecision =
-    request.precision.needs_precision || request.selected_precision !== null;
 
   const grow = (field: HTMLTextAreaElement) => {
     field.style.height = "auto";
@@ -1152,14 +1166,7 @@ function ObjectivePanel({
 
   return (
     <article className="lect">
-      <div className="pasosf">
-        <i className="fue" />
-        {hadPrecision ? <i className="fue" /> : null}
-        <i className="hoy" />
-        <i />
-        {!hadPrecision ? <i /> : null}
-        <span>Your objective</span>
-      </div>
+      <CourseStepLabel step={2} label="Confirm your learning objective" />
 
       <div className="preg disp">
         <h1>Is this the objective?</h1>
@@ -1228,24 +1235,39 @@ function ObjectivePanel({
 
       {!o.confirmed && !locked ? (
         <div className="preg">
-          <h2 id="objective-feedback-label">What should change?</h2>
-          <p className="bajada">Leave empty to accept this objective and continue.</p>
-          <label className="plano">
-            <span className="sr-only">What should change?</span>
-            <textarea
-              id="objective-feedback"
-              className="alto"
-              rows={2}
-              maxLength={MAX_FREE_TEXT_CHARS}
-              value={feedback}
-              placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
-              onChange={(e) => {
-                setFeedback(e.target.value);
-                grow(e.currentTarget);
-              }}
-              aria-labelledby="objective-feedback-label"
-            />
-          </label>
+          <details
+            className="extra"
+            onToggle={(e) => {
+              if (!e.currentTarget.open) return;
+              e.currentTarget.querySelectorAll("textarea").forEach((field) => {
+                field.style.height = "auto";
+                field.style.height = `${field.scrollHeight}px`;
+              });
+            }}
+          >
+            <summary>
+              <span className="mas" aria-hidden="true" />
+              <span className="txt" id="objective-feedback-label">
+                What should change?
+                <small>Leave empty to accept this objective and continue.</small>
+              </span>
+            </summary>
+            <label className="plano">
+              <span className="sr-only">What should change?</span>
+              <textarea
+                id="objective-feedback"
+                rows={1}
+                maxLength={MAX_FREE_TEXT_CHARS}
+                value={feedback}
+                placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
+                onChange={(e) => {
+                  setFeedback(e.target.value);
+                  grow(e.currentTarget);
+                }}
+                aria-labelledby="objective-feedback-label"
+              />
+            </label>
+          </details>
         </div>
       ) : null}
 

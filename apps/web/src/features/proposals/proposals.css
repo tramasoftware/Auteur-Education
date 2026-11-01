@@ -9,16 +9,6 @@
   padding: 32px 28px 0;
 }
 
-.proposals-screen .paso-n {
-  display: block;
-  margin-bottom: 12px;
-  color: var(--borgona);
-  font-size: calc(10.5px * var(--ft, 1));
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
 .proposals-screen .caminos-h h2 {
   margin-bottom: 10px;
   font-size: clamp(calc(26px * var(--ft, 1)), calc(2.8vw * var(--ft, 1)), calc(38px * var(--ft, 1)));

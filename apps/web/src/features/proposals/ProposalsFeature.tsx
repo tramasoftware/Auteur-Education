@@ -15,6 +15,7 @@ import {
   PROPOSAL_PHASES,
   StagePreparing,
 } from "@/features/course-setup/StagePreparing";
+import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { isAnonymousClaim } from "@/lib/auth/claims";
@@ -412,7 +413,7 @@ export function ProposalsFeature() {
   if (missing) {
     return (
       <section className="caminos-h">
-        <span className="paso-n">Your learning path</span>
+        <CourseStepLabel step={3} label="Your learning path" tight />
         <h2>Choose a way in</h2>
         <p>Start with a question. The learning paths appear after the objective is confirmed.</p>
         <Link className="btn" href="/onboarding">
@@ -454,7 +455,7 @@ export function ProposalsFeature() {
   if (!request.objective?.confirmed) {
     return (
       <section className="caminos-h">
-        <span className="paso-n">Your learning path</span>
+        <CourseStepLabel step={3} label="Your learning path" tight />
         <h2>Confirm your objective first</h2>
         <p>Learning paths are built from a confirmed objective.</p>
         <Link className="btn" href={`/onboarding?request=${request.id}`}>
@@ -484,7 +485,7 @@ export function ProposalsFeature() {
     <>
       {blueprintPreparing}
       <section className="caminos-h">
-        <span className="paso-n">Your learning path</span>
+        <CourseStepLabel step={3} label="Your learning path" tight />
         <h2>Choose a way in</h2>
         <p>One subject. Different ways to understand it.</p>
         {set?.recommendation_reason ? <p className="reco">{set.recommendation_reason}</p> : null}

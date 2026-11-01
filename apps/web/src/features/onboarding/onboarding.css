@@ -90,38 +90,6 @@
   white-space: nowrap;
 }
 
-.landing.onboarding-screen .pasosf {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 32px;
-}
-
-.landing.onboarding-screen .pasosf i {
-  flex: 1;
-  max-width: 56px;
-  height: 2px;
-  border-radius: 2px;
-  background: rgba(37, 42, 64, 0.18);
-}
-
-.landing.onboarding-screen .pasosf i.hoy {
-  background: var(--borgona);
-}
-
-.landing.onboarding-screen .pasosf i.fue {
-  background: rgba(37, 42, 64, 0.42);
-}
-
-.landing.onboarding-screen .pasosf span {
-  margin-left: 6px;
-  color: var(--m-3);
-  font-size: calc(12px * var(--ft, 1));
-  font-weight: 550;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .landing.onboarding-screen .preg {
   margin-bottom: 36px;
 }
@@ -393,6 +361,10 @@
   margin: 4px 0 18px;
 }
 
+.landing.onboarding-screen .preg .extra .plano textarea {
+  padding-bottom: 8px;
+}
+
 .landing.onboarding-screen .extra .mas::before {
   content: "+";
 }
@@ -402,11 +374,28 @@
 }
 
 .landing.onboarding-screen .extra .txt {
+  flex: 1;
+  min-width: 0;
   color: var(--m-1);
   font-family: var(--font-editorial), Georgia, serif;
   font-size: calc(17.5px * var(--ft, 1));
   line-height: 1.2;
   letter-spacing: -0.012em;
+}
+
+.landing.onboarding-screen .extra summary .txt small {
+  display: block;
+  margin-top: 3px;
+  color: var(--m-2);
+  font-family: var(--font-ui);
+  font-size: calc(12.5px * var(--ft, 1));
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+}
+
+.landing.onboarding-screen .extra[open] summary .txt small {
+  display: none;
 }
 
 .landing.onboarding-screen .pie-l {
@@ -615,17 +604,6 @@
 .landing.onboarding-screen .recovery .caminos-h {
   padding-top: 8px;
   padding-bottom: 8px;
-}
-
-.landing.onboarding-screen .recovery .paso-n {
-  display: block;
-  margin-bottom: 12px;
-  color: var(--m-1);
-  font-family: var(--font-ui);
-  font-size: calc(10.5px * var(--ft, 1));
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .landing.onboarding-screen .recovery .caminos-h h2 {
@@ -1030,17 +1008,12 @@
 }
 
 .landing.onboarding-screen .recovery .acciones .nota {
-  max-width: 36ch;
+  flex: 1 1 auto;
+  max-width: 58ch;
   color: var(--m-3);
   font-family: var(--font-ui);
   font-size: calc(12.5px * var(--ft, 1));
   line-height: 1.45;
-}
-
-.landing.onboarding-screen .refine .pasosf span {
-  font-size: calc(10px * var(--ft, 1));
-  font-weight: 600;
-  letter-spacing: 0.16em;
 }
 
 .landing.onboarding-screen .refine h1.t {

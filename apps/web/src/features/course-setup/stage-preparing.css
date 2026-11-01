@@ -34,12 +34,12 @@
 
 .landing.stage-preparing-screen .gen > div {
   width: min(520px, 100%);
-  text-align: center;
+  text-align: left;
 }
 
 .landing.stage-preparing-screen .gen h1 {
   max-width: 16ch;
-  margin: 0 auto 18px;
+  margin: 0 0 18px;
   color: var(--m-1);
   font-size: clamp(calc(30px * var(--ft, 1)), calc(3.6vw * var(--ft, 1)), calc(50px * var(--ft, 1)));
   line-height: 1.04;
@@ -62,9 +62,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  max-width: 480px;
+  max-width: none;
   min-height: 24px;
-  margin: 20px auto 0;
+  margin: 20px 0 0;
 }
 
 .landing.stage-preparing-screen .gen .via {
@@ -103,7 +103,7 @@
 
 .landing.stage-preparing-screen .gen .acciones {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   margin-top: 28px;
 }
 
