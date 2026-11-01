@@ -101,23 +101,6 @@
   display: none;
 }
 
-.landing.stage-preparing-screen .gen .acciones {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 28px;
-}
-
-.landing.stage-preparing-screen .gen .btn {
-  min-height: 44px;
-  padding: 0 22px 0 24px;
-  border-radius: 12px 12px 4px 4px;
-  font-family: var(--font-editorial), Georgia, serif;
-  font-size: calc(16px * var(--ft, 1));
-  font-weight: 400;
-  letter-spacing: -0.008em;
-  text-decoration: none;
-}
-
 @media (max-width: 920px) {
   .landing.stage-preparing-screen .stage-preparing-main {
     width: calc(100% - 40px);

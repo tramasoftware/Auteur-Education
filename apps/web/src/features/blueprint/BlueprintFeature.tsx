@@ -28,7 +28,7 @@ import {
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
-import { forgetCourseFlowPath, forgetRequestId } from "@/lib/session";
+import { forgetCourseFlowPath, forgetRequestId, recallRequestId } from "@/lib/session";
 import { usePolling } from "@/lib/usePolling";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import type { Blueprint } from "@/types/generator";
@@ -96,6 +96,12 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
           setBlueprint(next);
           if (next.state === "generating" && !next.blueprint) {
             setHoldBlueprint(true);
+            setEnteredBlueprint(false);
+          } else {
+            setHoldBlueprint(false);
+            if (next.blueprint) {
+              setEnteredBlueprint(true);
+            }
           }
           setError(null);
         },
@@ -189,16 +195,28 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   }
 
   if (!blueprint) {
-    return (
-      <div className="ae-status-check">
-        <div className="ae-status-check-stack">
-          <GenerationStatus
-            title="Opening your Blueprint"
-            description="Loading the pedagogical contract for this course."
-          />
+    if (error) {
+      return (
+        <div className="flex flex-col gap-4 p-8">
           <ErrorNotice error={error} />
         </div>
-      </div>
+      );
+    }
+    const resumeRequestId = recallRequestId();
+    return (
+      <StagePreparing
+        frameTitle="Blueprint"
+        backHref={resumeRequestId ? `/proposals?request=${resumeRequestId}` : "/proposals"}
+        backLabel="Learning paths"
+        backAriaLabel="Back to your learning paths"
+        heading="Your Blueprint is taking shape"
+        readyHeading="Your Blueprint is ready"
+        phases={BLUEPRINT_PHASES}
+        approachMs={BLUEPRINT_APPROACH_MS}
+        crawlMs={30000}
+        ready={false}
+        onContinue={() => {}}
+      />
     );
   }
 
@@ -215,7 +233,6 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
         approachMs={BLUEPRINT_APPROACH_MS}
         crawlMs={30000}
         ready={blueprint.state !== "generating" && blueprint.blueprint !== null}
-        actionLabel="Review the Blueprint"
         onContinue={() => setEnteredBlueprint(true)}
       />
     );

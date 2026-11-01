@@ -258,7 +258,6 @@ export function OnboardingFeature() {
       phases={PROPOSAL_PHASES}
       approachMs={PROPOSAL_APPROACH_MS}
       ready={directionsReady}
-      actionLabel="View learning paths"
       onContinue={() => {
         if (directionsHref) {
           router.push(directionsHref);
@@ -842,7 +841,6 @@ function IncompatibleIntention({
               }}
               onEdit={() => setEditingIndex(index)}
               onChange={(patch) => updateDraft(index, patch)}
-              onChoose={() => choose(index)}
             />
           ))}
         </div>
@@ -897,7 +895,6 @@ function RecoveryAlternativeCard({
   onToggle,
   onEdit,
   onChange,
-  onChoose,
 }: {
   item: RecoveryAlternative;
   index: number;
@@ -910,7 +907,6 @@ function RecoveryAlternativeCard({
   onToggle: () => void;
   onEdit: () => void;
   onChange: (patch: Partial<AltDraft>) => void;
-  onChoose: () => void;
 }) {
   const fieldId = (name: string) => `recovery-${index}-${name}`;
   const ready = draftReady(draft);
@@ -1015,7 +1011,8 @@ function RecoveryAlternativeCard({
               className="marca"
               type="button"
               disabled={busy || !ready}
-              onClick={selected ? onSelect : onChoose}
+              aria-pressed={selected}
+              onClick={onSelect}
             >
               <span>{selected ? "Selected" : "Choose this path"}</span>
             </button>

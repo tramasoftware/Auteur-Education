@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPathRouteMotion } from "./pathRouteMotion";
 
 import { proposalsJourneyStep, useJourneyStep } from "@/components/layout";
-import { CheckingGenerationStatus, GenerationStatus } from "@/components/ui";
+import { CheckingGenerationStatus } from "@/components/ui";
 import {
   BLUEPRINT_APPROACH_MS,
   BLUEPRINT_PHASES,
@@ -223,17 +223,18 @@ export function ProposalsFeature() {
   const router = useRouter();
   const params = useSearchParams();
   const blockingActiveBuild = useRedirectIfActiveBuild();
+  const requestId = params.get("request") ?? recallRequestId();
+  const missing = !requestId;
   const [request, setRequest] = useState<LearningRequest | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [failure, setFailure] = useState<"directions" | "blueprint" | null>(null);
-  const [pathScreen, setPathScreen] = useState<"off" | "wait" | "ready">("off");
+  const [pathScreen, setPathScreen] = useState<"off" | "wait" | "ready">(() =>
+    requestId ? "wait" : "off",
+  );
   const [blueprintScreen, setBlueprintScreen] = useState<"off" | "wait" | "ready">("off");
   const [blueprintTargetId, setBlueprintTargetId] = useState<string | null>(null);
   const loadSeq = useRef(0);
-
-  const requestId = params.get("request") ?? recallRequestId();
-  const missing = !requestId;
 
   useJourneyStep(
     proposalsJourneyStep(
@@ -271,12 +272,14 @@ export function ProposalsFeature() {
           setSelectedId(current.selected_proposal_id);
           setBlueprintTargetId(current.blueprint_id);
           setBlueprintScreen("wait");
+          setPathScreen("off");
           setFailure(null);
           setBusy(false);
           return;
         }
         setRequest(current);
         setSelectedId(current.selected_proposal_id);
+        setPathScreen("off");
         setFailure(null);
         setBusy(false);
       } catch {
@@ -337,6 +340,8 @@ export function ProposalsFeature() {
     if (!request || !selectedId) {
       return;
     }
+    setFailure(null);
+    setBlueprintScreen("wait");
     setBusy(true);
     try {
       if (request.selected_proposal_id !== selectedId) {
@@ -345,25 +350,27 @@ export function ProposalsFeature() {
       const supabase = createClient();
       const { data } = await supabase.auth.getClaims();
       if (isAnonymousClaim(data?.claims as Record<string, unknown> | undefined)) {
+        setBlueprintScreen("off");
         const next = `/proposals?request=${request.id}`;
         router.push(`/login?next=${encodeURIComponent(next)}`);
         setBusy(false);
         return;
       }
       const blueprint = await learningRequests.startBlueprint(request.id);
-      setFailure(null);
       if (blueprint.state === "failed") {
+        setBlueprintScreen("off");
         setFailure("blueprint");
         setBusy(false);
         return;
       }
       if (blueprint.state === "generating") {
         setBlueprintTargetId(blueprint.id);
-        setBlueprintScreen("wait");
         setBusy(false);
         return;
       }
+      setBlueprintScreen("off");
       router.push(`/blueprints/${blueprint.id}`);
+      setBusy(false);
     } catch {
       setBlueprintScreen("off");
       setFailure("blueprint");
@@ -383,13 +390,12 @@ export function ProposalsFeature() {
         phases={PROPOSAL_PHASES}
         approachMs={PROPOSAL_APPROACH_MS}
         ready={pathScreen === "ready"}
-        actionLabel="View learning paths"
         onContinue={() => setPathScreen("off")}
       />
     );
 
   const blueprintPreparing =
-    blueprintScreen === "off" || !blueprintTargetId ? null : (
+    blueprintScreen === "off" ? null : (
       <StagePreparing
         frameTitle="Blueprint"
         backHref={requestId ? `/proposals?request=${requestId}` : "/proposals"}
@@ -401,8 +407,11 @@ export function ProposalsFeature() {
         approachMs={BLUEPRINT_APPROACH_MS}
         crawlMs={30000}
         ready={blueprintScreen === "ready"}
-        actionLabel="Review the Blueprint"
-        onContinue={() => router.push(`/blueprints/${blueprintTargetId}`)}
+        onContinue={() => {
+          if (blueprintTargetId) {
+            router.push(`/blueprints/${blueprintTargetId}`);
+          }
+        }}
       />
     );
 
@@ -436,20 +445,14 @@ export function ProposalsFeature() {
           busy={busy}
           onRetry={() => {
             setBusy(true);
+            setPathScreen("wait");
             loadDirections();
           }}
           onBack={() => router.push(`/onboarding?request=${requestId}`)}
         />
       );
     }
-    return (
-      <div className="ae-status-check">
-        <GenerationStatus
-          title="Opening your learning paths"
-          description="Loading the directions for this objective."
-        />
-      </div>
-    );
+    return pathPreparing;
   }
 
   if (!request.objective?.confirmed) {

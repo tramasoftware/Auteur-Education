@@ -23,14 +23,13 @@ type StagePreparingProps = {
   /** After approachMs, crawl the last stretch if the request is still running. */
   crawlMs?: number;
   ready: boolean;
-  actionLabel: string;
   onContinue: () => void;
 };
 
 /**
  * Full-screen wait between course-setup stages. Same bar behavior as the
  * course preparation screen: approach a typical duration, then creep if the
- * backend is still working, and reveal the next action only when it returns.
+ * backend is still working, then continue automatically when it returns.
  */
 export function StagePreparing({
   frameTitle,
@@ -43,13 +42,16 @@ export function StagePreparing({
   approachMs,
   crawlMs = 14000,
   ready,
-  actionLabel,
   onContinue,
 }: StagePreparingProps) {
   const barLock = useRef(false);
   const readyRef = useRef(ready);
+  const continuedRef = useRef(false);
+  const onContinueRef = useRef(onContinue);
   const [phase, setPhase] = useState(phases[0] ?? "");
   const [progress, setProgress] = useState(0);
+
+  onContinueRef.current = onContinue;
 
   useEffect(() => {
     readyRef.current = ready;
@@ -99,6 +101,15 @@ export function StagePreparing({
   }, [ready, approachMs, crawlMs]);
 
   useEffect(() => {
+    if (!ready || continuedRef.current) {
+      return;
+    }
+    continuedRef.current = true;
+    setProgress(100);
+    onContinueRef.current();
+  }, [ready]);
+
+  useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -128,14 +139,6 @@ export function StagePreparing({
               </span>
               <span className="pc">{progress}%</span>
             </div>
-            {ready ? (
-              <div className="acciones">
-                <button className="btn" type="button" onClick={onContinue}>
-                  {actionLabel}
-                  <span className="ar" aria-hidden="true" />
-                </button>
-              </div>
-            ) : null}
           </div>
         </section>
       </CourseSetupFrame>
