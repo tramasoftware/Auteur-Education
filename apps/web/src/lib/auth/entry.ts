@@ -1,4 +1,7 @@
+import { headers } from "next/headers";
+
 import type { AccountProfile } from "@/lib/api";
+import { apiUrl } from "@/lib/public-url";
 import { textSizeOrStandard } from "@/lib/reading-preference";
 
 import {
@@ -6,8 +9,6 @@ import {
   isDefaultMemberPath,
   pathAfterSignIn,
 } from "./redirect";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /** Server routes: where to send the member, and which reading size to store. */
 export async function resolveSignIn(
@@ -35,7 +36,10 @@ export async function fetchAccountProfile(
     return null;
   }
   try {
-    const response = await fetch(`${API_URL}/api/v1/auth/profile`, {
+    const headerList = await headers();
+    const host =
+      headerList.get("x-forwarded-host")?.split(",")[0]?.trim() || headerList.get("host");
+    const response = await fetch(apiUrl("/api/v1/auth/profile", host), {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });

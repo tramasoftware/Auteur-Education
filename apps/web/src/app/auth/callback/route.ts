@@ -4,6 +4,7 @@ import { resolveSignIn } from "@/lib/auth/entry";
 import { DEFAULT_MEMBER_PATH, safeInternalPath } from "@/lib/auth/redirect";
 import { ANON_TRANSFER_COOKIE, claimWithTokens } from "@/lib/auth/transfer";
 import { assignTextSizeCookie } from "@/lib/reading-preference";
+import { redirectTo } from "@/lib/public-url";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      return NextResponse.redirect(new URL("/login?error=link", request.url));
+      return NextResponse.redirect(redirectTo(request, "/login?error=link"));
     }
   }
 
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const destination = resolved
     ? resolved.path
     : `/login?error=claim&next=${encodeURIComponent(next)}`;
-  const response = NextResponse.redirect(new URL(destination, request.url));
+  const response = NextResponse.redirect(redirectTo(request, destination));
   if (resolved) {
     assignTextSizeCookie(response, resolved.textSize);
   }

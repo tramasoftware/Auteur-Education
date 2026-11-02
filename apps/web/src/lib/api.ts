@@ -14,8 +14,7 @@ import type {
 } from "@/types/generator";
 
 import { ensureAccessToken } from "@/lib/auth/session";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiUrl } from "@/lib/public-url";
 
 export class ApiError extends Error {
   code: ErrorCode | "network_error";
@@ -42,7 +41,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   const token = path === "/health" ? null : await ensureAccessToken();
   try {
-    response = await fetch(`${API_URL}/api/v1${path}`, {
+    response = await fetch(apiUrl(`/api/v1${path}`), {
       cache: "no-store",
       ...init,
       headers: {

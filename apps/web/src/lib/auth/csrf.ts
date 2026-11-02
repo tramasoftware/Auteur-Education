@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { requestOrigin } from "@/lib/public-url";
+
 export const PRIVATE_NO_STORE = "private, no-store";
 
 /**
@@ -12,5 +14,5 @@ export function isSameOriginPost(request: NextRequest): boolean {
     return fetchSite === "same-origin";
   }
   const origin = request.headers.get("origin");
-  return origin === request.nextUrl.origin;
+  return origin === requestOrigin(request);
 }
