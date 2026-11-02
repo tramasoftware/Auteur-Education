@@ -28,7 +28,13 @@ export async function getLandingAccountSummary(): Promise<LandingAccountSummary 
     return null;
   }
   const { data: sessionData } = await supabase.auth.getSession();
-  const profile = await fetchAccountProfile(sessionData.session?.access_token);
+  let profile: AccountProfile | null;
+  try {
+    profile = await fetchAccountProfile(sessionData.session?.access_token);
+  } catch {
+    // Do not fail public landing RSC when the profile API is unavailable.
+    return null;
+  }
   if (!profile) {
     return null;
   }
