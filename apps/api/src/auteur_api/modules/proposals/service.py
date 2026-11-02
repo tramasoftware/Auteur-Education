@@ -20,14 +20,16 @@ from auteur_api.modules.proposals.schemas import (
 )
 
 MIN_DIFFERING_DIMENSIONS = 3  # BR-PRP-002
+DIRECTION_LABEL_MIN_WORDS = 2
+DIRECTION_LABEL_MAX_WORDS = 4
 
 
 def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[str]:
     out = result.parsed
     codes: list[str] = []
     count = len(out.proposals)
-    if not 1 <= count <= 5:
-        codes.append("proposal_count_out_of_range")  # BR-PRP-001
+    if count != 4:
+        codes.append("proposal_count_out_of_range")  # BR-PRP-001, DEC-019
         return codes
 
     titles = {p.title.strip().lower() for p in out.proposals}
@@ -49,9 +51,20 @@ def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[s
             codes.append("proposals_insufficiently_differentiated")
             break
 
+    labels = {p.direction_label.strip().lower() for p in out.proposals}
+    if len(labels) != count:
+        codes.append("proposal_direction_labels_duplicated")
+
     for p in out.proposals:
+        words = len(p.direction_label.split())
+        if not DIRECTION_LABEL_MIN_WORDS <= words <= DIRECTION_LABEL_MAX_WORDS:
+            codes.append("proposal_direction_label_invalid")
+            break
         if p.estimated_modules < 1:
             codes.append("proposal_estimated_modules_invalid")
+            break
+        if p.estimated_lessons < p.estimated_modules:
+            codes.append("proposal_estimated_lessons_invalid")
             break
 
     idx = out.recommended_proposal_index
@@ -85,7 +98,7 @@ async def generate_proposals(
             scope_id=record.id,
             stage="AI-STG-04",
             target=f"learning_request:{record.id}",
-            prompt_version=prompts.GENERATE_PROPOSALS_V1,
+            prompt_version=prompts.GENERATE_PROPOSALS_V3,
             instructions=prompts.GENERATE_PROPOSALS_INSTRUCTIONS,
             input=prompts.generate_proposals_input(
                 record.inputs,
@@ -95,7 +108,9 @@ async def generate_proposals(
                     if record.selected_precision
                     else None
                 ),
-                materialist_hint=True,
+                learning_orientation=record.interpretation.learning_orientation,
+                materialist_hint=record.interpretation.learning_orientation
+                != "applied",
             ),
             schema=ProposalSetOutput,
             validate=validate_proposal_set,

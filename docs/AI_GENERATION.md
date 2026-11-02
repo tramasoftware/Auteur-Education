@@ -118,7 +118,7 @@ La IA nunca debe completar por intuición autores, títulos, citas, cifras, fech
 
 ### AI-PRN-07 Diferenciación sustantiva
 
-Las propuestas deben representar recorridos intelectuales realmente distintos. No se generan variantes cosméticas para completar una cantidad.
+Las propuestas deben representar recorridos intelectuales realmente distintos. El conjunto exige exactamente cuatro direcciones (`DEC-019` / `BR-PRP-001`); no se rellena con variantes cosméticas.
 
 ### AI-PRN-08 Control humano
 
@@ -139,7 +139,7 @@ El proceso generativo puede recibir únicamente información pertinente y valida
 | Campo conceptual | Origen | Uso |
 | --- | --- | --- |
 | `initial_intent` | Usuario | Necesidad inicial de aprendizaje. |
-| `experience_level` | Usuario | `None`, `Basic`, `Intermediate` o `Advanced`. |
+| `experience_level` | Usuario | `None`, `Beginner`, `Intermediate` o `Advanced`. |
 | `prior_knowledge` | Usuario, opcional | Estudios, experiencia, conceptos conocidos o dificultades. |
 | `expected_outcome` | Usuario | Capacidad o comprensión esperada. |
 | `compatibility_assessment` | `AI-STG-01` validada | Determina si puede continuar, reformularse o rechazarse. |
@@ -186,7 +186,16 @@ Una etapa puede dividirse técnicamente en varias invocaciones, pero no debe cam
 
 ### Objetivo
 
-Determinar si la intención puede abordarse honestamente mediante educación teórica en texto y audio.
+Determinar si la intención puede abordarse honestamente mediante texto y audio, y si el recorrido es teórico o de fundamentos aplicados.
+
+El análisis registra `learning_orientation`:
+
+- `theoretical`: la persona quiere comprender un campo (conceptos, historia, debates, comparación).
+- `applied`: la persona quiere los fundamentos de trabajo de una materia — criterios, juicio y decisiones explicables en palabras, como una clase universitaria de una carrera orientada a la práctica. No es un procedimiento físico ni un tutorial de una herramienta.
+
+Personal branding, entendido como posicionamiento, audiencia y voz, es compatible con orientación `applied`. Operar un software, cocinar o ejecutar un movimiento sigue siendo `Incompatible`.
+
+`Allowed with reframing` conserva el núcleo enseñable de la materia pedida. No lo sustituye por la historia o la filosofía de ese tema.
 
 ### Salida requerida: `CompatibilityAssessment`
 
@@ -196,11 +205,16 @@ Determinar si la intención puede abordarse honestamente mediante educación te�
 - aspectos no alcanzables por el medio;
 - reformulación segura, si corresponde;
 - categoría de riesgo, si corresponde;
+- hasta tres alternativas de recuperación cuando la clasificación es `Incompatible` por el medio: título, explicación, texto de intención y un resultado esperado básico para una solicitud nueva;
 - siguiente acción permitida.
+
+`learning_orientation` no cambia de definición. `DEC-016` está subordinada a `DEC-015`: las alternativas de una solicitud `applied` siguen en los fundamentos de esa materia y no la convierten en su historia o su filosofía; las de una solicitud `theoretical` siguen siendo comprensión del campo.
 
 ### Validaciones
 
-- `Incompatible` no puede producir propuestas ni avanzar al checkout.
+- `Incompatible` no puede producir propuestas de curso ni avanzar al checkout. La solicitud original no continúa.
+- Si el riesgo no es `weapons` ni `security`, `Incompatible` devuelve exactamente tres alternativas distintas, en la orientación ya elegida, sin prometer el resultado práctico original. Cada alternativa incluye un `suggested_outcome` básico y no vacío. Si el riesgo es `weapons` o `security`, la lista queda vacía.
+- Cualquier otra clasificación devuelve la lista de alternativas vacía.
 - `Allowed with reframing` debe conservar la intención de fondo sin prometer equivalencia práctica.
 - Salud, derecho, finanzas, seguridad, armas y otros ámbitos sensibles se limitan a alfabetización general segura o se rechazan.
 - La clasificación debe repetirse si cambia sustantivamente la solicitud.
@@ -248,7 +262,7 @@ Transformar la información confirmada en una capacidad intelectual concreta y a
 
 ### Validaciones
 
-- Debe expresar capacidades como comprender, distinguir, explicar, comparar, analizar o evaluar.
+- Debe expresar capacidades como comprender, distinguir, explicar, comparar, analizar o evaluar. En orientación `applied` también puede expresar juzgar, aplicar criterios, formular o comparar decisiones, sin prometer el uso de una herramienta ni un procedimiento físico.
 - Debe conservar intención, resultado esperado, nivel y precisión.
 - No puede inventar ensayos, proyectos, portfolios, presentaciones, cargas o productos no soportados.
 - Debe poder utilizarse posteriormente como criterio de QA.
@@ -262,7 +276,7 @@ Presentar direcciones intelectuales comparables antes del registro y del pago.
 
 ### Salida requerida: `ProposalSet`
 
-El conjunto contiene entre una y cinco propuestas. Cada `CourseProposal` incluye:
+El conjunto contiene exactamente cuatro propuestas (`DEC-019`). Cada `CourseProposal` incluye:
 
 - título;
 - descripción;
@@ -270,17 +284,18 @@ El conjunto contiene entre una y cinco propuestas. Cada `CourseProposal` incluye
 - resultado intelectual;
 - recorrido distintivo;
 - principio organizador o perspectiva;
+- etiqueta corta de la dirección (2 a 4 palabras);
 - alcance y exclusiones;
 - adecuación al nivel;
 - autores, tradiciones o métodos orientativos cuando correspondan;
-- estimación de módulos y duración;
+- estimación de módulos, lecciones y duración;
 - ventaja principal;
 - trade-off respecto de otras opciones;
 - recomendación justificada, únicamente si existe una opción claramente superior.
 
 ### Validaciones
 
-- Puede devolver una sola propuesta cuando no existan alternativas genuinas.
+- Debe devolver exactamente cuatro propuestas; la etapa reintenta si el conteo o la diferenciación no cumplen.
 - Cada par de propuestas debe diferenciarse en al menos tres dimensiones significativas.
 - El conjunto no puede contener variantes cosméticas.
 - Ninguna propuesta puede contradecir el objetivo confirmado.
@@ -468,8 +483,10 @@ Producir contenido educativo final, continuo, riguroso y apto para lectura y nar
 - No debe contener instrucciones internas, notas de trabajo, placeholders ni texto truncado.
 - Texto y futura narración deben sostener la misma tesis y evidencia sustantiva.
 - El contenido visible se genera en inglés.
-- La voz corresponde a un profesor-autor que conduce una investigación, no a un asistente que enumera o resume información.
-- La prosa debe ser rigurosa sin exhibicionismo académico, clara sin dilución intelectual, sobria, continua, argumentativa y apta para ser escuchada.
+- La voz sigue la orientación registrada en el análisis. No importa un marco de ciencias sociales o de filosofía salvo que la intención lo pida o una idea no se entienda sin un marco breve y subordinado.
+- En orientación teórica, la voz corresponde a un profesor-autor que conduce una indagación del campo pedido, no a un asistente que enumera o resume información. La prosa es argumentativa.
+- En orientación aplicada, la voz corresponde a los fundamentos de trabajo de esa materia: criterios, distinciones de oficio y juicio sobre casos explicables en palabras. No abre con la filosofía o la historia del campo para dar profundidad, y no enseña el procedimiento de una herramienta. No alarga la lección con teoría adyacente para cubrir una banda de palabras.
+- La prosa debe ser rigurosa sin exhibicionismo académico, clara sin dilución intelectual, sobria, continua y apta para ser escuchada.
 - Puede formular una posición cuando la evidencia la justifica, distinguiendo hechos, inferencias, interpretaciones y valoraciones.
 - No utiliza tono de autoayuda, entusiasmo genérico, grandilocuencia, halagos ni promesas de transformación personal.
 - Los tecnicismos se explican cuando sean necesarios para que el nivel definido pueda comprenderlos.

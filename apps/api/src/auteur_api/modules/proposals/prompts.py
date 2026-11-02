@@ -2,23 +2,27 @@
 
 from __future__ import annotations
 
-from auteur_api.modules.onboarding.prompts import SHARED_RULES
+from auteur_api.modules.onboarding.prompts import SHARED_RULES, orientation_block
 from auteur_api.modules.onboarding.schemas import (
     LearningObjectiveOutput,
     LearningRequestInputs,
 )
 
-GENERATE_PROPOSALS_V1 = "generate_proposals_v1"
+GENERATE_PROPOSALS_V3 = "generate_proposals_v4"
 
 GENERATE_PROPOSALS_INSTRUCTIONS = (
     SHARED_RULES
     + """
-Task: propose between 1 and 5 genuinely different LEARNING DIRECTIONS that all serve
+Task: propose exactly 4 genuinely different LEARNING DIRECTIONS that all serve
 the confirmed learning objective (AI-STG-04).
 
-Each proposal is a distinct intellectual trajectory: a different way of organizing
-the journey toward the same objective. It is NOT a course structure. Do not list
-modules, lessons, sources or Knowledge Checks (that belongs to the Blueprint).
+Each proposal is a distinct trajectory through the learner's subject: a different
+way of organizing the journey toward the same objective. It is NOT a course
+structure. Do not list modules, lessons, sources or Knowledge Checks (that
+belongs to the Blueprint). Stay inside the learner's subject and the ORIENTATION
+block. Do not add a philosophical, historical, or social-theory frame unless the
+objective asks for it or one foundation cannot be understood without a short
+subordinate frame.
 
 Differentiation (mandatory):
 - Every pair of proposals must differ in at least three of these dimensions:
@@ -27,23 +31,35 @@ Differentiation (mandatory):
   intellectual_outcome, depth, reasoning_type.
 - Report every pair in pairwise_differences with the dimensions that actually differ
   and a concrete explanation. Cosmetic variations (title, tone, duration) do not count.
-- If the objective honestly admits only one sound direction, return exactly one
-  proposal, no recommendation, and an empty pairwise_differences list. Do not pad.
+- Always return exactly four proposals — never fewer, never more. Do not pad with
+  cosmetic variants; each must be a substantively different learning direction.
 
 Each proposal must state: title, description, central_question, intellectual_outcome
 (what the learner will be able to do/understand), distinctive_trajectory (the arc
-in prose), organizing_principle, scope, exclusions, level_fit (how it suits the
-declared level), guiding_authors_or_traditions (real, verifiable), estimated_modules
-(usually 4-8), estimated_duration, main_advantage and a real trade_off. Do not hide
-limitations.
+in prose), organizing_principle, direction_label, scope, exclusions, level_fit
+(how it suits the declared level), guiding_authors_or_traditions (real, verifiable),
+estimated_modules (usually 4-8), estimated_lessons, estimated_duration,
+main_advantage and a real trade_off. Do not hide limitations.
+
+direction_label is the short tab name for the folder: 2 to 4 words that name the
+approach, in the same line as "Through history", "By theme",
+"Through case studies", or "Through debate". It is not a sentence, not the title,
+and not a restatement of organizing_principle. Each proposal's direction_label
+must be distinct.
+
+estimated_lessons is a total count implied by the module estimate, not a lesson
+list. estimated_duration is a short range such as "4-6 weeks". Do not write
+"self-paced" or put lesson or module titles in any field.
 
 Recommendation: only when one direction is clearly superior for THIS learner's
 declared level, expected outcome and prior knowledge, set recommended_proposal_index
 and give a concrete recommendation_reason. Never rank, score or declare a proposal
 objectively superior. Otherwise leave both null.
 
-Do not propose directions that drift from the confirmed objective or that require
-practical demonstration.
+Do not propose directions that drift from the confirmed objective, that require
+performing a physical procedure, or that teach how to operate a tool or software.
+Authors, history, and philosophical frames belong only when the intention asks
+for them or a necessary foundation cannot be understood without them.
 """
 )
 
@@ -53,6 +69,7 @@ def generate_proposals_input(
     objective: LearningObjectiveOutput,
     *,
     learning_object: str | None,
+    learning_orientation: str,
     materialist_hint: bool,
 ) -> str:
     parts = [
@@ -69,6 +86,8 @@ def generate_proposals_input(
         f"experience_level: {inputs.experience_level.value}",
         f"prior_knowledge: {inputs.prior_knowledge or '(not provided)'}",
         f"expected_outcome: {inputs.expected_outcome}",
+        f"learning_orientation: {learning_orientation}",
+        orientation_block(learning_orientation),
     ]
     if learning_object:
         parts.append(f"selected_learning_object: {learning_object}")

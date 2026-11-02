@@ -146,7 +146,7 @@ def test_one_module_course_end_to_end(live: TestClient) -> None:
 
     body = live.post(f"/api/v1/learning-requests/{rid}/proposals").json()
     proposals = body["proposals"]["proposals"]
-    assert 1 <= len(proposals) <= 5  # BR-PRP-001
+    assert len(proposals) == 4
     assert len({p["title"] for p in proposals}) == len(proposals)  # BR-PRP-002
     chosen = body["proposals"]["recommended_proposal_id"] or proposals[0]["id"]
     live.post(

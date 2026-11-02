@@ -356,6 +356,8 @@ class ModuleSummary(BaseModel):
     index: int
     title: str
     function: str
+    guiding_questions: list[str]
+    outcome: str
     state: ModuleState
     lesson_count: int
     published_at: datetime | None
@@ -375,13 +377,18 @@ class CourseResponse(BaseModel):
     final_synthesis: CourseSynthesisOutput | None
     failure: str | None
     module_limit: int | None
+    created_at: datetime
 
 
 class CourseListItem(BaseModel):
     """One generated course in the private library (BR-LIB-001..003).
 
     Custom title, level and learning progress are not stored on `courses`.
-    `updated_at` is the last build activity used for BR-LIB-002 ordering.
+    The list stays ordered by `updated_at`, the last build activity (BR-LIB-002).
+    `created_at` is the creation stamp. The folder stack sorts by it so the
+    oldest course keeps number 01 and the first palette color.
+    `module_count` and `lesson_count` are written with the course so the
+    library can show them without loading lesson bodies.
     """
 
     id: str
@@ -390,6 +397,9 @@ class CourseListItem(BaseModel):
     objective_statement: str
     state: CourseState
     updated_at: datetime
+    created_at: datetime
+    module_count: int
+    lesson_count: int
 
 
 class CourseListResponse(BaseModel):
@@ -413,6 +423,7 @@ class SourceView(BaseModel):
     source_type: SourceType
     role: SourceRole
     verification: Verification
+    limits: str | None = None
 
 
 class ModuleResponse(BaseModel):

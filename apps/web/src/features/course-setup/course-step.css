@@ -1,0 +1,14 @@
+.course-step {
+  margin: 0 0 32px;
+  color: var(--m-3, rgba(37, 42, 64, 0.62));
+  font-family: var(--font-ui, var(--font-inter)), Inter, system-ui, sans-serif;
+  font-size: calc(12px * var(--ft, 1));
+  font-weight: 550;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.course-step--tight {
+  margin-bottom: 12px;
+}

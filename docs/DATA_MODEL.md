@@ -23,9 +23,15 @@ El plano de datos para el navegador sigue siendo FastAPI (DEC-012). El frontend 
 
 ### `profiles`
 
-1:1 con `auth.users`. Trigger `private.handle_new_user` inserta el perfil.
+1:1 con `auth.users`. Trigger `private.handle_new_user` inserta el perfil y, si el alta trae datos, copia `first_name`, `last_name`, `birth_date` y `gender`. Esos campos quedan vacíos en un visitante anónimo. No autorizan nada: el acceso sigue saliendo del `id` verificado.
 
-El usuario demo `00000000-0000-0000-0000-000000000001` se siembra para el bypass no productivo (DEC-011).
+`birth_date` es una fecha que, al momento del alta, corresponde a una edad de 13 a 120 años. `gender` es `female`, `male`, `nonbinary` o `undisclosed`. Si el alta llega por Google y el nombre todavía está vacío, el trigger parte `full_name` en `first_name` y `last_name` y guarda `avatar_url` solo cuando es una URL `https`.
+
+El visitante sin cuenta es un usuario anónimo de Supabase. Al crear la cuenta, el mismo `id` se conserva, o FastAPI mueve las filas si entra a una cuenta que ya existía (DEC-011).
+
+`generated_course_count` es el número de filas en `courses` de ese perfil. Un trigger lo mantiene al insertar, borrar o reasignar un curso. El login lee este campo; no lista la tabla de cursos (DEC-018).
+
+`text_size` es la preferencia de lectura del miembro: `small`, `standard`, `large` o `extra_large`. El valor por defecto es `standard`, que conserva el tamaño actual del texto de una lesson. No autoriza nada.
 
 ### `learning_requests`
 
@@ -74,8 +80,8 @@ auth.users
 
 ## RLS
 
-RLS está activo en las nueve tablas de dominio. Policies `authenticated`: `user_id = auth.uid()` para SELECT/INSERT/UPDATE. Sin DELETE para el learner. `anon` no tiene grants. El backend escribe con `service_role` después de atribuir `user_id` (JWT o demo).
+RLS está activo en las nueve tablas de dominio. `anon` y `authenticated` no tienen grants: el navegador no lee esas tablas. `service_role` escribe después de verificar el JWT. Una policy restrictiva niega el JWT anónimo si esos grants volvieran a existir.
 
 ## Fuera de alcance
 
-Autenticación de producto, Stripe, créditos, ElevenLabs, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`).
+Stripe, créditos, ElevenLabs, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011).

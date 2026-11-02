@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 
 from auteur_api.ai.client import AIClient, get_ai_client
-from auteur_api.core.auth import CurrentUserId
+from auteur_api.core.auth import CurrentUserId, PermanentUserId
 from auteur_api.core.background import TaskRunner, bind_request_tasks, get_task_runner
 from auteur_api.core.config import settings
 from auteur_api.core.errors import not_found
@@ -89,7 +89,7 @@ async def retry_course(
     store: Store,
     ai: AI,
     runner: Runner,
-    user_id: CurrentUserId,
+    user_id: PermanentUserId,
     _: Annotated[None, Depends(bind_request_tasks)],
 ) -> CourseResponse:
     """UF-14: one explicit retry from the same Blueprint. Published modules stay."""

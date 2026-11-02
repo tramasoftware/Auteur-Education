@@ -2,23 +2,200 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import { createPathRouteMotion } from "./pathRouteMotion";
 
 import { proposalsJourneyStep, useJourneyStep } from "@/components/layout";
+import { CheckingGenerationStatus } from "@/components/ui";
 import {
-  BulletList,
-  Button,
-  DefinitionList,
-  ErrorNotice,
-  GenerationStatus,
-  Notice,
-  StatusBadge,
-  outlineButtonClass,
-} from "@/components/ui";
+  BLUEPRINT_APPROACH_MS,
+  BLUEPRINT_PHASES,
+  PROPOSAL_APPROACH_MS,
+  PROPOSAL_PHASES,
+  StagePreparing,
+} from "@/features/course-setup/StagePreparing";
+import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
+import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
-import { learningRequests } from "@/lib/api";
+import { isAnonymousClaim } from "@/lib/auth/claims";
+import { blueprints, learningRequests } from "@/lib/api";
 import { recallRequestId, rememberRequestId } from "@/lib/session";
+import { createClient } from "@/lib/supabase/browser";
 import type { CourseProposal, LearningRequest } from "@/types/generator";
+
+function directionLabel(proposal: CourseProposal): string {
+  const label = proposal.direction_label?.trim();
+  return label || proposal.organizing_principle;
+}
+
+function durationLabel(value: string): string {
+  return value.replace(/\s*\(\s*self-paced\s*\)\s*/gi, "").trim();
+}
+
+function estimateLine(proposal: CourseProposal): string {
+  const parts = [`${proposal.estimated_modules} modules`];
+  if ((proposal.estimated_lessons ?? 0) > 0) {
+    parts.push(`${proposal.estimated_lessons} lessons`);
+  }
+  const duration = durationLabel(proposal.estimated_duration);
+  if (duration) {
+    parts.push(duration);
+  }
+  return parts.join(" · ");
+}
+
+const PAPER_PAGE_NEXT_LABEL =
+  "Main advantage, trade-off, leaves out, and scope";
+const PAPER_PAGE_PREV_LABEL =
+  "Learning path, a good fit, central question, and outcome";
+
+function ProposalPaperBackBody({ proposal }: { proposal: CourseProposal }) {
+  return (
+    <dl>
+      <dt>Main advantage</dt>
+      <dd>{proposal.main_advantage}</dd>
+      <dt>Trade-off</dt>
+      <dd>{proposal.trade_off}</dd>
+      <dt>Leaves out</dt>
+      <dd>
+        {proposal.exclusions.length > 0 ? proposal.exclusions.join(", ") : "None named."}
+      </dd>
+      <dt>Scope</dt>
+      <dd>
+        {proposal.scope.length > 0 ? (
+          <ol>
+            {proposal.scope.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ol>
+        ) : (
+          "None named."
+        )}
+      </dd>
+    </dl>
+  );
+}
+
+function RoutePaperStack({
+  proposal,
+  paperPage,
+  onGoPaperPage,
+}: {
+  proposal: CourseProposal;
+  paperPage: number;
+  onGoPaperPage: (page: number) => void;
+}) {
+  const stackRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const stack = stackRef.current;
+    const measure = measureRef.current;
+    if (!stack || !measure) {
+      return;
+    }
+    const syncHeight = () => {
+      stack.style.setProperty("--ae-paper-height", `${measure.offsetHeight}px`);
+    };
+    syncHeight();
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(measure);
+    return () => observer.disconnect();
+  }, [proposal]);
+
+  return (
+    <div className="ae-route-paper-stack" ref={stackRef}>
+      <div className="ae-route-paper ae-route-paper-visible">
+        {paperPage === 0 ? (
+          <>
+            <dl>
+              <dt>Learning path</dt>
+              <dd>{proposal.distinctive_trajectory}</dd>
+              <dt>A good fit if</dt>
+              <dd>{proposal.level_fit}</dd>
+              <dt>Central question</dt>
+              <dd>{proposal.central_question}</dd>
+              <dt>You will be able to</dt>
+              <dd>{proposal.intellectual_outcome}</dd>
+            </dl>
+            <button
+              className="ae-paper-turn next"
+              type="button"
+              onClick={() => onGoPaperPage(1)}
+            >
+              {PAPER_PAGE_NEXT_LABEL}
+            </button>
+          </>
+        ) : (
+          <>
+            <ProposalPaperBackBody proposal={proposal} />
+            <button
+              className="ae-paper-turn prev"
+              type="button"
+              onClick={() => onGoPaperPage(0)}
+            >
+              {PAPER_PAGE_PREV_LABEL}
+            </button>
+          </>
+        )}
+      </div>
+      <div className="ae-route-paper-measure" aria-hidden="true" ref={measureRef}>
+        <div className="ae-route-paper">
+          <ProposalPaperBackBody proposal={proposal} />
+          <span className="ae-paper-turn prev">{PAPER_PAGE_PREV_LABEL}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function turnPaperSheet(
+  sheet: HTMLElement,
+  direction: 1 | -1,
+  commit: () => void,
+  onDone?: () => void,
+) {
+  const finish = () => {
+    onDone?.();
+  };
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced || typeof sheet.animate !== "function" || !sheet.parentElement) {
+    commit();
+    finish();
+    return;
+  }
+
+  const ghost = sheet.cloneNode(true) as HTMLElement;
+  ghost.removeAttribute("id");
+  ghost.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.inert = true;
+  ghost.classList.add("ae-paper-clone");
+  ghost.style.height = `${sheet.getBoundingClientRect().height}px`;
+  ghost.style.transformOrigin = direction > 0 ? "left center" : "right center";
+  sheet.parentElement.appendChild(ghost);
+  sheet.setAttribute("aria-busy", "true");
+  commit();
+
+  const angle = direction > 0 ? -78 : 78;
+  const animation = ghost.animate(
+    [
+      { transform: "translate3d(0,0,0) rotateY(0deg)", opacity: 1 },
+      {
+        transform: `translate3d(${direction > 0 ? -36 : 36}px,0,0) rotateY(${angle}deg)`,
+        opacity: 0,
+      },
+    ],
+    { duration: 720, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" },
+  );
+  const settle = () => {
+    ghost.remove();
+    sheet.removeAttribute("aria-busy");
+    finish();
+  };
+  animation.finished.then(settle).catch(settle);
+}
 
 /** Dedupe concurrent generateProposals calls for the same request (React Strict Mode). */
 const proposalGenerationByRequest = new Map<string, Promise<LearningRequest>>();
@@ -41,290 +218,511 @@ async function loadProposalsForRequest(requestId: string): Promise<LearningReque
   return generation;
 }
 
-/** UF-03: 1-5 differentiated learning directions; select one, then Blueprint. */
+/** UF-04: exactly four learning directions (DEC-019); select one, then Blueprint. */
 export function ProposalsFeature() {
   const router = useRouter();
   const params = useSearchParams();
   const blockingActiveBuild = useRedirectIfActiveBuild();
-  const [request, setRequest] = useState<LearningRequest | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const loadSeq = useRef(0);
-
   const requestId = params.get("request") ?? recallRequestId();
   const missing = !requestId;
+  const [request, setRequest] = useState<LearningRequest | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [failure, setFailure] = useState<"directions" | "blueprint" | null>(null);
+  const [pathScreen, setPathScreen] = useState<"off" | "wait" | "ready">(() =>
+    requestId ? "wait" : "off",
+  );
+  const [blueprintScreen, setBlueprintScreen] = useState<"off" | "wait" | "ready">("off");
+  const [blueprintTargetId, setBlueprintTargetId] = useState<string | null>(null);
+  const loadSeq = useRef(0);
 
-  useJourneyStep(proposalsJourneyStep(request));
+  useJourneyStep(
+    proposalsJourneyStep(
+      request ? { ...request, selected_proposal_id: selectedId } : request,
+    ),
+  );
 
-  useEffect(() => {
+  const loadDirections = useCallback(() => {
     if (!requestId) {
       return;
     }
     const seq = ++loadSeq.current;
-    let cancelled = false;
-    (async () => {
-      setBusy(true);
-      setError(null);
+    void (async () => {
       try {
-        const current = await loadProposalsForRequest(requestId);
-        if (!cancelled && seq === loadSeq.current) {
-          rememberRequestId(current.id);
-          setRequest(current);
+        const current = await learningRequests.get(requestId);
+        if (seq !== loadSeq.current) {
+          return;
         }
-      } catch (err) {
-        if (!cancelled && seq === loadSeq.current) {
-          setError(err);
-        }
-      } finally {
-        if (!cancelled && seq === loadSeq.current) {
+        rememberRequestId(current.id);
+        if (current.state === "objective_confirmed") {
+          setPathScreen("wait");
+          const generated = await loadProposalsForRequest(requestId);
+          if (seq !== loadSeq.current) {
+            return;
+          }
+          setRequest(generated);
+          setSelectedId(generated.selected_proposal_id);
+          setFailure(null);
+          setPathScreen("ready");
           setBusy(false);
+          return;
         }
+        if (current.state === "blueprint_generating" && current.blueprint_id) {
+          setRequest(current);
+          setSelectedId(current.selected_proposal_id);
+          setBlueprintTargetId(current.blueprint_id);
+          setBlueprintScreen("wait");
+          setPathScreen("off");
+          setFailure(null);
+          setBusy(false);
+          return;
+        }
+        setRequest(current);
+        setSelectedId(current.selected_proposal_id);
+        setPathScreen("off");
+        setFailure(null);
+        setBusy(false);
+      } catch {
+        if (seq !== loadSeq.current) {
+          return;
+        }
+        setRequest(null);
+        setPathScreen("off");
+        setFailure("directions");
+        setBusy(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [requestId]);
 
-  const act = async (action: () => Promise<LearningRequest>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setRequest(await action());
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    loadDirections();
+  }, [loadDirections]);
+
+  useEffect(() => {
+    if (blueprintScreen !== "wait" || !blueprintTargetId) {
+      return;
     }
+    let cancelled = false;
+    const tick = () => {
+      void blueprints.get(blueprintTargetId).then(
+        (next) => {
+          if (cancelled) {
+            return;
+          }
+          if (next.state === "failed") {
+            setBlueprintScreen("off");
+            setFailure("blueprint");
+            setBusy(false);
+            return;
+          }
+          if (next.state !== "generating") {
+            setBlueprintScreen("ready");
+          }
+        },
+        () => {
+          // A single poll miss should not drop the wait. The next tick retries.
+        },
+      );
+    };
+    tick();
+    const handle = window.setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+  }, [blueprintScreen, blueprintTargetId]);
+
+  const selectPath = (proposalId: string) => {
+    setSelectedId(proposalId);
   };
 
   const startBlueprint = async () => {
-    if (!request) {
+    if (!request || !selectedId) {
       return;
     }
+    setFailure(null);
+    setBlueprintScreen("wait");
     setBusy(true);
-    setError(null);
     try {
+      if (request.selected_proposal_id !== selectedId) {
+        setRequest(await learningRequests.selectProposal(request.id, selectedId));
+      }
+      const supabase = createClient();
+      const { data } = await supabase.auth.getClaims();
+      if (isAnonymousClaim(data?.claims as Record<string, unknown> | undefined)) {
+        setBlueprintScreen("off");
+        const next = `/proposals?request=${request.id}`;
+        router.push(`/login?next=${encodeURIComponent(next)}`);
+        setBusy(false);
+        return;
+      }
       const blueprint = await learningRequests.startBlueprint(request.id);
+      if (blueprint.state === "failed") {
+        setBlueprintScreen("off");
+        setFailure("blueprint");
+        setBusy(false);
+        return;
+      }
+      if (blueprint.state === "generating") {
+        setBlueprintTargetId(blueprint.id);
+        setBusy(false);
+        return;
+      }
+      setBlueprintScreen("off");
       router.push(`/blueprints/${blueprint.id}`);
-    } catch (err) {
-      setError(err);
+      setBusy(false);
+    } catch {
+      setBlueprintScreen("off");
+      setFailure("blueprint");
       setBusy(false);
     }
   };
 
+  const pathPreparing =
+    pathScreen === "off" ? null : (
+      <StagePreparing
+        frameTitle="Your learning path"
+        backHref={requestId ? `/onboarding?request=${requestId}` : "/onboarding"}
+        backLabel="Learning objective"
+        backAriaLabel="Back to your learning objective"
+        heading="Your learning paths are taking shape"
+        readyHeading="Your learning paths are ready"
+        phases={PROPOSAL_PHASES}
+        approachMs={PROPOSAL_APPROACH_MS}
+        ready={pathScreen === "ready"}
+        onContinue={() => setPathScreen("off")}
+      />
+    );
+
+  const blueprintPreparing =
+    blueprintScreen === "off" ? null : (
+      <StagePreparing
+        frameTitle="Blueprint"
+        backHref={requestId ? `/proposals?request=${requestId}` : "/proposals"}
+        backLabel="Learning paths"
+        backAriaLabel="Back to your learning paths"
+        heading="Your Blueprint is taking shape"
+        readyHeading="Your Blueprint is ready"
+        phases={BLUEPRINT_PHASES}
+        approachMs={BLUEPRINT_APPROACH_MS}
+        crawlMs={30000}
+        ready={blueprintScreen === "ready"}
+        onContinue={() => {
+          if (blueprintTargetId) {
+            router.push(`/blueprints/${blueprintTargetId}`);
+          }
+        }}
+      />
+    );
+
   if (blockingActiveBuild) {
-    return <p className="text-sm text-muted">Checking generation status…</p>;
+    return <CheckingGenerationStatus />;
   }
 
   if (missing) {
     return (
-      <Notice tone="info" title="No learning request yet">
-        <Link
-          href="/onboarding"
-          className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface no-underline cursor-pointer hover:bg-foreground/85"
-        >
-          <span aria-hidden>+</span>
+      <section className="caminos-h">
+        <CourseStepLabel step={3} label="Your learning path" tight />
+        <h2>Choose a way in</h2>
+        <p>Start with a question. The learning paths appear after the objective is confirmed.</p>
+        <Link className="btn" href="/onboarding">
           Create a course
+          <span className="ar" aria-hidden="true" />
         </Link>
-      </Notice>
+      </section>
     );
   }
 
+  if (pathScreen !== "off") {
+    return pathPreparing;
+  }
+
   if (!request) {
-    return (
-      <div className="flex flex-col gap-3">
-        {busy ? (
-          <GenerationStatus
-            title="Preparing learning directions"
-            description="Building differentiated ways to approach your confirmed objective."
-          />
-        ) : (
-          <p className="text-sm text-muted">Loading…</p>
-        )}
-        <ErrorNotice error={error} />
-      </div>
-    );
+    if (failure === "directions") {
+      return (
+        <StageFailure
+          {...stageFailureCopy.directions}
+          busy={busy}
+          onRetry={() => {
+            setBusy(true);
+            setPathScreen("wait");
+            loadDirections();
+          }}
+          onBack={() => router.push(`/onboarding?request=${requestId}`)}
+        />
+      );
+    }
+    return pathPreparing;
   }
 
   if (!request.objective?.confirmed) {
     return (
-      <Notice tone="info" title="Confirm your objective first">
-        <Link href={`/onboarding?request=${request.id}`} className={`mt-3 ${outlineButtonClass}`}>
-          Return to the objective step.
+      <section className="caminos-h">
+        <CourseStepLabel step={3} label="Your learning path" tight />
+        <h2>Confirm your objective first</h2>
+        <p>Learning paths are built from a confirmed objective.</p>
+        <Link className="btn" href={`/onboarding?request=${request.id}`}>
+          Return to the objective
+          <span className="ar" aria-hidden="true" />
         </Link>
-      </Notice>
+      </section>
     );
   }
 
   const set = request.proposals;
 
+  if (failure === "blueprint") {
+    return (
+      <StageFailure
+        {...stageFailureCopy.blueprint}
+        busy={busy}
+        onRetry={() => {
+          void startBlueprint();
+        }}
+        onBack={() => setFailure(null)}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Confirmed objective</h2>
-        <p className="text-sm leading-6">{request.objective.statement}</p>
+    <>
+      {blueprintPreparing}
+      <section className="caminos-h">
+        <CourseStepLabel step={3} label="Your learning path" tight />
+        <h2>Choose a way in</h2>
+        <p>One subject. Different ways to understand it.</p>
+        {set?.recommendation_reason ? <p className="reco">{set.recommendation_reason}</p> : null}
       </section>
 
-      {!set ? (
-        <ErrorNotice error={error} />
-      ) : (
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold">
-              {set.proposals.length === 1
-                ? "One sound direction"
-                : `${set.proposals.length} learning directions`}
-            </h2>
-            <p className="text-sm text-muted">
-              Each direction is a different intellectual trajectory toward the same
-              objective. Choose the one that fits how you want to think about it.
-            </p>
-          </div>
-          {set.recommended_proposal_id && set.recommendation_reason ? (
-            <Notice tone="info" title="Suggested for you">
-              {set.recommendation_reason}
-            </Notice>
-          ) : null}
-          <ul className="flex flex-col gap-4">
-            {set.proposals.map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                recommended={proposal.id === set.recommended_proposal_id}
-                selected={proposal.id === request.selected_proposal_id}
-                busy={busy}
-                onSelect={() =>
-                  act(() => learningRequests.selectProposal(request.id, proposal.id))
-                }
-              />
-            ))}
-          </ul>
-          <ErrorNotice error={error} />
-          <div className="flex flex-wrap items-center gap-3">
-            {request.blueprint_id ? (
-              <Link
-                href={`/blueprints/${request.blueprint_id}`}
-                className="inline-flex items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
-              >
-                Open the Blueprint
-              </Link>
-            ) : (
-              <Button
-                type="button"
-                busy={busy}
-                disabled={!request.selected_proposal_id}
-                onClick={startBlueprint}
-              >
-                Generate the Blueprint
-              </Button>
-            )}
-            <Link
-              href={`/onboarding?request=${request.id}`}
-              className={outlineButtonClass}
-            >
-              Back to objective
-            </Link>
-          </div>
-        </section>
+      {!set ? null : (
+        <Paths
+          proposals={set.proposals}
+          recommendedId={set.recommended_proposal_id}
+          selectedId={selectedId}
+          busy={busy}
+          blueprintId={request.blueprint_id}
+          onSelect={selectPath}
+          onContinue={startBlueprint}
+        />
       )}
-    </div>
+    </>
   );
 }
 
-type ProposalCardProps = {
-  proposal: CourseProposal;
-  recommended: boolean;
-  selected: boolean;
+function Paths({
+  proposals,
+  recommendedId,
+  selectedId,
+  busy,
+  blueprintId,
+  onSelect,
+  onContinue,
+}: {
+  proposals: CourseProposal[];
+  recommendedId: string | null;
+  selectedId: string | null;
   busy: boolean;
-  onSelect: () => void;
-};
+  blueprintId: string | null;
+  onSelect: (proposalId: string) => void;
+  onContinue: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef<ReturnType<typeof createPathRouteMotion> | null>(null);
+  const proposalsRef = useRef(proposals);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [paperPage, setPaperPage] = useState(0);
+  const [routeClass, setRouteClass] = useState("");
+  const turningRef = useRef(false);
+  const proposalIds = proposals.map((proposal) => proposal.id).join();
+  proposalsRef.current = proposals;
 
-function ProposalCard({ proposal, recommended, selected, busy, onSelect }: ProposalCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+    const motion = createPathRouteMotion(root, {
+      onOpen: (index) => {
+        setPaperPage(0);
+        setOpenId(proposalsRef.current[index]?.id ?? null);
+      },
+      onClose: () => {
+        setPaperPage(0);
+        setOpenId(null);
+      },
+      onClass: setRouteClass,
+    });
+    motionRef.current = motion;
+    return () => {
+      motion.dispose();
+      motionRef.current = null;
+    };
+  }, [proposalIds]);
+
+  const goPaperPage = (next: number) => {
+    if (turningRef.current || next === paperPage || next < 0 || next > 1) {
+      return;
+    }
+    const sheet = rootRef.current?.querySelector<HTMLElement>(
+      ".ae-route-folder.on .ae-route-paper-visible",
+    );
+    const commit = () => setPaperPage(next);
+    if (!sheet) {
+      commit();
+      return;
+    }
+    turningRef.current = true;
+    turnPaperSheet(sheet, next > paperPage ? 1 : -1, commit, () => {
+      turningRef.current = false;
+    });
+  };
 
   return (
-    <li
-      className={`flex flex-col gap-3 rounded-xl border bg-surface p-5 ${
-        selected ? "border-foreground" : "border-line"
-      }`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h3 className="font-serif text-base font-semibold">{proposal.title}</h3>
-          <p className="text-sm text-muted">{proposal.description}</p>
-        </div>
-        <div className="flex gap-2">
-          {recommended ? <StatusBadge label="Suggested" tone="active" /> : null}
-          {selected ? <StatusBadge label="Selected" tone="success" /> : null}
-        </div>
-      </div>
-
-      <div
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
-          expanded ? "grid-rows-[1fr] opacity-100" : "-mb-3 grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className={expanded ? "overflow-hidden" : "pointer-events-none overflow-hidden"}>
-          <div className="flex flex-col gap-3">
-            <DefinitionList
-              items={[
-                { term: "Central question", detail: proposal.central_question },
-                { term: "You will be able to", detail: proposal.intellectual_outcome },
-                { term: "Trajectory", detail: proposal.distinctive_trajectory },
-                { term: "Organizing principle", detail: proposal.organizing_principle },
-                {
-                  term: "Guided by",
-                  detail: <BulletList items={proposal.guiding_authors_or_traditions} />,
-                },
-                { term: "Scope", detail: <BulletList items={proposal.scope} /> },
-                { term: "Leaves out", detail: <BulletList items={proposal.exclusions} /> },
-                { term: "Fit for your level", detail: proposal.level_fit },
-                {
-                  term: "Estimate",
-                  detail: `${proposal.estimated_modules} modules · ${proposal.estimated_duration}`,
-                },
-                { term: "Main advantage", detail: proposal.main_advantage },
-                { term: "Trade-off", detail: proposal.trade_off },
-              ]}
-            />
-            <Button
-              type="button"
-              variant={selected ? "secondary" : "primary"}
-              disabled={busy || selected}
-              onClick={() => {
-                setExpanded(false);
-                onSelect();
-              }}
-              className="self-start"
+    <>
+      <div className={`ae-routes${routeClass ? ` ${routeClass}` : ""}`} ref={rootRef}>
+        <div className="caminos">
+          {proposals.map((proposal, index) => (
+            <article
+              className={`lomo${proposal.id === selectedId ? " is-selected" : ""}`}
+              key={proposal.id}
+              style={{ ["--ae-card-index" as string]: String(index) }}
             >
-              {selected ? "Selected" : "Choose this direction"}
-            </Button>
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
+              <button
+                className="ae-route-open"
+                type="button"
+                aria-expanded={openId === proposal.id}
+                aria-controls={`ae-route-detail-${proposal.id}`}
+                aria-label={`Open learning path: ${proposal.title}`}
+                onClick={() => {
+                  void motionRef.current?.open(index);
+                }}
+              >
+                <span className="sol folder-tab">
+                  <span className="folder-tab-label">
+                    <span className="n">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="tt">{directionLabel(proposal)}</span>
+                  </span>
+                </span>
+                <span className="caja">
+                  <span className="abierto">
+                    <b>{proposal.title}</b>
+                    <span className="sint">{proposal.description}</span>
+                    <span className="pie">
+                      <span className="ae-route-meta">
+                        {estimateLine(proposal)}
+                      </span>
+                      <span className="ver">Open learning path</span>
+                      <span className="marca-path">
+                        {proposal.id === selectedId
+                          ? "Selected"
+                          : proposal.id === recommendedId
+                            ? "Suggested"
+                            : "Choose this path"}
+                      </span>
+                    </span>
+                  </span>
+                </span>
+              </button>
+            </article>
+          ))}
+        </div>
+        <div className="ae-route-panels">
+          {proposals.map((proposal, index) => (
+            <article
+              className={`ae-route-folder${openId === proposal.id ? " on" : ""}${proposal.id === selectedId ? " is-selected" : ""}`}
+              id={`ae-route-detail-${proposal.id}`}
+              key={proposal.id}
+              inert={openId !== proposal.id}
+              aria-labelledby={`ae-route-heading-${proposal.id}`}
             >
-              Read less
-              <span aria-hidden className="inline-block -rotate-90 text-base leading-none">
-                ›
+              <span className="folder-tab">
+                <span className="folder-tab-label">
+                  <span className="n">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="tt">{directionLabel(proposal)}</span>
+                </span>
               </span>
-            </button>
-          </div>
+              <div className="ae-route-spread">
+                <div className="ae-route-summary">
+                  <h3 id={`ae-route-heading-${proposal.id}`} tabIndex={-1}>
+                    {proposal.title}
+                  </h3>
+                  <p>{proposal.description}</p>
+                  {proposal.guiding_authors_or_traditions.length > 0 ? (
+                    <p className="aut">
+                      <span>Authors</span>
+                      {proposal.guiding_authors_or_traditions.join(", ")}
+                    </p>
+                  ) : null}
+                  <div className="ae-route-facts">
+                    <div>
+                      <b>{proposal.estimated_modules}</b>
+                      modules
+                    </div>
+                    {(proposal.estimated_lessons ?? 0) > 0 ? (
+                      <div>
+                        <b>{proposal.estimated_lessons}</b>
+                        lessons
+                      </div>
+                    ) : null}
+                    <div>
+                      <b>{durationLabel(proposal.estimated_duration)}</b>
+                      duration
+                    </div>
+                  </div>
+                </div>
+                <RoutePaperStack
+                  proposal={proposal}
+                  paperPage={openId === proposal.id ? paperPage : 0}
+                  onGoPaperPage={goPaperPage}
+                />
+                <div className="ae-route-actions">
+                  <button
+                    className="btn ae-route-choose"
+                    type="button"
+                    disabled={busy || proposal.id === selectedId}
+                    onClick={() => {
+                      onSelect(proposal.id);
+                      motionRef.current?.close(true);
+                    }}
+                  >
+                    {proposal.id === selectedId ? "Selected" : "Choose this path"}
+                    {proposal.id === selectedId ? null : (
+                      <span className="ar" aria-hidden="true" />
+                    )}
+                  </button>
+                  <button
+                    className="ae-route-close"
+                    type="button"
+                    onClick={() => {
+                      motionRef.current?.close(false);
+                    }}
+                  >
+                    Back to learning paths
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
-      {expanded ? null : (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="inline-flex items-center gap-1.5 self-start text-sm text-muted hover:text-foreground"
-        >
-          Read more
-          <span aria-hidden className="inline-block rotate-90 text-base leading-none">
-            ›
+      <div className="cierre-o">
+        <div className="acciones">
+          {blueprintId ? (
+            <Link className="btn" href={`/blueprints/${blueprintId}`}>
+              Open the Blueprint
+              <span className="ar" aria-hidden="true" />
+            </Link>
+          ) : (
+            <button className="btn" type="button" disabled={busy || !selectedId} onClick={onContinue}>
+              Generate the Blueprint
+              <span className="ar" aria-hidden="true" />
+            </button>
+          )}
+          <span className="nota">
+            {selectedId ? "This path will shape the Blueprint." : "Choose a learning path to continue."}
           </span>
-        </button>
-      )}
-    </li>
+        </div>
+      </div>
+    </>
   );
 }

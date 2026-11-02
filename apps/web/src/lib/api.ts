@@ -13,16 +13,9 @@ import type {
   Lesson,
 } from "@/types/generator";
 
+import { ensureAccessToken } from "@/lib/auth/session";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-const ACCESS_TOKEN_KEY = "auteur.demo.accessToken";
-
-function accessToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
-}
 
 export class ApiError extends Error {
   code: ErrorCode | "network_error";
@@ -47,13 +40,13 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
-  const token = accessToken();
+  const token = path === "/health" ? null : await ensureAccessToken();
   try {
     response = await fetch(`${API_URL}/api/v1${path}`, {
       cache: "no-store",
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
@@ -97,6 +90,58 @@ function post<T>(path: string, body?: unknown): Promise<T> {
     method: "POST",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+export type AccountProfile = {
+  first_name: string | null;
+  last_name: string | null;
+  birth_date: string | null;
+  gender: string | null;
+  avatar_url: string | null;
+  image_url: string | null;
+  text_size: string | null;
+  generated_course_count: number;
+};
+
+export function getAccountProfile(): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile");
+}
+
+export function updateAccountProfile(profile: {
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string;
+}): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(profile),
+  });
+}
+
+export function updateAccountTextSize(textSize: string): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile/text-size", {
+    method: "PATCH",
+    body: JSON.stringify({ text_size: textSize }),
+  });
+}
+
+function sendAccountPhoto(method: "POST" | "PUT", file: File): Promise<AccountProfile> {
+  const body = new FormData();
+  body.append("file", file);
+  return request<AccountProfile>("/auth/profile/photo", { method, body });
+}
+
+export function createAccountPhoto(file: File): Promise<AccountProfile> {
+  return sendAccountPhoto("POST", file);
+}
+
+export function updateAccountPhoto(file: File): Promise<AccountProfile> {
+  return sendAccountPhoto("PUT", file);
+}
+
+export function deleteAccountPhoto(): Promise<AccountProfile> {
+  return request<AccountProfile>("/auth/profile/photo", { method: "DELETE" });
 }
 
 export async function getHealth(): Promise<HealthResponse> {

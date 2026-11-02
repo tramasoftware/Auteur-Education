@@ -98,7 +98,7 @@ El onboarding incluye:
 Los niveles disponibles son:
 
 - `None`;
-- `Basic`;
+- `Beginner`;
 - `Intermediate`;
 - `Advanced`.
 
@@ -120,6 +120,8 @@ Antes de generar propuestas, el sistema clasifica la solicitud como:
 - `Allowed with reframing`: contiene una dimensión teórica, histórica, crítica o metodológica que puede enseñarse si se reformula honestamente;
 - `Incompatible`: depende de demostraciones visuales, corporales, manuales, procedimentales o de otro tipo que el producto no puede ofrecer adecuadamente.
 
+Una solicitud `Incompatible` por ese límite del medio no continúa. El sistema explica el límite y ofrece tres intenciones relacionadas, enseñables por texto y audio, en la misma orientación ya clasificada (comprensión del campo, o fundamentos aplicados de la materia). Cada una trae la intención y un resultado esperado básico; el nivel parte de `None` y los conocimientos previos van vacíos. La persona puede editarlos. Elegir una crea una solicitud nueva, que se clasifica de nuevo. No son propuestas de curso ni equivalen al resultado práctico original. Si el riesgo es seguridad o armas, no se ofrecen alternativas.
+
 Las solicitudes prácticas en ámbitos sensibles, como salud, derecho, finanzas, seguridad o armas, deben limitarse a alfabetización general y contenidos teóricos o rechazarse cuando no puedan tratarse de manera segura.
 
 ### 4. Objetivo confirmado
@@ -140,7 +142,7 @@ El sistema no debe inventar ensayos, proyectos, portfolios, presentaciones, carg
 
 ### 5. Propuestas de curso
 
-El sistema genera entre una y cinco propuestas de curso. Puede generar menos de cinco cuando el objetivo sea específico o no existan alternativas sustantivas.
+El sistema genera exactamente cuatro propuestas de curso (`DEC-019`). Si no existen cuatro direcciones sustantivamente distintas, la etapa reintenta; no se acepta un conjunto incompleto.
 
 Las propuestas deben diferenciarse realmente por dimensiones como:
 
@@ -656,7 +658,7 @@ El MVP debe superar, como mínimo, los siguientes escenarios:
 2. Una intención específica omite precisión innecesaria.
 3. Una entrada no inglesa solicita reformulación y no genera contenido en otro idioma.
 4. Un objetivo práctico incompatible se reformula honestamente o se rechaza.
-5. Un tema específico genera menos de cinco propuestas sin variantes artificiales.
+5. Tras confirmar el objetivo, el visitante recibe exactamente cuatro propuestas diferenciadas, sin variantes artificiales.
 6. Registro, login y pago conservan la intención y propuesta seleccionada.
 7. El primer curso utiliza el beneficio de bienvenida sin consumir créditos.
 8. Un Blueprint flexible puede aprobarse sin cumplir cantidades orientativas cuando existe justificación pedagógica.

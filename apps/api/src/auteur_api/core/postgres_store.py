@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -12,8 +14,15 @@ from supabase import Client, create_client
 
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
-from auteur_api.core.errors import not_found
-from auteur_api.core.store import assert_owner
+from auteur_api.core.errors import ApiError, invalid_state, not_found
+from auteur_api.core.store import (
+    CourseBuildSnapshot,
+    ProfileRecord,
+    assert_owner,
+    course_structure_counts,
+    normalize_text_size,
+)
+from auteur_api.modules.auth.profile_photo import BUCKET, profile_photo_object_path
 from auteur_api.modules.blueprints.schemas import (
     BlueprintInternal,
     BlueprintRecord,
@@ -51,12 +60,24 @@ from auteur_api.modules.onboarding.schemas import (
 )
 from auteur_api.modules.proposals.schemas import ProposalSetRecord
 
+logger = logging.getLogger("auteur_api.profile_photo")
+
 
 def _dt(value: object) -> datetime:
     if isinstance(value, datetime):
         return value
     text = str(value).replace("Z", "+00:00")
     return datetime.fromisoformat(text)
+
+
+def _https_avatar(value: object) -> str | None:
+    if (
+        not isinstance(value, str)
+        or not value.startswith("https://")
+        or len(value) > 500
+    ):
+        return None
+    return value
 
 
 def _dump(model: object | None) -> object | None:
@@ -323,6 +344,7 @@ class PostgresStore:
         )
 
     def save_course(self, record: CourseRecord) -> None:
+        module_count, lesson_count = course_structure_counts(record)
         self._table("courses").upsert(
             {
                 "id": record.id,
@@ -334,6 +356,8 @@ class PostgresStore:
                 "subtitle": record.subtitle,
                 "objective_statement": record.objective_statement,
                 "state": record.state.value,
+                "module_count": module_count,
+                "lesson_count": lesson_count,
                 "current_activity": record.current_activity,
                 "final_synthesis": _dump(record.final_synthesis),
                 "course_audit": _dump(record.course_audit),
@@ -398,7 +422,7 @@ class PostgresStore:
         rows = (
             self._table("courses")
             .select(
-                "id,title,subtitle,objective_statement,state,updated_at,created_at"
+                "id,title,subtitle,objective_statement,state,updated_at,created_at,module_count,lesson_count"
             )
             .eq("user_id", user_id)
             .order("updated_at", desc=True)
@@ -414,6 +438,33 @@ class PostgresStore:
                 objective_statement=row["objective_statement"],
                 state=CourseState(row["state"]),
                 updated_at=_dt(row.get("updated_at") or row["created_at"]),
+                created_at=_dt(row["created_at"]),
+                module_count=row.get("module_count") or 0,
+                lesson_count=row.get("lesson_count") or 0,
+            )
+            for row in rows
+        ]
+
+    def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
+        """BR-GEN-002: one read of course and module states. Lessons stay unread."""
+        response = self._read(
+            lambda: self._table("courses")
+            .select("id,state,module_limit,final_synthesis,modules(state)")
+            .eq("user_id", user_id)
+            .not_.in_("state", ["complete", "failed"])
+            .order("updated_at", desc=True)
+        )
+        rows = response.data or []
+        return [
+            CourseBuildSnapshot(
+                id=row["id"],
+                state=CourseState(row["state"]),
+                module_limit=row["module_limit"],
+                has_final_synthesis=row.get("final_synthesis") is not None,
+                module_states=tuple(
+                    ModuleState(module["state"])
+                    for module in (row.get("modules") or [])
+                ),
             )
             for row in rows
         ]
@@ -485,6 +536,192 @@ class PostgresStore:
             or []
         )
         return [row["id"] for row in rows]
+
+    def get_profile(self, user_id: str) -> ProfileRecord:
+        rows = (
+            self._table("profiles")
+            .select(
+                "first_name,last_name,birth_date,gender,avatar_url,image_url,"
+                "text_size,generated_course_count"
+            )
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not rows:
+            return ProfileRecord()
+        row = rows[0]
+        raw_birth = row.get("birth_date")
+        birth_date = date.fromisoformat(str(raw_birth)[:10]) if raw_birth else None
+        return ProfileRecord(
+            first_name=row.get("first_name"),
+            last_name=row.get("last_name"),
+            birth_date=birth_date,
+            gender=row.get("gender"),
+            avatar_url=_https_avatar(row.get("avatar_url")),
+            image_url=_https_avatar(row.get("image_url")),
+            text_size=normalize_text_size(row.get("text_size")),
+            generated_course_count=int(row.get("generated_course_count") or 0),
+        )
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord:
+        """Replace the signed-in member's editable profile fields."""
+        current = self.get_profile(user_id)
+        birth_date = (
+            profile.birth_date.isoformat() if profile.birth_date else None
+        )
+        payload = {
+            "first_name": profile.first_name,
+            "last_name": profile.last_name,
+            "birth_date": birth_date,
+            "gender": profile.gender,
+        }
+        existing = (
+            self._table("profiles")
+            .select("id")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if existing:
+            self._table("profiles").update(payload).eq("id", user_id).execute()
+        else:
+            self._table("profiles").insert({"id": user_id, **payload}).execute()
+        return ProfileRecord(
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+            avatar_url=current.avatar_url,
+            image_url=current.image_url,
+            text_size=current.text_size,
+            generated_course_count=current.generated_course_count,
+        )
+
+    def update_text_size(self, user_id: str, text_size: str) -> ProfileRecord:
+        """Store the signed-in member's reading text size."""
+        self._ensure_profile(user_id)
+        self._table("profiles").update(
+            {"text_size": normalize_text_size(text_size)}
+        ).eq("id", user_id).execute()
+        return self.get_profile(user_id)
+
+    def create_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if current.image_url:
+            raise invalid_state("A profile photo already exists. Update it instead.")
+        self._ensure_profile(user_id)
+        url = self._store_profile_photo(user_id, content, content_type)
+        try:
+            self._write_image_url(user_id, url)
+        except Exception:
+            self._remove_profile_photo(user_id)
+            logger.warning("profile_photo_url_save_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not save your photo. Try again.",
+            ) from None
+        return self.get_profile(user_id)
+
+    def replace_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if not current.image_url:
+            raise not_found("Profile photo")
+        url = self._store_profile_photo(user_id, content, content_type)
+        self._write_image_url(user_id, url)
+        return self.get_profile(user_id)
+
+    def delete_profile_photo(self, user_id: str) -> ProfileRecord:
+        current = self.get_profile(user_id)
+        if not current.image_url:
+            raise not_found("Profile photo")
+        self._remove_profile_photo(user_id)
+        self._write_image_url(user_id, None)
+        return self.get_profile(user_id)
+
+    def _ensure_profile(self, user_id: str) -> None:
+        existing = (
+            self._table("profiles")
+            .select("id")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not existing:
+            self._table("profiles").insert({"id": user_id}).execute()
+
+    def _write_image_url(self, user_id: str, image_url: str | None) -> None:
+        self._table("profiles").update({"image_url": image_url}).eq(
+            "id", user_id
+        ).execute()
+
+    def _store_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> str:
+        path = profile_photo_object_path(user_id)
+        try:
+            self._client.storage.from_(BUCKET).upload(
+                path,
+                content,
+                file_options={
+                    "content-type": content_type,
+                    "upsert": "true",
+                    "cache-control": "3600",
+                },
+            )
+        except Exception:
+            logger.warning("profile_photo_upload_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not save your photo. Try again.",
+            ) from None
+        base = self._client.storage.from_(BUCKET).get_public_url(path)
+        url = f"{base}{'&' if '?' in base else '?'}v={time.time_ns()}"
+        if not url.startswith("https://") or len(url) > 500:
+            self._remove_profile_photo(user_id)
+            raise ApiError("internal_error", "Could not save your photo. Try again.")
+        return url
+
+    def _remove_profile_photo(self, user_id: str) -> None:
+        try:
+            self._client.storage.from_(BUCKET).remove(
+                [profile_photo_object_path(user_id)]
+            )
+        except Exception:
+            logger.warning("profile_photo_delete_failed")
+            raise ApiError(
+                "provider_unavailable",
+                "Could not remove your photo. Try again.",
+            ) from None
+
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
+        """Move one visitor's rows onto a permanent account (BR-AUT-005)."""
+        if from_user_id == to_user_id:
+            return
+        self._table("profiles").upsert({"id": to_user_id}, on_conflict="id").execute()
+        for table in (
+            "learning_requests",
+            "objective_versions",
+            "blueprints",
+            "blueprint_versions",
+            "courses",
+            "modules",
+            "lessons",
+            "generation_traces",
+        ):
+            self._table(table).update({"user_id": to_user_id}).eq(
+                "user_id", from_user_id
+            ).execute()
 
     def _insert_trace(self, scope_id: str, user_id: str, trace: StageTrace) -> None:
         self._table("generation_traces").insert(

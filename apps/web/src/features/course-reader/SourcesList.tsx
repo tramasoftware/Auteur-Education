@@ -3,7 +3,7 @@ import type { SourceView } from "@/types/generator";
 /** BR-SRC-008: the sources actually used, with their verification status. */
 export function SourcesList({ sources }: { sources: SourceView[] }) {
   if (sources.length === 0) {
-    return <p className="text-sm text-muted">No sources listed.</p>;
+    return null;
   }
   return (
     <ol className="flex flex-col gap-2 text-sm">
@@ -25,6 +25,9 @@ export function SourcesList({ sources }: { sources: SourceView[] }) {
             · {source.source_type.replace("_", " ")} · {source.role.replace("_", " ")}
             {source.verification === "unverified" ? " · not verified by search" : ""}
           </span>
+          {source.limits ? (
+            <span className="mt-1 block text-muted">{source.limits}</span>
+          ) : null}
         </li>
       ))}
     </ol>

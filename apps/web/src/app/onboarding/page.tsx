@@ -1,14 +1,38 @@
 import { Suspense } from "react";
 
-import { JourneyFrame } from "@/components/layout";
 import { OnboardingFeature } from "@/features/onboarding";
+import { OnboardingScreen } from "@/features/onboarding/OnboardingScreen";
+import { accountSession, type AccountSession } from "@/lib/auth/claims";
+import { fetchGeneratedCourseCount } from "@/lib/auth/entry";
+import { onboardingExitHref } from "@/lib/auth/redirect";
+import { createClient } from "@/lib/supabase/server";
 
-export default function OnboardingPage() {
+export const dynamic = "force-dynamic";
+
+export default async function OnboardingPage() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  const session = accountSession(
+    error ? undefined : (data?.claims as Record<string, unknown> | undefined),
+  );
+
+  const exitHref = await resolveOnboardingExitHref(session);
+
   return (
-    <JourneyFrame title="Start a learning request">
+    <OnboardingScreen exitHref={exitHref}>
       <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
         <OnboardingFeature />
       </Suspense>
-    </JourneyFrame>
+    </OnboardingScreen>
   );
+}
+
+async function resolveOnboardingExitHref(session: AccountSession): Promise<string> {
+  if (session.status !== "registered") {
+    return "/";
+  }
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getSession();
+  const count = await fetchGeneratedCourseCount(data.session?.access_token);
+  return onboardingExitHref(count);
 }

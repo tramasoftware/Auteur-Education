@@ -8,6 +8,7 @@ faked in tests. Credentials come from Settings and never leave the server.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -101,26 +102,109 @@ class OpenAIClient:
         web_search: bool = False,
         search_context_size: str = "medium",
     ) -> StructuredResult[T]:
+        # A structured response does not carry the search citations on this
+        # model. The pages are collected from a plain search call, then the
+        # schema call writes the evidence against that list (DEC-002).
+        started = time.perf_counter()
+        citations: list[Citation] = []
+        search_usage = TokenUsage()
+        structured_input = input
+        if web_search:
+            # Two searches raise the chance of pages. A miss or a provider
+            # error on the last try does not stop the lesson (DEC-002).
+            for attempt in range(1, 3):
+                instructions = (
+                    _SEARCH_INSTRUCTIONS if attempt == 1 else _SEARCH_RETRY
+                )
+                try:
+                    search_response = await self._request(
+                        lambda instructions=instructions: (
+                            self._client.responses.create(
+                                model=self._model,
+                                instructions=instructions,
+                                input=input,
+                                tools=[
+                                    {
+                                        "type": "web_search",
+                                        "search_context_size": search_context_size,
+                                    }
+                                ],
+                                tool_choice={"type": "web_search"},
+                                include=["web_search_call.action.sources"],
+                                store=False,
+                                **self._reasoning_kwargs(),
+                            )
+                        )
+                    )
+                except GenerationError as exc:
+                    logger.warning(
+                        "web_search_failed attempt=%s kind=%s",
+                        attempt,
+                        exc.kind,
+                    )
+                    citations = []
+                    continue
+                search_usage = _add_usage(search_usage, _read_usage(search_response))
+                citations = _collect_citations(search_response)
+                logger.info(
+                    "web_search_citations attempt=%s count=%s",
+                    attempt,
+                    len(citations),
+                )
+                if citations:
+                    break
+            # Collapse editions before the writer sees the list, and before
+            # the lesson cap of six, so copies do not fill the slots.
+            from auteur_api.modules.generation.validators import research_pages
+
+            citations = research_pages(citations)
+            logger.info("web_search_works count=%s", len(citations))
+            structured_input = f"{input}\n\n{_search_pages_block(citations)}"
+
+        try:
+            response = await self._request(
+                lambda: self._client.responses.parse(
+                    model=self._model,
+                    instructions=instructions,
+                    input=structured_input,
+                    text_format=schema,
+                    store=False,
+                    **self._reasoning_kwargs(),
+                )
+            )
+        except ValidationError as exc:
+            raise GenerationError("schema", _summarize_validation_error(exc)) from exc
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        parsed = response.output_parsed
+        if parsed is None:
+            refusal = _find_refusal(response)
+            if refusal:
+                raise GenerationError("refusal", "The model declined the request.")
+            raise GenerationError(
+                "schema", "The model did not return a structured result."
+            )
+
+        usage = _add_usage(_read_usage(response), search_usage)
+
+        return StructuredResult(
+            parsed=parsed,
+            usage=usage,
+            model=response.model or self._model,
+            duration_ms=duration_ms,
+            citations=citations,
+        )
+
+    def _reasoning_kwargs(self) -> dict:
+        if not self._reasoning_effort:
+            return {}
+        return {"reasoning": {"effort": self._reasoning_effort}}
+
+    async def _request(self, call):  # noqa: ANN001
         import openai
 
-        kwargs: dict = {}
-        if web_search:
-            kwargs["tools"] = [
-                {"type": "web_search", "search_context_size": search_context_size}
-            ]
-        if self._reasoning_effort:
-            kwargs["reasoning"] = {"effort": self._reasoning_effort}
-
-        started = time.perf_counter()
         try:
-            response = await self._client.responses.parse(
-                model=self._model,
-                instructions=instructions,
-                input=input,
-                text_format=schema,
-                store=False,
-                **kwargs,
-            )
+            return await call()
         except openai.APITimeoutError as exc:
             raise GenerationError("provider", "The AI provider timed out.") from exc
         except openai.RateLimitError as exc:
@@ -136,35 +220,62 @@ class OpenAIClient:
             raise GenerationError(
                 "provider", f"The AI provider returned status {exc.status_code}."
             ) from exc
-        except ValidationError as exc:
-            raise GenerationError("schema", _summarize_validation_error(exc)) from exc
-        duration_ms = int((time.perf_counter() - started) * 1000)
 
-        parsed = response.output_parsed
-        if parsed is None:
-            refusal = _find_refusal(response)
-            if refusal:
-                raise GenerationError("refusal", "The model declined the request.")
-            raise GenerationError(
-                "schema", "The model did not return a structured result."
-            )
 
-        usage = TokenUsage()
-        if response.usage is not None:
-            usage = TokenUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
-                total_tokens=response.usage.total_tokens,
-            )
+_SEARCH_INSTRUCTIONS = (
+    "Use the web search tool on the lesson in the input. Open relevant pages. "
+    "Each page must be a different work: do not list another edition, archive "
+    "copy, or mirror of the same entry. Copy each url exactly as the tool "
+    "returned it. Do not invent or repair a path."
+)
 
-        return StructuredResult(
-            parsed=parsed,
-            usage=usage,
-            model=response.model or self._model,
-            duration_ms=duration_ms,
-            citations=_collect_citations(response),
+_SEARCH_RETRY = (
+    "The previous reply included no pages from the web search tool. "
+    "Call the web search tool now and open relevant pages. Each page must be "
+    "a different work, not another edition or archive of the same entry. "
+    "Copy each url exactly as the tool returned it."
+)
+
+
+def _search_pages_block(citations: list[Citation]) -> str:
+    """The only URLs the structured research step is allowed to cite."""
+    if not citations:
+        return (
+            "SEARCH PAGES: none. This search returned no pages. "
+            "Leave the evidence list empty."
         )
+    lines = [
+        "SEARCH PAGES: these are the only pages this search returned. "
+        "Copy each url exactly into the evidence set. Do not add or repair a url."
+    ]
+    for citation in citations:
+        title = citation.title.strip() or "untitled"
+        lines.append(f"- title: {title}")
+        lines.append(f"  url: {citation.url}")
+    return "\n".join(lines)
+
+
+def _read_usage(response) -> TokenUsage:  # noqa: ANN001
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return TokenUsage()
+    details = getattr(usage, "output_tokens_details", None)
+    reasoning = getattr(details, "reasoning_tokens", 0) if details is not None else 0
+    return TokenUsage(
+        input_tokens=usage.input_tokens or 0,
+        output_tokens=usage.output_tokens or 0,
+        reasoning_tokens=reasoning or 0,
+        total_tokens=usage.total_tokens or 0,
+    )
+
+
+def _add_usage(left: TokenUsage, right: TokenUsage) -> TokenUsage:
+    return TokenUsage(
+        input_tokens=left.input_tokens + right.input_tokens,
+        output_tokens=left.output_tokens + right.output_tokens,
+        reasoning_tokens=left.reasoning_tokens + right.reasoning_tokens,
+        total_tokens=left.total_tokens + right.total_tokens,
+    )
 
 
 def _find_refusal(response) -> str | None:  # noqa: ANN001 - provider type
@@ -177,22 +288,84 @@ def _find_refusal(response) -> str | None:  # noqa: ANN001 - provider type
     return None
 
 
+def _item_url(item) -> str:  # noqa: ANN001
+    if isinstance(item, dict):
+        return str(item.get("url") or "")
+    return str(getattr(item, "url", "") or "")
+
+
+def _item_title(item) -> str:  # noqa: ANN001
+    if isinstance(item, dict):
+        return str(item.get("title") or "")
+    return str(getattr(item, "title", "") or "")
+
+
+def _remember_citation(
+    found: dict[str, Citation], order: list[str], url: str, title: str
+) -> None:
+    url = url.strip()
+    if not url:
+        return
+    title = title.strip()
+    current = found.get(url)
+    if current is None:
+        found[url] = Citation(url=url, title=title)
+        order.append(url)
+        return
+    if title and not current.title:
+        found[url] = Citation(url=current.url, title=title)
+
+
+# The provider appends this to URLs it actually opened. A bare slug the model
+# types does not carry it.
+_TOOL_LINK = re.compile(r"https://[^\s<>\"']*utm_source=openai[^\s<>\"']*")
+
+
 def _collect_citations(response) -> list[Citation]:  # noqa: ANN001
-    citations: list[Citation] = []
-    seen: set[str] = set()
-    for item in response.output:
-        if getattr(item, "type", None) != "message":
+    """URLs the search tool actually returned.
+
+    Annotations, opened pages, and `web_search_call.action.sources`. A URL is
+    also kept when the tool marked it with utm_source=openai. The string the
+    model writes into a schema field is not a citation.
+    """
+    found: dict[str, Citation] = {}
+    order: list[str] = []
+    for item in getattr(response, "output", None) or []:
+        item_type = getattr(item, "type", None)
+        if item_type == "message":
+            for content in getattr(item, "content", None) or []:
+                for annotation in getattr(content, "annotations", None) or []:
+                    if getattr(annotation, "type", None) != "url_citation":
+                        continue
+                    _remember_citation(
+                        found,
+                        order,
+                        _item_url(annotation),
+                        _item_title(annotation),
+                    )
+                text = getattr(content, "text", "") or ""
+                for match in _TOOL_LINK.findall(text):
+                    _remember_citation(found, order, match.rstrip(".,)"), "")
             continue
-        for content in item.content:
-            for annotation in getattr(content, "annotations", None) or []:
-                if getattr(annotation, "type", None) != "url_citation":
-                    continue
-                url = annotation.url
-                if url in seen:
-                    continue
-                seen.add(url)
-                citations.append(Citation(url=url, title=annotation.title))
-    return citations
+        if item_type != "web_search_call":
+            continue
+        action = getattr(item, "action", None)
+        if action is None:
+            continue
+        action_type = getattr(action, "type", None)
+        if isinstance(action, dict):
+            action_type = action.get("type")
+        if action_type == "search":
+            sources = (
+                action.get("sources")
+                if isinstance(action, dict)
+                else getattr(action, "sources", None)
+            )
+            for source in sources or []:
+                _remember_citation(found, order, _item_url(source), _item_title(source))
+        elif action_type in ("open_page", "find_in_page"):
+            _remember_citation(found, order, _item_url(action), "")
+    return [found[url] for url in order]
 
 
 def _summarize_validation_error(exc: ValidationError) -> str:

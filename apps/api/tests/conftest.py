@@ -23,9 +23,13 @@ from auteur_api.ai.client import (
     get_ai_client,
 )
 from auteur_api.ai.tracing import TokenUsage
+from auteur_api.core.auth import get_current_user_id, require_permanent_user_id
 from auteur_api.core.background import ImmediateTaskRunner, get_task_runner
 from auteur_api.core.store import get_store, store
 from auteur_api.main import app
+
+# Harness identity only. The application has no fallback user.
+TEST_USER_ID = "10000000-0000-4000-8000-000000000001"
 
 main_module.startup_resume_enabled = False
 
@@ -97,7 +101,43 @@ def fake_ai() -> Iterator[FakeAIClient]:
 
 
 @pytest.fixture
-def client(fake_ai: FakeAIClient) -> Iterator[TestClient]:
+def client(
+    fake_ai: FakeAIClient, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
+    async def not_gone(url: str, client: object = None) -> bool:
+        return False
+
+    # Source checks must not call the network. Tests that care about 404
+    # replace this again.
+    monkeypatch.setattr(
+        "auteur_api.modules.generation.validators.page_is_gone",
+        not_gone,
+    )
+    store.reset()
+    app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_task_runner] = lambda: ImmediateTaskRunner()
+    app.dependency_overrides[get_current_user_id] = lambda: TEST_USER_ID
+    app.dependency_overrides[require_permanent_user_id] = lambda: TEST_USER_ID
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.pop(get_store, None)
+    app.dependency_overrides.pop(get_task_runner, None)
+    app.dependency_overrides.pop(get_current_user_id, None)
+    app.dependency_overrides.pop(require_permanent_user_id, None)
+    store.reset()
+
+
+@pytest.fixture
+def open_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """Real auth dependency: no token is 401 in every environment."""
+
+    async def not_gone(url: str, client: object = None) -> bool:
+        return False
+
+    monkeypatch.setattr(
+        "auteur_api.modules.generation.validators.page_is_gone",
+        not_gone,
+    )
     store.reset()
     app.dependency_overrides[get_store] = lambda: store
     app.dependency_overrides[get_task_runner] = lambda: ImmediateTaskRunner()

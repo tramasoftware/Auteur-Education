@@ -67,7 +67,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-ONB-001` | Interfaz, entradas, objetivos, propuestas, Blueprints, cursos, audios, Knowledge Checks, mensajes y emails del MVP funcionan exclusivamente en inglés. | Una entrada no inglesa no avanza hacia propuestas ni contenido. |
 | `BR-ONB-002` | El sistema no traduce automáticamente entradas ni genera cursos en otros idiomas dentro del MVP. | Ante otro idioma solicita una reformulación en inglés y conserva el recorrido recuperable. |
 | `BR-ONB-003` | El usuario puede iniciar con una intención temática, una pregunta o una capacidad deseada en texto libre. | No se le exige redactar un prompt técnico ni conocer la estructura de un curso. |
-| `BR-ONB-004` | El nivel debe ser exactamente uno de `None`, `Basic`, `Intermediate` o `Advanced`. | No se persisten valores alternativos ni múltiples niveles simultáneos. |
+| `BR-ONB-004` | El nivel debe ser exactamente uno de `None`, `Beginner`, `Intermediate` o `Advanced`. | No se persisten valores alternativos ni múltiples niveles simultáneos. |
 | `BR-ONB-005` | Los conocimientos previos son opcionales y no reemplazan la selección de nivel. | El sistema acepta el campo vacío y no inventa experiencia ausente. |
 | `BR-ONB-006` | Nivel y conocimientos previos modifican punto de entrada, lenguaje, profundidad, recapitulación, ejemplos, fuentes y razonamiento exigido. | Dos usuarios con preparación distinta no reciben únicamente un cambio superficial de tono. |
 | `BR-ONB-007` | El ritmo, las horas semanales y un calendario personal de cursada no forman parte del onboarding del MVP. | Ninguno de esos datos es obligatorio para avanzar. |
@@ -81,7 +81,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-OBJ-001` | Toda solicitud se clasifica como `Allowed`, `Allowed with reframing` o `Incompatible` antes de generar propuestas. | Solo una solicitud compatible o reformulada puede continuar. |
 | `BR-OBJ-002` | El contenido debe poder comprenderse plenamente mediante texto y audio. | Una habilidad dependiente de demostración visual, corporal, manual o procedimental no se promete como resultado del curso. |
 | `BR-OBJ-003` | Una solicitud práctica reformulable conserva su intención y se convierte en un objetivo teórico, histórico, crítico, conceptual o metodológico honesto. | La alternativa se presenta como reformulación y no como equivalente al dominio práctico original. |
-| `BR-OBJ-004` | Una solicitud incompatible no puede llegar al checkout ni producir propuestas como si fuera realizable. | El sistema explica el límite y, si existe, ofrece una alternativa segura. |
+| `BR-OBJ-004` | Una solicitud incompatible no puede llegar al checkout ni producir propuestas de curso como si fuera realizable. | El sistema explica el límite. Si el límite es el medio y el riesgo no es seguridad ni armas, ofrece tres intenciones nuevas en la misma orientación (`DEC-015` / `DEC-016`), cada una con intención y un resultado esperado básico. Elegir una no continúa esta solicitud: crea una solicitud nueva con nivel `None` y conocimientos previos vacíos, salvo que la persona edite esos campos antes. Esa solicitud se clasifica de nuevo. |
 | `BR-OBJ-005` | Solicitudes de salud, derecho, finanzas, seguridad, armas u otros ámbitos sensibles se limitan a alfabetización general y contenido teórico seguro, o se rechazan. | No se generan instrucciones personalizadas de alto impacto. |
 | `BR-OBJ-006` | Si la intención es amplia o ambigua, el sistema ofrece entre dos y cinco objetos de aprendizaje relevantes y texto libre cuando corresponda. | Las opciones precisan el objeto; no son todavía propuestas completas de curso. |
 | `BR-OBJ-007` | Si la intención ya es suficientemente específica, la etapa de precisión se omite. | El usuario no atraviesa preguntas redundantes. |
@@ -94,7 +94,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 
 | ID | Regla | Consecuencia verificable |
 | --- | --- | --- |
-| `BR-PRP-001` | El sistema genera entre una y cinco propuestas genuinamente diferentes. | Puede devolver menos de cinco; nunca agrega variantes cosméticas para completar una cantidad. |
+| `BR-PRP-001` | El sistema genera exactamente cuatro propuestas genuinamente diferentes (`DEC-019`). | Siempre cuatro; nunca rellena con variantes cosméticas ni acepta un conjunto incompleto. |
 | `BR-PRP-002` | Las propuestas deben diferenciarse en al menos tres dimensiones significativas, como pregunta central, alcance, orden, tradición, profundidad o tipo de razonamiento. | La comparación permite reconocer recorridos intelectuales distintos. |
 | `BR-PRP-003` | Cada propuesta informa título, descripción, pregunta central, resultado, recorrido, alcance, exclusiones, adecuación al nivel, estimaciones y principal ventaja o trade-off. | El visitante comprende qué clase de curso recibiría antes de registrarse y pagar. |
 | `BR-PRP-004` | Si una propuesta es claramente superior para el objetivo, el sistema puede recomendarla con una razón concreta. | La recomendación no oculta alternativas ni se basa en una preferencia arbitraria. |

@@ -30,21 +30,24 @@ def test_proposals_require_confirmed_objective(client, fake_ai) -> None:
     assert response.status_code == 409
 
 
-def test_generates_between_one_and_five_with_recommendation(client, fake_ai) -> None:
+def test_generates_exactly_four_with_recommendation(client, fake_ai) -> None:
     request_id = confirmed_request(client, fake_ai)
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(3))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
     response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
     assert response.status_code == 200
     body = response.json()
     assert body["state"] == "proposals_ready"
-    assert len(body["proposals"]["proposals"]) == 3
+    assert len(body["proposals"]["proposals"]) == 4
     assert (
         body["proposals"]["recommended_proposal_id"]
         == (body["proposals"]["proposals"][0]["id"])
     )
     assert body["proposals"]["recommendation_reason"]
+    first = body["proposals"]["proposals"][0]
+    assert first["direction_label"] == "Through history"
+    assert first["estimated_lessons"] == 12
     # BR-PRP-007: no structure leaks into proposals.
-    assert "modules" not in body["proposals"]["proposals"][0]
+    assert "modules" not in first
 
     # Idempotent: a second call keeps the same set (BR-PRP-003).
     again = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
@@ -55,8 +58,8 @@ def test_generates_between_one_and_five_with_recommendation(client, fake_ai) -> 
 def test_insufficient_differentiation_is_retried(client, fake_ai) -> None:
     # BR-PRP-002: at least three differing dimensions per pair.
     request_id = confirmed_request(client, fake_ai)
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(2, dims=2))
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(2, dims=3))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4, dims=2))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4, dims=3))
     response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
     assert response.status_code == 200
     assert "proposals_insufficiently_differentiated" in fake_ai.calls[-1]["input"]
@@ -65,19 +68,20 @@ def test_insufficient_differentiation_is_retried(client, fake_ai) -> None:
 def test_too_many_proposals_is_retried(client, fake_ai) -> None:
     request_id = confirmed_request(client, fake_ai)
     fake_ai.enqueue(ProposalSetOutput, proposal_set(6))
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(1))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
     response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
     assert response.status_code == 200
     body = response.json()["proposals"]
-    assert len(body["proposals"]) == 1
-    assert body["recommended_proposal_id"] is None
+    assert len(body["proposals"]) == 4
 
 
 def test_select_exactly_one_and_change_before_blueprint(client, fake_ai) -> None:
     request_id = confirmed_request(client, fake_ai)
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(2))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
     body = client.post(f"/api/v1/learning-requests/{request_id}/proposals").json()
-    first, second = (p["id"] for p in body["proposals"]["proposals"])
+    props = body["proposals"]["proposals"]
+    assert len(props) == 4
+    first, second = props[0]["id"], props[1]["id"]
 
     missing = client.post(
         f"/api/v1/learning-requests/{request_id}/proposals/select",
@@ -99,10 +103,26 @@ def test_select_exactly_one_and_change_before_blueprint(client, fake_ai) -> None
     assert changed.json()["selected_proposal_id"] == second
 
 
+def test_direction_label_is_validated_and_retried(client, fake_ai) -> None:
+    request_id = confirmed_request(client, fake_ai)
+    invalid = proposal_set(4)
+    invalid["proposals"][0]["direction_label"] = (
+        "Distinguish define and relate social versus demographic drivers"
+    )
+    fake_ai.enqueue(ProposalSetOutput, invalid)
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
+    response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
+    assert response.status_code == 200
+    assert "proposal_direction_label_invalid" in fake_ai.calls[-1]["input"]
+    assert response.json()["proposals"]["proposals"][0]["direction_label"] == (
+        "Through history"
+    )
+
+
 def test_objective_revision_invalidates_proposals(client, fake_ai) -> None:
     # BR-OBJ-011
     request_id = confirmed_request(client, fake_ai)
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(2))
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
     client.post(f"/api/v1/learning-requests/{request_id}/proposals")
     fake_ai.enqueue(LearningObjectiveOutput, objective("Compare causes."))
     revised = client.post(

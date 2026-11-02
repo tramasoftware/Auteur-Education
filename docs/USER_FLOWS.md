@@ -105,7 +105,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 4. El sistema solicita qué quiere aprender o llegar a comprender.
 5. El visitante escribe una intención, pregunta o capacidad deseada en texto libre.
 6. El sistema valida que la entrada tenga contenido significativo.
-7. Se crea una solicitud anónima en estado `Draft` y comienza `UF-02`.
+7. Si no hay una cuenta iniciada, el sistema guarda lo escrito y abre el login. Al volver, el formulario sigue completo. Con una cuenta iniciada, se crea la solicitud y comienza `UF-02`.
 
 #### Variantes y errores
 
@@ -116,7 +116,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 
 #### Resultado
 
-Existe una solicitud anónima persistida con la intención inicial.
+Existe una solicitud persistida en la cuenta iniciada, con la intención inicial.
 
 ### UF-02 Completar el onboarding y confirmar el objetivo
 
@@ -129,7 +129,7 @@ Existe una solicitud anónima persistida con la intención inicial.
 #### Recorrido principal
 
 1. El sistema solicita el nivel de experiencia.
-2. El visitante selecciona exactamente uno: `None`, `Basic`, `Intermediate` o `Advanced`.
+2. El visitante selecciona exactamente uno: `None`, `Beginner`, `Intermediate` o `Advanced`.
 3. Puede describir opcionalmente conocimientos previos, estudios, experiencia o dificultades.
 4. El sistema solicita el resultado que espera alcanzar.
 5. El visitante explica qué quiere poder comprender, distinguir, explicar, comparar, analizar o evaluar.
@@ -186,12 +186,14 @@ La solicitud contiene intención, nivel, contexto opcional, resultado esperado, 
 
 1. El sistema clasifica la solicitud como `Incompatible`.
 2. Explica por qué el resultado depende de una demostración visual, corporal, manual, procedimental o insegura.
-3. Si existe una alternativa teórica segura y honesta, la ofrece sin presentarla como equivalente al resultado original.
-4. No genera propuestas ni permite avanzar al checkout con la solicitud incompatible.
+3. Si el límite es el medio y el riesgo no es seguridad ni armas, ofrece tres intenciones relacionadas. Cada una tiene título, explicación, un texto de intención y un resultado esperado básico. Se puede enseñar por texto y audio, conserva la orientación ya clasificada (`theoretical` o `applied`) y no se presenta como equivalente al resultado original.
+4. El visitante abre una. Ve la intención, el nivel en `None`, los conocimientos previos vacíos y el resultado esperado. Puede editar esos campos. Elegirla crea una solicitud nueva con esos valores, que se clasifica de nuevo. La precisión aparece solo si ese análisis la pide.
+5. Si el riesgo es seguridad o armas, o si el visitante prefiere escribir otra intención, el formulario vuelve en blanco.
+6. La solicitud incompatible no genera propuestas de curso ni permite avanzar al checkout.
 
 #### Resultado
 
-La solicitud vuelve a un camino compatible o finaliza sin propuestas y sin consumo comercial.
+La solicitud incompatible no continúa. Una intención nueva puede entrar en un camino compatible. No hay propuestas de curso ni consumo comercial sobre la solicitud rechazada.
 
 ### UF-04 Recibir, comparar y seleccionar propuestas
 
@@ -203,7 +205,7 @@ La solicitud vuelve a un camino compatible o finaliza sin propuestas y sin consu
 
 #### Recorrido principal
 
-1. El sistema genera entre una y cinco propuestas sustantivamente diferentes.
+1. El sistema genera exactamente cuatro propuestas sustantivamente diferentes (`DEC-019`).
 2. Cada propuesta muestra título, descripción, pregunta central, resultado, recorrido distintivo, alcance, exclusiones, nivel estimado, duración aproximada y trade-off.
 3. Si existe una opción claramente más adecuada, el sistema la recomienda con una razón concreta.
 4. El visitante compara las propuestas.
@@ -213,8 +215,7 @@ La solicitud vuelve a un camino compatible o finaliza sin propuestas y sin consu
 
 #### Variantes y errores
 
-- El sistema puede devolver menos de cinco propuestas cuando no existan alternativas genuinas.
-- No se crean variantes cosméticas para completar una cantidad.
+- Si no se alcanzan cuatro direcciones genuinamente distintas, la generación reintenta; no se publica un conjunto incompleto ni variantes cosméticas.
 - El visitante puede volver y modificar entradas sustantivas.
 - Si modifica entradas, el sistema advierte que las propuestas actuales dejarán de ser vigentes.
 - Al confirmar la modificación, se crea un nuevo conjunto y el anterior no puede seleccionarse accidentalmente.

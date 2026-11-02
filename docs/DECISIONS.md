@@ -33,8 +33,8 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** TEMPORAL
 - **Necesidad:** `MVP.md §12` y `AI-STG-06/07` exigen investigar antes de redactar. El mecanismo concreto estaba reservado a `ARCHITECTURE.md`.
-- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. Las URLs devueltas por el modelo solo se consideran `retrieved` si aparecen en las citas de la búsqueda; el resto se marca `unverified` y no cuenta como evidencia sustantiva.
-- **Impacto:** `modules/generation/research.py`, `modules/blueprints` (orientación).
+- **Decisión:** usar la herramienta de búsqueda web integrada del proveedor (`web_search`) sin proveedor ni clave adicional. La llamada de búsqueda exige la herramienta (`tool_choice`), para que el modelo no responda de memoria. En este modelo la salida estructurada no trae las citas, así que la investigación hace primero una búsqueda en texto y lee `web_search_call.action.sources` y las anotaciones. Si esa búsqueda no trae páginas, se reintenta una vez. Esas URLs se pasan al modelo en un bloque `SEARCH PAGES` y son las que se publican. No se compara el título inventado con el de un artículo para elegir el enlace. Una URL que esa búsqueda no devolvió no se publica. Una URL de la búsqueda que responde 404 o 410 tampoco; un 403 u otro estado se conserva. Ediciones de archivo de la misma entrada (por ejemplo Stanford `/archives/<edición>/`) y parámetros de seguimiento cuentan como una sola obra, y el enlace publicado es la página canónica. Ese colapso ocurre antes del tope. Cada lección conserva como máximo las primeras seis obras distintas que siguen vivas, en el orden de la búsqueda (`BR-SRC-003`). La búsqueda se intenta dos veces. Si la segunda tampoco trae páginas, o falla el proveedor en esa llamada, la lección se redacta igual y el módulo sigue. Una revisión que pida investigar de nuevo no detiene la lección después de dos rondas: se publica el texto ya escrito. El build de la demo no falla por una URL descartada ni por una lista de fuentes vacía.
+- **Impacto:** `modules/generation/build.py`, `modules/generation/prompts.py`, `modules/blueprints` (orientación).
 
 ### DEC-003 — Bypass de precondiciones comerciales en la demo
 
@@ -84,12 +84,13 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Estatus:** TEMPORAL
 - **Decisión:** la evidencia de tiempo y tokens se obtiene del endpoint de diagnósticos y de los logs del servidor. Las trazas se persisten en `generation_traces` cuando hay Postgres; no se copian al repositorio.
 
-### DEC-011 — Identidad demo mientras el login de producto está fuera de alcance
+### DEC-011 — Identidad de producto con Supabase Auth
 
-- **Estatus:** TEMPORAL
-- **Necesidad:** cada fila de dominio requiere `user_id` → `profiles` y RLS owner-only. `AGENTS.md §12` sigue excluyendo autenticación de producto.
-- **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user`. Si no hay JWT y `APP_ENV != production`, se atribuye el perfil sembrado `DEMO_USER_ID` (`00000000-0000-0000-0000-000000000001`). En producción el JWT es obligatorio. Quitar el bypass antes del MVP comercial.
-- **Impacto:** `core/auth.py`, `core/config.py`, migraciones de `profiles`.
+- **Estatus:** Reemplaza el bypass temporal del usuario demo
+- **Necesidad:** `BR-AUT-004` a `BR-AUT-007` y `UF-06` exigen una cuenta real. El perfil sembrado compartía todas las filas de quien no enviaba un JWT.
+- **Decisión:** FastAPI resuelve `Authorization: Bearer <jwt>` con `supabase.auth.get_user` en todos los entornos. Sin un JWT válido la respuesta es 401. El visitante es un usuario anónimo de Supabase, con su propio `id`. Al registrarse o iniciar sesión, esa solicitud pasa a la cuenta permanente. El usuario `00000000-0000-0000-0000-000000000001` fue eliminado. No hay `DEMO_USER_BYPASS`. Los tests sustituyen la dependencia solo en el arnés.
+- **Impacto:** `core/auth.py`, `apps/web` (cookies de sesión), migración que borra el usuario demo y revoca el Data API a `anon` y `authenticated`.
+- **Configuración de Auth que queda en el proyecto de Supabase:** confirmación de email ya obligatoria. Usuarios anónimos y manual linking hay que activarlos en el dashboard (el navegador de esta sesión no tenía la cuenta de Supabase abierta). Google sigue apagado hasta que existan client id y secret. Los botones de Apple y Microsoft son visuales; todavía no inician OAuth.
 
 ### DEC-012 — FastAPI como único plano de datos del generador
 
@@ -111,6 +112,44 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Necesidad:** Postgres `uuid` y el demo in-memory usaban hex sin guiones y ids recortados.
 - **Decisión:** `new_id()` devuelve `str(uuid.uuid4())`. Rompe ids viejos del DemoStore (aceptable: no hay datos de producto).
 - **Impacto:** `core/store.py`, contratos de `id: string`.
+
+### DEC-015 — Orientación de la intención y fundamentos aplicados
+
+- **Estatus:** APROBADA para los prompts del generador
+- **Necesidad:** el clasificador rechazaba materias como personal branding por “incompatibles”, y la redacción empujaba cualquier tema hacia una indagación de ciencias sociales. El reclamo del cliente (octubre 2026) pide reconocer si la intención es más teórica o más de fundamentos aplicados, y no tratar esa segunda vía como un tutorial.
+- **Decisión:** `AI-STG-01` registra `learning_orientation` (`theoretical` | `applied`) y la arrastran el objetivo, las propuestas, el Blueprint y la redacción. `applied` enseña criterios, juicio y decisiones explicables en texto y audio. Sigue siendo `Incompatible` el resultado que depende de ver, hacer u operar una herramienta. `Allowed with reframing` conserva el núcleo de la materia pedida y no lo convierte en su filosofía. La voz editorial y el criterio materialista siguen esa orientación: en un curso aplicado el materialismo parte de `Not applicable` salvo que el tema lo vuelva útil (`BR-EPI-002`).
+- **Impacto:** prompts de onboarding, propuestas, Blueprint y generación. El campo viaja en la respuesta de la solicitud para poder observarlo; no hay una pantalla nueva.
+- **Límite:** no agrega modalidades de aprendizaje ni autoriza procedimientos físicos o tutoriales de software.
+
+### DEC-016 — Alternativas de recuperación tras una intención incompatible
+
+- **Estatus:** APROBADA (pedido del cliente, octubre 2026)
+- **Necesidad:** rechazar una intención incompatible y pedir otra de inmediato resulta demasiado abrupto. La persona necesita direcciones cercanas a lo que pidió, enseñables por texto y audio, sin tratar la solicitud original como realizable.
+- **Decisión:** si `AI-STG-01` clasifica la solicitud como `Incompatible` y el riesgo no es `weapons` ni `security`, el mismo análisis devuelve exactamente tres alternativas (`title`, `explanation`, `suggested_intent`, `suggested_outcome`). Cada una es una intención nueva, relacionada con lo pedido, y se queda en el `learning_orientation` ya elegido (`DEC-015`). `applied` no se rescata como historia o filosofía del tema; `theoretical` no se convierte en un procedimiento. `suggested_outcome` es una oración básica que responde «What do you want to be able to do or understand?» para esa intención. Elegir una no continúa esta solicitud. La alternativa llega con nivel `None`, conocimientos previos vacíos, la intención y ese resultado esperado. La persona puede editar esos cuatro campos. Elegir crea una solicitud nueva con esos valores y la clasifica de nuevo: la precisión aparece solo si ese análisis la pide. La solicitud incompatible no produce objetivo, propuestas de curso, Blueprint ni checkout (`BR-OBJ-004`). Si el riesgo es `weapons` o `security`, no hay alternativas. Salud, derecho y finanzas pueden recibir tres alternativas de alfabetización segura.
+- **Impacto:** `UF-03` variante D, `BR-OBJ-004`, `AI-STG-01`, `MVP.md` §3, análisis de onboarding y la pantalla de incompatibilidad.
+- **Límite:** no son propuestas de curso (`AI-STG-04`). No cambian `Allowed with reframing` ni el arrastre de `learning_orientation`. No se muestra la orientación en la tarjeta.
+
+### DEC-017 — Cuenta iniciada antes de analizar la intención
+
+- **Estatus:** APROBADA (pedido de implementación, octubre 2026)
+- **Necesidad:** analizar la intención no debe empezar para quien no está en una cuenta.
+- **Decisión:** «Analyze my intention» comprueba el token con Auth. Una sesión anónima o un token rechazado no cuentan como cuenta iniciada. Si no hay cuenta, se guarda el formulario y se abre `/login?next=/onboarding`. Si hay cuenta, se crea la solicitud y sigue el análisis. El visitante anónimo sigue existiendo para el resto del recorrido (`DEC-011`).
+- **Impacto:** formulario de onboarding. No cambia el requisito de cuenta permanente del Blueprint (`BR-AUT-004`).
+
+### DEC-018 — Destino después del login sin cursos generados
+
+- **Estatus:** APROBADA (pedido de implementación, octubre 2026)
+- **Necesidad:** UF-06 abre la biblioteca si no hay una solicitud en curso. Un miembro sin ningún curso generado debe entrar al onboarding.
+- **Decisión:** `profiles.generated_course_count` cuenta las filas de `courses` de esa cuenta. Tras login, registro o OAuth, si `next` es `/home` o `/` y el recuento es 0, el destino es `/onboarding`. Un `next` explícito (por ejemplo `/onboarding` o una propuesta) se respeta. El formulario de intención se guarda en `localStorage` para no perderlo al pasar por login o registro (`UF-01`, `BR-AUT-005`).
+- **Impacto:** pantalla de auth, callback OAuth, confirmación de email, `GET /auth/profile`.
+
+### DEC-019 — Cuatro propuestas de curso por solicitud
+
+- **Estatus:** APROBADA (pedido del cliente, octubre 2026)
+- **Necesidad:** la pantalla «Your learning path» compara direcciones en una grilla 2×2; un número variable (1–5) dejaba filas incompletas y obligaba a excepciones en prompt y validación.
+- **Decisión:** tras confirmar el objetivo, `AI-STG-04` devuelve **exactamente cuatro** propuestas de curso genuinamente diferentes. Ni más ni menos. Si el modelo no alcanza cuatro direcciones sustantivas, la etapa reintenta; no se rellena con variantes cosméticas ni se acepta un conjunto incompleto. Se elimina la excepción de «una sola propuesta cuando no hay alternativas». La recomendación opcional (`BR-PRP-004`, `DEC-009`) sigue vigente cuando una opción es claramente superior.
+- **Impacto:** `BR-PRP-001`, `AI-STG-04`, `UF-04`, `MVP.md` §5, prompts y validación en `modules/proposals`, pantalla de propuestas (`apps/web`).
+- **Límite:** no cambia la diferenciación mínima entre pares (`BR-PRP-002`) ni confunde propuestas con alternativas de intención incompatible (`DEC-016` / `AI-STG-01`).
 
 ## Pendientes sin decisión
 

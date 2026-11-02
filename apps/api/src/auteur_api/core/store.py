@@ -7,13 +7,19 @@ PostgresStore writes to auteur-education-dev. DATA_MODEL.md describes the schema
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from typing import Protocol
+from dataclasses import dataclass, replace
+from datetime import date, datetime
+from typing import Literal, Protocol
 
 from auteur_api.ai.tracing import StageTrace
-from auteur_api.core.errors import not_found
+from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.modules.blueprints.schemas import BlueprintRecord
-from auteur_api.modules.generation.schemas import CourseListItem, CourseRecord
+from auteur_api.modules.generation.schemas import (
+    CourseListItem,
+    CourseRecord,
+    CourseState,
+    ModuleState,
+)
 from auteur_api.modules.onboarding.schemas import LearningRequestRecord
 
 
@@ -21,9 +27,39 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+@dataclass(frozen=True)
+class CourseBuildSnapshot:
+    """Fields BR-GEN-002 needs. Module and lesson bodies stay out of this read."""
+
+    id: str
+    state: CourseState
+    module_limit: int | None
+    has_final_synthesis: bool
+    module_states: tuple[ModuleState, ...]
+
+
+def course_build_snapshot(course: CourseRecord) -> CourseBuildSnapshot:
+    return CourseBuildSnapshot(
+        id=course.id,
+        state=course.state,
+        module_limit=course.module_limit,
+        has_final_synthesis=course.final_synthesis is not None,
+        module_states=tuple(module.state for module in course.modules),
+    )
+
+
+def course_structure_counts(course: CourseRecord) -> tuple[int, int]:
+    """Module and lesson totals stored on the course row for the library list."""
+    return (
+        len(course.modules),
+        sum(len(module.lessons) for module in course.modules),
+    )
+
+
 def course_list_item(
     course: CourseRecord, *, updated_at: datetime | None = None
 ) -> CourseListItem:
+    module_count, lesson_count = course_structure_counts(course)
     return CourseListItem(
         id=course.id,
         title=course.title,
@@ -31,6 +67,9 @@ def course_list_item(
         objective_statement=course.objective_statement,
         state=course.state,
         updated_at=updated_at or _last_activity(course),
+        created_at=course.created_at,
+        module_count=module_count,
+        lesson_count=lesson_count,
     )
 
 
@@ -50,6 +89,32 @@ def _last_activity(course: CourseRecord) -> datetime:
 def assert_owner(record_user_id: str | None, user_id: str | None) -> None:
     if user_id and record_user_id and record_user_id != user_id:
         raise not_found("Resource")
+
+
+TextSizeName = Literal["small", "standard", "large", "extra_large"]
+TEXT_SIZES = ("small", "standard", "large", "extra_large")
+
+
+def normalize_text_size(value: object) -> TextSizeName:
+    if value in TEXT_SIZES:
+        return value  # type: ignore[return-value]
+    return "standard"
+
+
+@dataclass(frozen=True)
+class ProfileRecord:
+    first_name: str | None = None
+    last_name: str | None = None
+    birth_date: date | None = None
+    gender: str | None = None
+    avatar_url: str | None = None
+    image_url: str | None = None
+    text_size: str = "standard"
+    generated_course_count: int = 0
+
+
+def _profile_with_image(current: ProfileRecord, image_url: str | None) -> ProfileRecord:
+    return replace(current, image_url=image_url)
 
 
 class Store(Protocol):
@@ -73,6 +138,10 @@ class Store(Protocol):
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]: ...
 
+    def list_course_build_snapshots(
+        self, user_id: str
+    ) -> list[CourseBuildSnapshot]: ...
+
     def add_trace(self, scope_id: str, trace: StageTrace) -> None: ...
 
     def get_traces(self, scope_id: str) -> list[StageTrace]: ...
@@ -89,6 +158,24 @@ class Store(Protocol):
 
     def list_incomplete_course_ids(self) -> list[str]: ...
 
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None: ...
+
+    def get_profile(self, user_id: str) -> ProfileRecord: ...
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord: ...
+
+    def update_text_size(self, user_id: str, text_size: str) -> ProfileRecord: ...
+
+    def create_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord: ...
+
+    def replace_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord: ...
+
+    def delete_profile_photo(self, user_id: str) -> ProfileRecord: ...
+
 
 class DemoStore:
     def __init__(self) -> None:
@@ -96,6 +183,9 @@ class DemoStore:
         self.blueprints: dict[str, BlueprintRecord] = {}
         self.courses: dict[str, CourseRecord] = {}
         self.traces: dict[str, list[StageTrace]] = {}
+        self.profiles: dict[str, ProfileRecord] = {}
+        self.profile_photos: dict[str, bytes] = {}
+        self._photo_versions: dict[str, int] = {}
 
     def reset(self) -> None:
         self.__init__()
@@ -145,6 +235,16 @@ class DemoStore:
         items.sort(key=lambda item: item.updated_at, reverse=True)
         return items
 
+    def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
+        idle = {CourseState.COMPLETE, CourseState.FAILED}
+        open_courses = [
+            course
+            for course in self.courses.values()
+            if course.user_id == user_id and course.state not in idle
+        ]
+        open_courses.sort(key=_last_activity, reverse=True)
+        return [course_build_snapshot(course) for course in open_courses]
+
     def add_trace(self, scope_id: str, trace: StageTrace) -> None:
         self.traces.setdefault(scope_id, []).append(trace)
 
@@ -174,6 +274,93 @@ class DemoStore:
 
         terminal = {CourseState.COMPLETE, CourseState.FAILED}
         return [c.id for c in self.courses.values() if c.state not in terminal]
+
+    def reassign_owner(self, from_user_id: str, to_user_id: str) -> None:
+        """Move one visitor's rows onto a permanent account (BR-AUT-005)."""
+        if from_user_id == to_user_id:
+            return
+        for record in self.learning_requests.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
+        for record in self.blueprints.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
+        for record in self.courses.values():
+            if record.user_id == from_user_id:
+                record.user_id = to_user_id
+
+    def get_profile(self, user_id: str) -> ProfileRecord:
+        current = self.profiles.get(user_id, ProfileRecord())
+        return ProfileRecord(
+            first_name=current.first_name,
+            last_name=current.last_name,
+            birth_date=current.birth_date,
+            gender=current.gender,
+            avatar_url=current.avatar_url,
+            image_url=current.image_url,
+            text_size=normalize_text_size(current.text_size),
+            generated_course_count=sum(
+                1 for course in self.courses.values() if course.user_id == user_id
+            ),
+        )
+
+    def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord:
+        current = self.profiles.get(user_id, ProfileRecord())
+        self.profiles[user_id] = replace(
+            current,
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+        )
+        return self.get_profile(user_id)
+
+    def update_text_size(self, user_id: str, text_size: str) -> ProfileRecord:
+        current = self.profiles.get(user_id, ProfileRecord())
+        self.profiles[user_id] = replace(
+            current, text_size=normalize_text_size(text_size)
+        )
+        return self.get_profile(user_id)
+
+    def create_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        del content_type
+        current = self.profiles.get(user_id, ProfileRecord())
+        if current.image_url:
+            raise invalid_state(
+                "A profile photo already exists. Update it instead."
+            )
+        return self._save_profile_photo(user_id, current, content)
+
+    def replace_profile_photo(
+        self, user_id: str, content: bytes, content_type: str
+    ) -> ProfileRecord:
+        del content_type
+        current = self.profiles.get(user_id, ProfileRecord())
+        if not current.image_url:
+            raise not_found("Profile photo")
+        return self._save_profile_photo(user_id, current, content)
+
+    def delete_profile_photo(self, user_id: str) -> ProfileRecord:
+        current = self.profiles.get(user_id, ProfileRecord())
+        if not current.image_url:
+            raise not_found("Profile photo")
+        self.profile_photos.pop(user_id, None)
+        self.profiles[user_id] = _profile_with_image(current, None)
+        return self.get_profile(user_id)
+
+    def _save_profile_photo(
+        self, user_id: str, current: ProfileRecord, content: bytes
+    ) -> ProfileRecord:
+        version = self._photo_versions.get(user_id, 0) + 1
+        self._photo_versions[user_id] = version
+        self.profile_photos[user_id] = content
+        self.profiles[user_id] = _profile_with_image(
+            current,
+            f"https://example.test/profile-photos/{user_id}/photo?v={version}",
+        )
+        return self.get_profile(user_id)
 
 
 store = DemoStore()

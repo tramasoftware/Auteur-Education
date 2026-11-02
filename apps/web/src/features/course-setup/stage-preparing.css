@@ -1,0 +1,119 @@
+.stage-preparing-overlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: #fff;
+}
+
+.stage-preparing-overlay > .landing {
+  flex: 1;
+  min-height: 100%;
+}
+
+.landing.stage-preparing-screen .back {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.landing.stage-preparing-screen .stage-preparing-main {
+  flex: 1;
+  width: min(1180px, calc(100% - 64px));
+  margin: 0 auto;
+}
+
+.landing.stage-preparing-screen .gen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 96px);
+  padding: 48px 0 72px;
+}
+
+.landing.stage-preparing-screen .gen > div {
+  width: min(520px, 100%);
+  text-align: left;
+}
+
+.landing.stage-preparing-screen .gen h1 {
+  max-width: 16ch;
+  margin: 0 0 18px;
+  color: var(--m-1);
+  font-size: clamp(calc(30px * var(--ft, 1)), calc(3.6vw * var(--ft, 1)), calc(50px * var(--ft, 1)));
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+.landing.stage-preparing-screen .gen .reg {
+  min-height: 24px;
+  margin: 0;
+  color: var(--m-2);
+  font-size: calc(14px * var(--ft, 1));
+  line-height: 1.6;
+}
+
+.landing.stage-preparing-screen .gen .reg p {
+  margin: 0;
+}
+
+.landing.stage-preparing-screen .gen .avance {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: none;
+  min-height: 24px;
+  margin: 20px 0 0;
+}
+
+.landing.stage-preparing-screen .gen .via {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--filete-2);
+}
+
+.landing.stage-preparing-screen .gen .via i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: var(--borgona);
+  font-style: normal;
+  transition: width 240ms ease;
+}
+
+.landing.stage-preparing-screen .gen .pc {
+  min-width: 4ch;
+  color: var(--m-3);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(10.5px * var(--ft, 1));
+  letter-spacing: 0.05em;
+  text-align: right;
+}
+
+.landing.stage-preparing-screen .gen.listo .avance,
+.landing.stage-preparing-screen .gen.listo .reg {
+  display: none;
+}
+
+@media (max-width: 920px) {
+  .landing.stage-preparing-screen .stage-preparing-main {
+    width: calc(100% - 40px);
+  }
+
+  .landing.stage-preparing-screen .gen {
+    min-height: calc(100dvh - 80px);
+    padding-top: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing.stage-preparing-screen .gen .via i {
+    transition: none;
+  }
+}

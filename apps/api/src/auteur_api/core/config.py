@@ -1,8 +1,6 @@
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-DEMO_USER_ID = "00000000-0000-0000-0000-000000000001"
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -17,6 +15,17 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    @field_validator("cors_origins")
+    @classmethod
+    def cors_origins_are_explicit(cls, value: list[str]) -> list[str]:
+        cleaned = [origin.strip() for origin in value if origin.strip()]
+        if any(origin == "*" for origin in cleaned):
+            raise ValueError(
+                "CORS origins must be explicit. "
+                "A wildcard is not allowed with credentials."
+            )
+        return cleaned
 
     # AI provider (server-side only; never exposed to the frontend). BR-SEC-001.
     openai_api_key: SecretStr | None = None
@@ -35,7 +44,6 @@ class Settings(BaseSettings):
 
     supabase_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
-    demo_user_id: str = DEMO_USER_ID
 
     @field_validator("openai_api_key", "supabase_service_role_key", mode="before")
     @classmethod
@@ -63,11 +71,6 @@ class Settings(BaseSettings):
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
-
-    @property
-    def demo_user_bypass_enabled(self) -> bool:
-        # DEC-011: anonymous demo traffic is attributed to a seeded profile.
-        return not self.is_production
 
     @property
     def has_openai_api_key(self) -> bool:

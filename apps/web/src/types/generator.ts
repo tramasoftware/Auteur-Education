@@ -3,7 +3,7 @@
  * Keep in sync with auteur_api.modules.*.schemas. Never invent fields here.
  */
 
-export type ExperienceLevel = "None" | "Basic" | "Intermediate" | "Advanced";
+export type ExperienceLevel = "None" | "Beginner" | "Intermediate" | "Advanced";
 
 export type RequestState =
   | "draft"
@@ -46,6 +46,13 @@ export type CreateLearningRequest = {
   expected_outcome: string;
 };
 
+export type RecoveryAlternative = {
+  title: string;
+  explanation: string;
+  suggested_intent: string;
+  suggested_outcome: string;
+};
+
 export type CompatibilityAssessment = {
   classification: Compatibility;
   explanation: string;
@@ -53,6 +60,7 @@ export type CompatibilityAssessment = {
   unreachable_aspects: string[];
   safe_reframing: string | null;
   risk_category: string | null;
+  recovery_alternatives: RecoveryAlternative[];
 };
 
 export type PrecisionOption = {
@@ -96,11 +104,13 @@ export type CourseProposal = {
   intellectual_outcome: string;
   distinctive_trajectory: string;
   organizing_principle: string;
+  direction_label?: string;
   scope: string[];
   exclusions: string[];
   level_fit: string;
   guiding_authors_or_traditions: string[];
   estimated_modules: number;
+  estimated_lessons?: number;
   estimated_duration: string;
   main_advantage: string;
   trade_off: string;
@@ -114,10 +124,13 @@ export type ProposalSet = {
   recommendation_reason: string | null;
 };
 
+export type LearningOrientation = "theoretical" | "applied";
+
 export type LearningRequest = {
   id: string;
   state: RequestState;
   inputs: CreateLearningRequest;
+  learning_orientation: LearningOrientation;
   compatibility: CompatibilityAssessment;
   precision: PrecisionResult;
   selected_precision: SelectedPrecision | null;
@@ -214,6 +227,8 @@ export type ModuleSummary = {
   index: number;
   title: string;
   function: string;
+  guiding_questions: string[];
+  outcome: string;
   state: ModuleState;
   lesson_count: number;
   published_at: string | null;
@@ -228,6 +243,9 @@ export type LibraryCourse = {
   objective_statement: string;
   state: CourseState;
   updated_at: string;
+  created_at: string;
+  module_count: number;
+  lesson_count: number;
 };
 
 export type CourseList = {
@@ -248,6 +266,7 @@ export type Course = {
   final_synthesis: CourseSynthesis | null;
   failure: string | null;
   module_limit: number | null;
+  created_at: string;
 };
 
 export type LessonSummary = {
@@ -267,6 +286,7 @@ export type SourceView = {
   source_type: string;
   role: string;
   verification: "retrieved" | "unverified";
+  limits: string | null;
 };
 
 export type KnowledgeCheckOption = {

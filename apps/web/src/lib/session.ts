@@ -1,9 +1,9 @@
+import type { ExperienceLevel } from "@/types/generator";
+
 /**
- * Temporary demo-only resume support (UF-05): remember the current learning
- * request in the browser so a reload returns to the last persisted step.
- * Course and Blueprint URLs resume from the API (Postgres when configured).
- * Not an authentication mechanism. Optional JWT: localStorage key
- * `auteur.demo.accessToken` is sent as Bearer when present.
+ * Resume support (UF-05): remember the current learning request in the browser
+ * so a reload returns to the last persisted step. Course and Blueprint URLs
+ * resume from the API. This is not the auth session.
  */
 
 const KEY = "auteur.demo.learningRequestId";
@@ -100,4 +100,118 @@ export function forgetRequestId(): void {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(KEY);
   }
+}
+
+const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
+const DRAFT_CHANGE_EVENT = "auteur-onboarding-draft";
+const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
+  "None",
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+]);
+
+/** Form values kept in the browser while sign-in or registration interrupts onboarding. */
+export type OnboardingDraft = {
+  initial_intent: string;
+  experience_level: ExperienceLevel;
+  prior_knowledge: string | null;
+  expected_outcome: string;
+};
+
+// useSyncExternalStore requires the same snapshot object until storage changes.
+let cachedDraftRaw: string | null = null;
+let cachedDraft: OnboardingDraft | null = null;
+
+function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      initial_intent?: unknown;
+      experience_level?: unknown;
+      prior_knowledge?: unknown;
+      expected_outcome?: unknown;
+    };
+    // Older drafts stored "Basic" before the level was renamed to "Beginner".
+    const experienceLevel =
+      parsed.experience_level === "Basic" ? "Beginner" : parsed.experience_level;
+    if (
+      typeof parsed.initial_intent !== "string" ||
+      typeof parsed.expected_outcome !== "string" ||
+      !EXPERIENCE_LEVELS.has(experienceLevel as ExperienceLevel) ||
+      (parsed.prior_knowledge !== null && typeof parsed.prior_knowledge !== "string")
+    ) {
+      return null;
+    }
+    return {
+      initial_intent: parsed.initial_intent,
+      experience_level: experienceLevel as ExperienceLevel,
+      prior_knowledge: parsed.prior_knowledge ?? null,
+      expected_outcome: parsed.expected_outcome,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readOnboardingDraftRaw(): string | null {
+  const local = window.localStorage.getItem(ONBOARDING_DRAFT_KEY);
+  if (local) {
+    return local;
+  }
+  const session = window.sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
+  if (session) {
+    window.localStorage.setItem(ONBOARDING_DRAFT_KEY, session);
+    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  }
+  return session;
+}
+
+export function rememberOnboardingDraft(draft: OnboardingDraft): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const raw = JSON.stringify(draft);
+  cachedDraftRaw = raw;
+  cachedDraft = draft;
+  window.localStorage.setItem(ONBOARDING_DRAFT_KEY, raw);
+  window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
+}
+
+export function recallOnboardingDraft(): OnboardingDraft | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = readOnboardingDraftRaw();
+  if (raw === cachedDraftRaw) {
+    return cachedDraft;
+  }
+  cachedDraftRaw = raw;
+  cachedDraft = parseOnboardingDraft(raw);
+  return cachedDraft;
+}
+
+export function forgetOnboardingDraft(): void {
+  cachedDraftRaw = null;
+  cachedDraft = null;
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+    window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
+  }
+}
+
+export function subscribeOnboardingDraft(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+  window.addEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
 }

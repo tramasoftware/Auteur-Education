@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { blueprintJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   BulletList,
   Button,
+  CheckingGenerationStatus,
   DefinitionList,
   outlineButtonClass,
   ErrorNotice,
@@ -17,22 +19,73 @@ import {
   StatusBadge,
   textareaClass,
 } from "@/components/ui";
+import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
+import {
+  BLUEPRINT_APPROACH_MS,
+  BLUEPRINT_PHASES,
+  StagePreparing,
+} from "@/features/course-setup/StagePreparing";
+import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { blueprints } from "@/lib/api";
 import { blueprintStateLabel } from "@/lib/labels";
-import { forgetCourseFlowPath, forgetRequestId } from "@/lib/session";
+import { forgetCourseFlowPath, forgetRequestId, recallRequestId } from "@/lib/session";
 import { usePolling } from "@/lib/usePolling";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import type { Blueprint } from "@/types/generator";
 
+import { PreparingCourse, type PreparingSheet } from "./PreparingCourse";
+
+const SHEET_LINES = [
+  [92, 86, 78, 64],
+  [88, 90, 70, 58],
+  [84, 92, 76, 40],
+  [90, 82, 94, 62],
+];
+
+function preparingCopy(blueprint: Blueprint) {
+  const visible = blueprint.blueprint;
+  const sheets: PreparingSheet[] = [];
+  for (const [moduleIndex, module] of (visible?.modules ?? []).entries()) {
+    for (const [lessonIndex, lesson] of module.lessons.entries()) {
+      if (sheets.length >= 6) {
+        break;
+      }
+      sheets.push({
+        label: `Module ${String(moduleIndex + 1).padStart(2, "0")} · Lesson ${lessonIndex + 1}`,
+        title: lesson.title,
+        lines: SHEET_LINES[sheets.length % SHEET_LINES.length],
+      });
+    }
+    if (sheets.length >= 6) {
+      break;
+    }
+  }
+  const moduleCount = visible?.modules.length ?? 1;
+  const first = visible?.modules[0];
+  return {
+    title: visible?.title || "Your course",
+    subtitle: visible?.subtitle || "",
+    sheets,
+    coverKicker: `AUTEUR · MODULE OVERVIEW · 01 / ${String(moduleCount).padStart(2, "0")}`,
+    coverLabel: "Module 01",
+    coverTitle: first?.title || visible?.title || "Your course",
+  };
+}
+
 /** UF-04: review the visible Blueprint, request changes, approve the exact version. */
 export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   const router = useRouter();
-  const blockingActiveBuild = useRedirectIfActiveBuild();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [courseFailed, setCourseFailed] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [revising, setRevising] = useState(false);
+  const [preparingCourseId, setPreparingCourseId] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [enteredBlueprint, setEnteredBlueprint] = useState(false);
+  const [holdBlueprint, setHoldBlueprint] = useState(false);
+  const blockingActiveBuild = useRedirectIfActiveBuild(!preparing);
 
   useJourneyStep(blueprintJourneyStep(blueprint?.state ?? null));
 
@@ -41,6 +94,15 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
       blueprints.get(blueprintId).then(
         (next) => {
           setBlueprint(next);
+          if (next.state === "generating" && !next.blueprint) {
+            setHoldBlueprint(true);
+            setEnteredBlueprint(false);
+          } else {
+            setHoldBlueprint(false);
+            if (next.blueprint) {
+              setEnteredBlueprint(true);
+            }
+          }
           setError(null);
         },
         (err: unknown) => setError(err),
@@ -74,31 +136,105 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
     }
     setBusy(true);
     setError(null);
+    setCourseFailed(false);
     try {
+      setPreparing(true);
       const result = await blueprints.approve(blueprintId, blueprint.current_version);
       forgetRequestId();
       forgetCourseFlowPath();
-      router.push(`/courses/${result.course_id}`);
-    } catch (err) {
-      setError(err);
+      setPreparingCourseId(result.course_id);
+      setBusy(false);
+    } catch {
+      setPreparing(true);
+      setCourseFailed(true);
       setBusy(false);
       load();
     }
   };
 
+  if ((preparing || courseFailed) && blueprint) {
+    const copy = preparingCopy(blueprint);
+    return createPortal(
+      <div className="preparing-overlay">
+        <CourseSetupFrame
+          screenClassName="preparing-screen"
+          mainClassName="preparing-main"
+          title="Your course"
+          backHref={`/blueprints/${blueprintId}`}
+          backLabel="Blueprint"
+          backAriaLabel="Back to the Blueprint"
+        >
+          {courseFailed ? (
+            <StageFailure
+              {...stageFailureCopy.course}
+              busy={busy}
+              onRetry={() => {
+                void approve();
+              }}
+              onBack={() => {
+                setCourseFailed(false);
+                setPreparing(false);
+                router.push(`/proposals?request=${blueprint.request_id}`);
+              }}
+            />
+          ) : (
+            <PreparingCourse
+              {...copy}
+              courseReady={preparingCourseId !== null}
+              courseHref={preparingCourseId ? `/courses/${preparingCourseId}` : null}
+            />
+          )}
+        </CourseSetupFrame>
+      </div>,
+      document.body,
+    );
+  }
+
   if (blockingActiveBuild) {
-    return <p className="text-sm text-muted">Checking generation status…</p>;
+    return <CheckingGenerationStatus />;
   }
 
   if (!blueprint) {
+    if (error) {
+      return (
+        <div className="flex flex-col gap-4 p-8">
+          <ErrorNotice error={error} />
+        </div>
+      );
+    }
+    const resumeRequestId = recallRequestId();
     return (
-      <div className="flex flex-col gap-3">
-        <GenerationStatus
-          title="Opening your Blueprint"
-          description="Loading the pedagogical contract for this course."
-        />
-        <ErrorNotice error={error} />
-      </div>
+      <StagePreparing
+        frameTitle="Blueprint"
+        backHref={resumeRequestId ? `/proposals?request=${resumeRequestId}` : "/proposals"}
+        backLabel="Learning paths"
+        backAriaLabel="Back to your learning paths"
+        heading="Your Blueprint is taking shape"
+        readyHeading="Your Blueprint is ready"
+        phases={BLUEPRINT_PHASES}
+        approachMs={BLUEPRINT_APPROACH_MS}
+        crawlMs={30000}
+        ready={false}
+        onContinue={() => {}}
+      />
+    );
+  }
+
+  if (holdBlueprint && !enteredBlueprint && blueprint.state !== "failed") {
+    return (
+      <StagePreparing
+        frameTitle="Blueprint"
+        backHref={`/proposals?request=${blueprint.request_id}`}
+        backLabel="Learning paths"
+        backAriaLabel="Back to your learning paths"
+        heading="Your Blueprint is taking shape"
+        readyHeading="Your Blueprint is ready"
+        phases={BLUEPRINT_PHASES}
+        approachMs={BLUEPRINT_APPROACH_MS}
+        crawlMs={30000}
+        ready={blueprint.state !== "generating" && blueprint.blueprint !== null}
+        onContinue={() => setEnteredBlueprint(true)}
+      />
     );
   }
 
@@ -139,10 +275,10 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
         </div>
       </div>
 
-      {blueprint.state === "generating" ? (
+      {blueprint.state === "generating" && blueprint.blueprint ? (
         <GenerationStatus
-          title="Drafting your Blueprint"
-          description="Turning your objective and chosen direction into the pedagogical contract. This page updates automatically."
+          title="Rewriting your Blueprint"
+          description="Applying your notes to a new version of the pedagogical contract."
         />
       ) : null}
 
