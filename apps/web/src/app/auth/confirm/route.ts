@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolveSignIn } from "@/lib/auth/entry";
 import { DEFAULT_MEMBER_PATH, safeInternalPath } from "@/lib/auth/redirect";
 import { assignTextSizeCookie } from "@/lib/reading-preference";
+import { redirectTo } from "@/lib/public-url";
 import { createClient } from "@/lib/supabase/server";
 
 const OTP_TYPES = new Set<EmailOtpType>([
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL("/login?error=link", request.url));
+  return NextResponse.redirect(redirectTo(request, "/login?error=link"));
 }
 
 function otpType(value: string | null): EmailOtpType | null {
@@ -62,7 +63,7 @@ async function redirectAfterConfirm(
     type && PASSWORD_STEP.has(type)
       ? `/login?mode=password&next=${encodeURIComponent(next)}`
       : resolved.path;
-  const response = NextResponse.redirect(new URL(destination, request.url));
+  const response = NextResponse.redirect(redirectTo(request, destination));
   assignTextSizeCookie(response, resolved.textSize);
   response.headers.set(
     "Cache-Control",

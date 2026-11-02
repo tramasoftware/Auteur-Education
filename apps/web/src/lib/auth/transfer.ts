@@ -1,12 +1,17 @@
-export const ANON_TRANSFER_COOKIE = "auteur-anon-transfer";
+import { headers } from "next/headers";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiUrl } from "@/lib/public-url";
+
+export const ANON_TRANSFER_COOKIE = "auteur-anon-transfer";
 
 export async function claimWithTokens(
   anonymousToken: string,
   permanentToken: string,
 ): Promise<boolean> {
-  const response = await fetch(`${API_URL}/api/v1/auth/claim`, {
+  const headerList = await headers();
+  const host =
+    headerList.get("x-forwarded-host")?.split(",")[0]?.trim() || headerList.get("host");
+  const response = await fetch(apiUrl("/api/v1/auth/claim", host), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${permanentToken}`,

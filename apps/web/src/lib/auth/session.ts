@@ -1,6 +1,5 @@
+import { apiUrl } from "@/lib/public-url";
 import { createClient } from "@/lib/supabase/browser";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 let pendingToken: Promise<string | null> | null = null;
 
@@ -34,7 +33,7 @@ export async function claimAnonymousSession(anonymousToken: string): Promise<voi
   if (!permanent) {
     throw new Error("Sign in is required to continue.");
   }
-  const response = await fetch(`${API_URL}/api/v1/auth/claim`, {
+  const response = await fetch(apiUrl("/api/v1/auth/claim"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${permanent}`,

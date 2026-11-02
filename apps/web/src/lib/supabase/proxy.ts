@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { accountSession } from "@/lib/auth/claims";
 
+import { redirectTo } from "@/lib/public-url";
+
 import { supabasePublicEnv } from "./env";
 
 const MEMBER_PATHS = new Set(["/home", "/my-courses", "/profile"]);
@@ -41,7 +43,7 @@ export async function updateSession(request: NextRequest) {
       error ? undefined : (data?.claims as Record<string, unknown> | undefined),
     );
     if (session.status !== "registered") {
-      const redirectResponse = NextResponse.redirect(new URL("/", request.url));
+      const redirectResponse = NextResponse.redirect(redirectTo(request, "/"));
       supabaseResponse.cookies.getAll().forEach((cookie) => {
         redirectResponse.cookies.set(cookie.name, cookie.value);
       });
