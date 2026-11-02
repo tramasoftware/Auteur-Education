@@ -3,6 +3,9 @@
 export const DEFAULT_MEMBER_PATH = "/home";
 export const ONBOARDING_PATH = "/onboarding";
 export const LANDING_PATH = "/";
+export const ACCOUNT_LOAD_ERROR_PATH = "/login?error=account";
+export const ACCOUNT_LOAD_ERROR_MESSAGE =
+  "We could not load your account. Try again.";
 
 /** DEC-018: home is for members who already have a generated course. */
 export function canAccessMemberHome(generatedCourseCount: number): boolean {

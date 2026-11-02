@@ -554,7 +554,12 @@ class PostgresStore:
             return ProfileRecord()
         row = rows[0]
         raw_birth = row.get("birth_date")
-        birth_date = date.fromisoformat(str(raw_birth)[:10]) if raw_birth else None
+        birth_date = None
+        if raw_birth:
+            try:
+                birth_date = date.fromisoformat(str(raw_birth)[:10])
+            except ValueError:
+                birth_date = None
         return ProfileRecord(
             first_name=row.get("first_name"),
             last_name=row.get("last_name"),

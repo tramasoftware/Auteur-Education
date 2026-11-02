@@ -33,6 +33,10 @@ async function resolveOnboardingExitHref(session: AccountSession): Promise<strin
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getSession();
-  const count = await fetchGeneratedCourseCount(data.session?.access_token);
-  return onboardingExitHref(count);
+  try {
+    const count = await fetchGeneratedCourseCount(data.session?.access_token);
+    return onboardingExitHref(count);
+  } catch {
+    return "/login?error=account";
+  }
 }

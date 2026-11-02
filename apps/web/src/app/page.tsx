@@ -22,9 +22,13 @@ export default async function Home() {
   );
   if (session.status === "registered") {
     const { data: sessionData } = await supabase.auth.getSession();
-    const count = await fetchGeneratedCourseCount(sessionData.session?.access_token);
-    if (canAccessMemberHome(count)) {
-      redirect(DEFAULT_MEMBER_PATH);
+    try {
+      const count = await fetchGeneratedCourseCount(sessionData.session?.access_token);
+      if (canAccessMemberHome(count)) {
+        redirect(DEFAULT_MEMBER_PATH);
+      }
+    } catch {
+      // Stay on the landing rather than sending the member to onboarding.
     }
   }
 

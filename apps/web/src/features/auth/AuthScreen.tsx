@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { LandingFooter } from "@/features/landing/LandingFooter";
-import { getAccountProfile } from "@/lib/api";
+import { ApiError, getAccountProfile } from "@/lib/api";
 import { rememberReadingPreference } from "@/lib/reading-preference";
 import { isAnonymousClaim } from "@/lib/auth/claims";
 import { GENDERS, birthDateLimits, registrationProfile } from "@/lib/auth/profile";
 import {
+  ACCOUNT_LOAD_ERROR_MESSAGE,
   DEFAULT_MEMBER_PATH,
   isDefaultMemberPath,
   pathAfterSignIn,
@@ -102,7 +103,7 @@ export function AuthScreen() {
           return;
         }
         if (pending === "exists") {
-          setMessage("This email is already in use.");
+          setError("This email is already in use.");
           return;
         }
         if (pending === "check") {
@@ -115,7 +116,7 @@ export function AuthScreen() {
       await signIn(email, password);
       await goToApp(router, next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in is required to continue.");
+      setError(authFailureMessage(err));
     } finally {
       setBusy(false);
     }
@@ -127,11 +128,7 @@ export function AuthScreen() {
     try {
       await continueWithGoogle(next);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Google sign-in is not available yet. Use email.",
-      );
+      setError(authFailureMessage(err, "Google sign-in is not available yet. Use email."));
       setBusy(false);
     }
   }
@@ -148,7 +145,7 @@ export function AuthScreen() {
       }
       await goToApp(router, next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Try again.");
+      setError(authFailureMessage(err, "Try again."));
     } finally {
       setBusy(false);
     }
@@ -178,6 +175,12 @@ export function AuthScreen() {
             <p className="nota error" role="alert">
               <strong>That link is no longer valid</strong>
               Request a new confirmation or reset message.
+            </p>
+          ) : null}
+          {linkError === "account" ? (
+            <p className="nota error" role="alert">
+              <strong>Something went wrong</strong>
+              {ACCOUNT_LOAD_ERROR_MESSAGE}
             </p>
           ) : null}
           {linkError === "claim" ? (
@@ -444,13 +447,22 @@ async function destinationAfterSignIn(next: string): Promise<string> {
   if (!isDefaultMemberPath(next)) {
     return next;
   }
-  try {
-    const profile = await getAccountProfile();
-    rememberReadingPreference(profile.text_size);
-    return pathAfterSignIn(next, profile.generated_course_count ?? 0);
-  } catch {
-    return next;
+  const profile = await getAccountProfile();
+  rememberReadingPreference(profile.text_size);
+  return pathAfterSignIn(next, profile.generated_course_count ?? 0);
+}
+
+function authFailureMessage(error: unknown, fallback = "Sign in is required to continue."): string {
+  if (error instanceof ApiError) {
+    if (error.status >= 500 || error.code === "internal_error" || error.code === "network_error") {
+      return ACCOUNT_LOAD_ERROR_MESSAGE;
+    }
+    return error.message || fallback;
   }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 }
 
 async function registerAccount(
