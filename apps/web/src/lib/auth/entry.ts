@@ -60,6 +60,7 @@ export async function fetchAccountProfile(
     response = await fetch(apiUrl("/api/v1/auth/profile", host), {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
+      redirect: "manual",
     });
   } catch {
     throw new Error(ACCOUNT_LOAD_ERROR_MESSAGE);
@@ -67,7 +68,8 @@ export async function fetchAccountProfile(
   if (response.status === 401) {
     return null;
   }
-  if (!response.ok) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!response.ok || !contentType.includes("application/json")) {
     throw new Error(ACCOUNT_LOAD_ERROR_MESSAGE);
   }
   return (await response.json()) as AccountProfile;

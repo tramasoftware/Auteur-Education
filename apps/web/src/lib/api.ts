@@ -61,7 +61,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let body: ApiErrorBody | null = null;
     try {
-      body = (await response.json()) as ApiErrorBody;
+      if ((response.headers.get("content-type") ?? "").includes("application/json")) {
+        body = (await response.json()) as ApiErrorBody;
+      }
     } catch {
       body = null;
     }
@@ -74,6 +76,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         body.error.details,
       );
     }
+    throw new ApiError(
+      response.status,
+      "internal_error",
+      `Request failed with status ${response.status}.`,
+    );
+  }
+
+  if (!(response.headers.get("content-type") ?? "").includes("application/json")) {
     throw new ApiError(
       response.status,
       "internal_error",

@@ -4,7 +4,15 @@
     "web": {
       "root": "apps/web/",
       "framework": "nextjs",
-      "installCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile --filter @auteur/web..."
+      "installCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile --filter @auteur/web...",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "api",
+          "format": "url",
+          "env": "AUTEUR_API_INTERNAL_URL"
+        }
+      ]
     },
     "api": {
       "root": "apps/api/",

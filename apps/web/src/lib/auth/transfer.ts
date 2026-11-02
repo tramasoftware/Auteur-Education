@@ -18,6 +18,7 @@ export async function claimWithTokens(
       "X-Anonymous-Authorization": `Bearer ${anonymousToken}`,
     },
     cache: "no-store",
+    redirect: "manual",
   });
   return response.ok;
 }

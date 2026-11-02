@@ -1,6 +1,7 @@
 /**
- * Local defaults stay for the dev machine. On the deployed demo, API calls and
- * redirects use the public host. Vercel serves the API at /api/v1 on that host.
+ * Local defaults stay for the dev machine. On the deployed demo, the browser
+ * calls /api/v1 on the same host. Server Components use the internal API
+ * binding so they are not blocked by Vercel Deployment Protection.
  */
 
 function stripSlash(value: string): string {
@@ -33,6 +34,19 @@ function deploymentOrigin(): string | null {
     return null;
   }
   return publicOrigin(raw.startsWith("http") ? raw : `https://${raw}`);
+}
+
+/** Injected by Vercel service bindings. Do not set this in the dashboard. */
+function internalApiOrigin(): string | null {
+  const raw = process.env.AUTEUR_API_INTERNAL_URL?.trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    return new URL(raw.startsWith("http") ? raw : `https://${raw}`).origin;
+  } catch {
+    return stripSlash(raw);
+  }
 }
 
 type RequestLike = {
@@ -72,6 +86,10 @@ export function apiUrl(path: string, host?: string | null): string {
   }
   if (typeof window !== "undefined") {
     return configuredPublic ? `${configuredPublic}${suffix}` : suffix;
+  }
+  const internal = internalApiOrigin();
+  if (internal) {
+    return `${internal}${suffix}`;
   }
   if (configuredPublic) {
     return `${configuredPublic}${suffix}`;
