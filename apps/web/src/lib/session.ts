@@ -128,9 +128,13 @@ function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
     return null;
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<OnboardingDraft> & {
-      experience_level?: string;
+    const parsed = JSON.parse(raw) as {
+      initial_intent?: unknown;
+      experience_level?: unknown;
+      prior_knowledge?: unknown;
+      expected_outcome?: unknown;
     };
+    // Older drafts stored "Basic" before the level was renamed to "Beginner".
     const experienceLevel =
       parsed.experience_level === "Basic" ? "Beginner" : parsed.experience_level;
     if (

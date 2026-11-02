@@ -13,11 +13,12 @@ type MotionHandlers = {
 };
 
 export function createPathRouteMotion(root: HTMLElement, handlers: MotionHandlers): Motion {
-  const grid = root.querySelector<HTMLElement>(".caminos");
+  const routeGrid = root.querySelector<HTMLElement>(".caminos");
   const generate = root.parentElement?.querySelector<HTMLElement>(".cierre-o .btn");
-  if (!grid) {
+  if (!routeGrid) {
     return { open: async () => {}, close: () => {}, dispose: () => {} };
   }
+  const grid = routeGrid;
 
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   let active = -1;

@@ -62,7 +62,13 @@ function mountFolderArrival(grid: HTMLElement) {
     if (finished.has(card) || builds.has(card)) return;
     const folder = card.querySelector<HTMLElement>(".carp-c");
     const cover = card.querySelector<HTMLElement>(".ae-arrival-cover");
-    if (reduced.matches || document.hidden || !folder || typeof folder.animate !== "function") {
+    if (
+      reduced.matches ||
+      document.hidden ||
+      !folder ||
+      !cover ||
+      typeof folder.animate !== "function"
+    ) {
       finishFolder(card);
       return;
     }

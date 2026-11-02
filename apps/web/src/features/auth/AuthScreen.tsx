@@ -505,7 +505,7 @@ function accountAlreadyExists(error: { code?: string; message?: string }): boole
   if (code === "user_already_exists" || code === "email_exists") {
     return true;
   }
-  const message = error.message.toLowerCase();
+  const message = error.message?.toLowerCase() ?? "";
   return (
     message.includes("already registered") ||
     message.includes("already been registered") ||
