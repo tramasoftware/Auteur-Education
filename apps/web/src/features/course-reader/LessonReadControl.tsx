@@ -87,7 +87,7 @@ export function LessonReadControl({
             />
           </svg>
         ) : null}
-        Mark as read
+        {read ? "Marked as read" : "Mark as read"}
       </button>
       {message ? <p>{message}</p> : null}
     </div>
