@@ -11,14 +11,16 @@ import {
 } from "react";
 
 import { ErrorNotice } from "@/components/ui";
-import { getAccountProfile } from "@/lib/api";
+import { ApiError, courses, getAccountProfile } from "@/lib/api";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
-import type { Course, CourseModule, Lesson, SourceView } from "@/types/generator";
+import type { Course, CourseModule, CourseProgress, Lesson, SourceView } from "@/types/generator";
 
 import { KnowledgeCheck } from "./KnowledgeCheck";
+import { LessonReadControl } from "./LessonReadControl";
 import {
   loadModuleReading,
   peekModuleReading,
+  replaceModuleProgress,
   type ModuleReading,
 } from "./module-reading-cache";
 import "./module-desk.css";
@@ -219,10 +221,12 @@ function PagedSheet({
   blocks,
   pageKey,
   marks,
+  footer,
 }: {
   blocks: PageBlock[];
   pageKey: string;
   marks?: ReactNode;
+  footer?: ReactNode;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -335,6 +339,7 @@ function PagedSheet({
             <FlowBlocks blocks={visible.flatMap((index) => blocks[index] ?? [])} />
           </div>
         </div>
+        {footer}
         <SheetPager
           page={safePage}
           total={total}
@@ -722,6 +727,7 @@ function coverBlocks(
   module: CourseModule,
   moduleCount: number,
   credit: string,
+  readIds: ReadonlySet<string>,
 ): PageBlock[] {
   const minutes = module.lessons.reduce(
     (sum, lesson) => sum + readingMinutes(lesson.word_count),
@@ -734,7 +740,9 @@ function coverBlocks(
       <Link href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>
         <span className="n">{pad(lesson.index)}</span>
         <span className="t">{lesson.title}</span>
-        <span className="d">{readingMinutes(lesson.word_count)} min</span>
+        <span className="d">
+          {readIds.has(lesson.id) ? "Read" : `${readingMinutes(lesson.word_count)} min`}
+        </span>
       </Link>
     ),
   }));
@@ -1070,6 +1078,8 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
   );
   const [error, setError] = useState<unknown>(null);
   const [learnerName, setLearnerName] = useState<string | null>(null);
+  const progressRef = useRef<CourseProgress | null>(pack?.progress ?? null);
+  progressRef.current = pack?.progress ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1115,6 +1125,48 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
       cancelled = true;
     };
   }, [courseId, moduleId]);
+
+  function applyProgress(next: CourseProgress) {
+    replaceModuleProgress(courseId, moduleId, next);
+    setPack((current) => (current ? { ...current, progress: next } : current));
+  }
+
+  useEffect(() => {
+    if (pane !== "lesson" || !lessonId) {
+      return;
+    }
+    const current = progressRef.current;
+    if (!current) {
+      return;
+    }
+    let cancelled = false;
+    const visit = (revision: number) =>
+      courses.visitLesson(courseId, lessonId, revision).then((next) => {
+        if (!cancelled) {
+          applyProgress(next);
+        }
+      });
+    visit(current.position_revision).catch(async (err: unknown) => {
+      if (!(err instanceof ApiError) || err.code !== "stale_version" || cancelled) {
+        return;
+      }
+      try {
+        const again = await courses.progress(courseId);
+        if (cancelled || again.last_lesson_id === lessonId) {
+          if (!cancelled) {
+            applyProgress(again);
+          }
+          return;
+        }
+        await visit(again.position_revision);
+      } catch {
+        // A failed visit keeps the last confirmed position (BR-PRG-004).
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, moduleId, lessonId, pane, Boolean(pack?.progress)]);
 
   const course = pack?.course ?? null;
   const module = pack?.module ?? null;
@@ -1178,6 +1230,11 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
         ? module.title
         : (companionLinks.find((item) => item.id === activeId)?.title ?? "This module");
   const visibleLesson = lesson && lesson.id === lessonId ? lesson : null;
+  const readIds = new Set(
+    (pack?.progress.lessons ?? [])
+      .filter((item) => item.read)
+      .map((item) => item.lesson_id),
+  );
   const pageKey = `${moduleId}:${activeId ?? pane}`;
   const blocks: PageBlock[] = !module
     ? [{ key: "loading", node: <p className="sheet-loading">Loading…</p> }]
@@ -1187,6 +1244,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
           module,
           course?.modules.length ?? module.index,
           coverCredit(learnerName, course?.created_at),
+          readIds,
         )
       : pane === "lesson"
         ? visibleLesson
@@ -1232,6 +1290,16 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
                     pageKey={pageKey}
                     blocks={blocks}
                     marks={pane === "overview" && module ? <CoverMarks module={module} /> : null}
+                    footer={
+                      pane === "lesson" && visibleLesson ? (
+                        <LessonReadControl
+                          courseId={courseId}
+                          lessonId={visibleLesson.id}
+                          progress={pack?.progress ?? null}
+                          onChanged={applyProgress}
+                        />
+                      ) : null
+                    }
                   />
                 )}
               </article>

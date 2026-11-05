@@ -7,6 +7,7 @@ import type {
   CourseDiagnostics,
   CourseList,
   CourseModule,
+  CourseProgress,
   CreateLearningRequest,
   ErrorCode,
   LearningRequest,
@@ -97,6 +98,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function post<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, {
     method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+function put<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -214,4 +222,18 @@ export const courses = {
   getDiagnostics: (courseId: string) =>
     request<CourseDiagnostics>(`/courses/${courseId}/diagnostics`),
   retry: (courseId: string) => post<Course>(`/courses/${courseId}/retry`),
+  progress: (courseId: string) =>
+    request<CourseProgress>(`/courses/${courseId}/progress`),
+  setLessonRead: (
+    courseId: string,
+    lessonId: string,
+    body: { read: boolean; updated_at: string | null },
+  ) =>
+    put<CourseProgress>(`/courses/${courseId}/lessons/${lessonId}/read`, body),
+  visitLesson: (courseId: string, lessonId: string, positionRevision: number) =>
+    put<CourseProgress>(`/courses/${courseId}/lessons/${lessonId}/visit`, {
+      position_revision: positionRevision,
+    }),
+  presentSynthesis: (courseId: string) =>
+    post<CourseProgress>(`/courses/${courseId}/synthesis-presentation`),
 };

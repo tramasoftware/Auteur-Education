@@ -252,6 +252,46 @@ export type CourseList = {
   courses: LibraryCourse[];
 };
 
+export type LearningStatus = "not_started" | "in_progress" | "completed";
+
+export type ModuleLearningProgress = {
+  module_id: string;
+  index: number;
+  publication_state: ModuleState;
+  lesson_total: number;
+  lessons_read: number;
+  percent: number | null;
+  learning_status: LearningStatus | null;
+};
+
+export type LessonLearningProgress = {
+  lesson_id: string;
+  module_id: string;
+  read: boolean;
+  marked_at: string | null;
+  updated_at: string | null;
+};
+
+/** Learning view from GET /courses/{id}/progress. Separate from build state. */
+export type CourseProgress = {
+  course_id: string;
+  build_state: CourseState;
+  learning_status: LearningStatus;
+  lesson_total: number;
+  lessons_read: number;
+  percent: number | null;
+  modules: ModuleLearningProgress[];
+  lessons: LessonLearningProgress[];
+  last_lesson_id: string | null;
+  resume_lesson_id: string | null;
+  last_activity_at: string | null;
+  position_revision: number;
+  first_completed_at: string | null;
+  current_completed_at: string | null;
+  synthesis_auto_presented_at: string | null;
+  synthesis_auto_open_pending: boolean;
+};
+
 export type Course = {
   id: string;
   request_id: string;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Callable
@@ -46,6 +47,11 @@ from auteur_api.modules.generation.schemas import (
     ModuleAuditOutput,
     ModuleRecord,
     ModuleState,
+)
+from auteur_api.modules.learning_progress.logic import (
+    CourseLearningProgress,
+    LessonRead,
+    ProgressWrite,
 )
 from auteur_api.modules.onboarding.schemas import (
     CompatibilityAssessment,
@@ -722,6 +728,8 @@ class PostgresStore:
             "courses",
             "modules",
             "lessons",
+            "lesson_reads",
+            "course_learning_progress",
             "generation_traces",
         ):
             self._table(table).update({"user_id": to_user_id}).eq(
@@ -868,6 +876,155 @@ class PostgresStore:
             qa_result=row.get("qa_result"),
             web_search=bool(row.get("web_search")),
         )
+
+    def list_lesson_reads(self, user_id: str, course_id: str) -> list[LessonRead]:
+        rows = (
+            self._table("lesson_reads")
+            .select("user_id,lesson_id,course_id,read,marked_at,updated_at")
+            .eq("user_id", user_id)
+            .eq("course_id", course_id)
+            .execute()
+            .data
+            or []
+        )
+        return [
+            LessonRead(
+                user_id=row["user_id"],
+                lesson_id=row["lesson_id"],
+                course_id=row["course_id"],
+                read=bool(row["read"]),
+                marked_at=_dt(row["marked_at"]) if row.get("marked_at") else None,
+                updated_at=_dt(row["updated_at"]),
+            )
+            for row in rows
+        ]
+
+    def get_course_learning_progress(
+        self, user_id: str, course_id: str
+    ) -> CourseLearningProgress | None:
+        rows = (
+            self._table("course_learning_progress")
+            .select(
+                "user_id,course_id,last_lesson_id,last_activity_at,position_revision,"
+                "first_completed_at,current_completed_at,synthesis_auto_presented_at"
+            )
+            .eq("user_id", user_id)
+            .eq("course_id", course_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return CourseLearningProgress(
+            user_id=row["user_id"],
+            course_id=row["course_id"],
+            last_lesson_id=row.get("last_lesson_id"),
+            last_activity_at=(
+                _dt(row["last_activity_at"]) if row.get("last_activity_at") else None
+            ),
+            position_revision=int(row.get("position_revision") or 0),
+            first_completed_at=(
+                _dt(row["first_completed_at"])
+                if row.get("first_completed_at")
+                else None
+            ),
+            current_completed_at=(
+                _dt(row["current_completed_at"])
+                if row.get("current_completed_at")
+                else None
+            ),
+            synthesis_auto_presented_at=(
+                _dt(row["synthesis_auto_presented_at"])
+                if row.get("synthesis_auto_presented_at")
+                else None
+            ),
+        )
+
+    def apply_lesson_read(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        read: bool,
+        expected_updated_at: datetime | None,
+    ) -> ProgressWrite:
+        self.get_course(course_id, user_id=user_id)
+        return self._progress_outcome(
+            "apply_lesson_read",
+            {
+                "p_user_id": user_id,
+                "p_course_id": course_id,
+                "p_lesson_id": lesson_id,
+                "p_read": read,
+                "p_expected_updated_at": (
+                    expected_updated_at.isoformat() if expected_updated_at else None
+                ),
+            },
+        )
+
+    def record_lesson_visit(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        position_revision: int,
+    ) -> ProgressWrite:
+        self.get_course(course_id, user_id=user_id)
+        return self._progress_outcome(
+            "record_lesson_visit",
+            {
+                "p_user_id": user_id,
+                "p_course_id": course_id,
+                "p_lesson_id": lesson_id,
+                "p_position_revision": position_revision,
+            },
+        )
+
+    def record_synthesis_presentation(
+        self, user_id: str, course_id: str
+    ) -> ProgressWrite:
+        self.get_course(course_id, user_id=user_id)
+        return self._progress_outcome(
+            "record_synthesis_presentation",
+            {"p_user_id": user_id, "p_course_id": course_id},
+        )
+
+    def reconcile_learning_progress(self, user_id: str, course_id: str) -> None:
+        outcome = self._rpc_payload(
+            "reconcile_course_learning",
+            {"p_user_id": user_id, "p_course_id": course_id},
+        )
+        if outcome == "not_found":
+            raise not_found("Course")
+
+    def _progress_outcome(self, name: str, params: dict[str, Any]) -> ProgressWrite:
+        outcome = self._rpc_payload(name, params)
+        try:
+            return ProgressWrite(outcome)
+        except ValueError:
+            raise ApiError(
+                "internal_error",
+                "Progress could not be saved. Try again.",
+            ) from None
+
+    def _rpc_payload(self, name: str, params: dict[str, Any]) -> str:
+        response = self._client.rpc(name, params).execute()
+        data = response.data
+        if isinstance(data, str):
+            data = json.loads(data)
+        if isinstance(data, list):
+            data = data[0] if data else None
+        if not isinstance(data, dict) or "outcome" not in data:
+            raise ApiError(
+                "internal_error",
+                "Progress could not be saved. Try again.",
+            )
+        return str(data["outcome"])
 
 
 @lru_cache(maxsize=1)

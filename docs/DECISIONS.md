@@ -151,6 +151,14 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Impacto:** `BR-PRP-001`, `AI-STG-04`, `UF-04`, `MVP.md` §5, prompts y validación en `modules/proposals`, pantalla de propuestas (`apps/web`).
 - **Límite:** no cambia la diferenciación mínima entre pares (`BR-PRP-002`) ni confunde propuestas con alternativas de intención incompatible (`DEC-016` / `AI-STG-01`).
 
+### DEC-020 — Progreso de lectura y finalización del curso
+
+- **Estatus:** APROBADA (pedido de implementación, noviembre 2026)
+- **Necesidad:** `MVP.md` §16, `BR-PRG-001` a `BR-PRG-005` y `UF-16` exigen marcas manuales, progreso de módulo y de curso, última lección y finalización persistida. La demo había dejado ese estado fuera del modelo.
+- **Decisión:** el aprendizaje se guarda aparte del build. `lesson_reads` es la marca por usuario y lección. `course_learning_progress` guarda la última lección, la actividad, la primera finalización, la finalización vigente y si ya se presentó sola la síntesis final. El porcentaje y los estados `not_started`, `in_progress` y `completed` se calculan. `courses.completed_at` sigue siendo el fin de la generación. El total del curso incluye las lecciones previstas todavía no publicadas. Un curso se completa solo con build `complete`, todos los módulos `published` y todas las lecciones leídas. La presentación automática de la síntesis final ocurre una sola vez.
+- **Impacto:** migración `lesson_reads` y `course_learning_progress`, `modules/learning_progress`, `GET/PUT/POST` bajo `/courses/{id}`. Home, Mis cursos, el esquema del curso y la lección muestran ese progreso. La lección publicada se marca a mano y registrar la visita no ocurre en el prefetch.
+- **Límite:** no incluye posición de audio ni resultado de Knowledge Check. `BR-PRG-004` sigue pidiendo esos dos datos para una tarea posterior. No se rediseñan las sugerencias editoriales de Home ni de Mis cursos. Con `DEC-007`, los módulos `not_built` entran en el total y el curso no puede completarse mientras existan.
+
 ## Pendientes sin decisión
 
 - Expiración de la sesión anónima (`BR-ONB-009`) si se mantiene el bypass demo.

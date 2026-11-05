@@ -81,6 +81,20 @@ def script_full_build(fake_ai) -> None:
     fake_ai.default(CourseAuditOutput, audit("Pass"))
 
 
+def test_blueprint_starts_in_production_without_a_subscription(
+    client, fake_ai, monkeypatch
+) -> None:
+    """BR-SUB-003 is not implemented. APP_ENV=production must not dead-end the step."""
+    from auteur_api.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(BlueprintOutput, blueprint())
+    started = client.post(f"/api/v1/learning-requests/{rid}/blueprint")
+    assert started.status_code == 202
+    assert started.json()["state"] == "awaiting_approval"
+
+
 def test_blueprint_requires_selected_proposal(client, fake_ai) -> None:
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
     fake_ai.enqueue(LearningObjectiveOutput, objective())

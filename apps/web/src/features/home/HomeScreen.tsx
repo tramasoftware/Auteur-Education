@@ -2,63 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { rememberOnboardingDraft } from "@/lib/session";
 
+import { LearningStatusLine } from "./LearningStatusLine";
 import { MemberFrame } from "./MemberFrame";
+import { ReadingDesk } from "./ReadingDesk";
 
 const topics = ["Photography", "Music", "Everyday economics"] as const;
-
-function pad(step: number): string {
-  return String(step).padStart(2, "0");
-}
-
-const modules = [
-  {
-    label: "Module 01 · complete",
-    title: "Before the drawing",
-    lessons: [
-      ["01", "What an architect sees", "Read"],
-      ["02", "The inherited city", "Read"],
-      ["03", "The profession and its promise", "Read"],
-    ],
-    done: true,
-  },
-  {
-    label: "Module 02 · Lesson 2 of 3",
-    title: "Who decides what a city looks like?",
-    lead: "Pick up where you left off.",
-    meta: "3 min read",
-    current: true,
-  },
-  {
-    label: "Module 03 · ready to read",
-    title: "Materials and the rules",
-    lessons: [
-      ["01", "Concrete, glass, and politics", "1 min"],
-      ["02", "Height, density, and the law", "1 min"],
-      ["03", "Who pays for the shape of a city?", "1 min"],
-    ],
-  },
-  {
-    label: "Module 04 · prepared when you start module 03",
-    title: "The city after the plan",
-    lessons: [
-      ["01", "Renovation and repair", "Queued"],
-      ["02", "Life after the plan", "Queued"],
-      ["03", "Reading a city today", "Queued"],
-    ],
-    queued: true,
-  },
-] as const;
-
-const path = [
-  { title: "Before the drawing", detail: "Complete", state: "done" },
-  { title: "The city as a machine", detail: "You’re here · Lesson 2 of 3", state: "current" },
-  { title: "Materials and the rules", detail: "Ready to read", state: "" },
-  { title: "The city after the plan", detail: "Not yet prepared", state: "" },
-] as const;
 
 const ideas = [
   {
@@ -107,20 +59,21 @@ const ideas = [
   },
 ] as const;
 
-export function HomeScreen({ hasCourseInProgress }: { hasCourseInProgress: boolean }) {
-  const recommendStep = hasCourseInProgress ? 2 : 1;
-  const questionStep = hasCourseInProgress ? 3 : 2;
+function pad(step: number): string {
+  return String(step).padStart(2, "0");
+}
+
+export function HomeScreen() {
+  const [inProgress, setInProgress] = useState<number | null>(null);
 
   return (
     <MemberFrame
       current="home"
       status={
-        hasCourseInProgress ? (
-          <>
-            <b>1</b> course in progress
-          </>
+        inProgress === null ? (
+          <>Loading</>
         ) : (
-          <>No course in progress</>
+          <LearningStatusLine count={inProgress} variant="header" />
         )
       }
     >
@@ -134,210 +87,11 @@ export function HomeScreen({ hasCourseInProgress }: { hasCourseInProgress: boole
             Create a new course <span className="ae-link-arrow" aria-hidden="true">↗</span>
           </Link>
         </header>
-        {hasCourseInProgress ? <ReadingDesk /> : null}
-        <Curiosity step={recommendStep} fromCurrentCourse={hasCourseInProgress} />
-        <NewQuestion step={questionStep} />
+        <ReadingDesk onInProgress={setInProgress} />
+        <Curiosity step={2} fromCurrentCourse />
+        <NewQuestion step={3} />
       </main>
     </MemberFrame>
-  );
-}
-
-function ReadingDesk() {
-  const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState(1);
-  const [compact, setCompact] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 900px)");
-    const apply = () => {
-      setCompact(media.matches);
-      if (media.matches) setOpen(true);
-    };
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-
-  function show(index: number) {
-    setCurrent(index);
-    setOpen(true);
-  }
-
-  const opened = open || compact;
-
-  return (
-    <>
-      <div className="escena-w">
-        <div className={`escena${opened ? " abierta" : ""}`}>
-          <div className="intro">
-            <span className="ae-home-kicker">01 / Pick up where you left off</span>
-            <h2 className="dl-t">Who decides what a city looks like?</h2>
-            <p className="pista">Module 02 · Lesson 02 · 3 min read</p>
-            <div className="ae-home-progress-caption">
-              <span>Your progress</span>
-              <span>4 of 12 lessons read</span>
-            </div>
-            <div
-              className="ae-resume-progress"
-              role="progressbar"
-              aria-label="Lessons read"
-              aria-valuemin={0}
-              aria-valuemax={12}
-              aria-valuenow={4}
-            >
-              {Array.from({ length: 12 }, (_, index) => (
-                <i key={index} className={index < 4 ? "read" : undefined} aria-hidden="true" />
-              ))}
-            </div>
-            <div className="ae-home-resume-actions">
-              <button className="btn" type="button" onClick={() => show(1)}>
-                Continue reading<span className="ar" />
-              </button>
-            </div>
-          </div>
-          <div className="cuerpo-c">
-            <div className="barra-c">
-              <div className="hojear" role="group" aria-label="Browse modules">
-                <button
-                  className="hb"
-                  type="button"
-                  aria-label="Previous module"
-                  disabled={current === 0}
-                  onClick={() => setCurrent((value) => Math.max(0, value - 1))}
-                >
-                  <span className="ar izq" />
-                </button>
-                <span className="hn" aria-live="polite">
-                  Module 0{current + 1} <i>of 04</i>
-                </span>
-                <button
-                  className="hb"
-                  type="button"
-                  aria-label="Next module"
-                  disabled={current === modules.length - 1}
-                  onClick={() => setCurrent((value) => Math.min(modules.length - 1, value + 1))}
-                >
-                  <span className="ar" />
-                </button>
-              </div>
-              <button className="cerrar-in" type="button" onClick={() => setOpen(false)}>
-                Close <span aria-hidden="true">×</span>
-              </button>
-            </div>
-            {modules.map((module, index) => (
-              <article
-                key={module.title}
-                className={`hoja-s pag${index === current ? " on" : ""}`}
-                aria-hidden={index !== current}
-              >
-                <span className="margen" aria-hidden="true" />
-                <span className="lab">{module.label}</span>
-                <h2>{module.title}</h2>
-                {"lead" in module ? <p className="baj">{module.lead}</p> : null}
-                {"meta" in module ? (
-                  <p className="meta">
-                    <span>{module.meta}</span>
-                  </p>
-                ) : null}
-                {"lessons" in module ? (
-                  <ol className="cls-s">
-                    {module.lessons.map(([number, title, mark]) => (
-                      <li
-                        key={title}
-                        className={"done" in module && module.done ? "ok" : "queued" in module && module.queued ? "cola" : ""}
-                      >
-                        <span className="k">{number}</span>
-                        <span className="t">{title}</span>
-                        <span className="e">{mark}</span>
-                      </li>
-                    ))}
-                  </ol>
-                ) : null}
-                <div className="acciones">
-                  {"current" in module ? (
-                    <span className="btn">
-                      Continue reading<span className="ar" />
-                    </span>
-                  ) : "done" in module ? (
-                    <span className="btn fantasma">Review the module</span>
-                  ) : !("queued" in module) ? (
-                    <span className="btn fantasma">View module overview</span>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-          <div
-            className="tapa-c"
-            role={opened ? undefined : "button"}
-            tabIndex={opened ? -1 : 0}
-            aria-label={opened ? undefined : "Open course folder"}
-            onClick={() => {
-              if (!compact) setOpen((value) => !value);
-            }}
-            onKeyDown={(event) => {
-              if (opened) return;
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setOpen(true);
-              }
-            }}
-          >
-            <span className="et folder-tab">
-              <span className="folder-tab-label">Reading</span>
-            </span>
-            <div className="cara frente">
-              <div className="ae-home-cover-meta">
-                <span>Architecture · Urbanism</span>
-                <span>Folder 01</span>
-              </div>
-              <h2>Modern architecture and the city</h2>
-              <div className="ae-home-cover-foot">
-                <p className="f-meta">
-                  Module 02 of 04
-                  <br />
-                  The city as a machine
-                </p>
-                <span className="ae-home-cover-open">
-                  Open folder <span className="ar" aria-hidden="true" />
-                </span>
-              </div>
-            </div>
-            <div className="cara dorso">
-              <div>
-                <span className="ae-home-back-caption">On your reading desk</span>
-                <p className="curso-d">Modern architecture and the city</p>
-              </div>
-              <div className="postit-a">
-                <b>View notes</b>
-                <span>4 notes in this course</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <section className="ae-home-path" aria-labelledby="ae-home-path-title">
-        <div className="ae-home-path-head">
-          <h2 id="ae-home-path-title">Your learning path</h2>
-          <Link className="ae-home-text-link" href="/my-courses">
-            View full course <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-        <ol className="ae-home-steps">
-          {path.map((step, index) => (
-            <li key={step.title} className={step.state}>
-              <button type="button" onClick={() => show(index)} aria-current={step.state === "current" ? "step" : undefined}>
-                <span className="n">0{index + 1}</span>
-                <div>
-                  <strong>{step.title}</strong>
-                  <small>{step.detail}</small>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </section>
-    </>
   );
 }
 

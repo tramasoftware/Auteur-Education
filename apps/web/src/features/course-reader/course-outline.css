@@ -131,6 +131,21 @@
   background: rgba(47, 93, 69, 0.14);
 }
 
+.landing.course-outline-screen .cur-mod .est-m.is-completed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #1c8c3a;
+  background: rgba(28, 140, 58, 0.16);
+}
+
+.landing.course-outline-screen .cur-mod .est-m .est-tick {
+  display: block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+}
+
 .landing.course-outline-screen .cur-mod .est-m.is-writing {
   color: var(--borgona);
   background: rgba(123, 48, 59, 0.12);
@@ -369,7 +384,7 @@
 
 .landing.course-outline-screen .aviso {
   max-width: 62ch;
-  margin: 28px 0 0;
+  margin: 20px 0 clamp(24px, 3vw, 36px);
   color: var(--m-2);
   font-size: calc(15px * var(--ft, 1));
   line-height: 1.55;

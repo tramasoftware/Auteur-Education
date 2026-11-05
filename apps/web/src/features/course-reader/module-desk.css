@@ -971,6 +971,68 @@
   margin-top: 32px;
 }
 
+.landing.module-desk .ae-lesson-read {
+  position: absolute;
+  top: 14px;
+  right: 36px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: min(240px, 48%);
+  margin: 0;
+}
+
+.landing.module-desk .ae-lesson-read .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 5px 9px;
+  border: 1px dotted #111;
+  border-radius: 0;
+  background: transparent;
+  color: #111;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(12px * var(--ft, 1));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.landing.module-desk .ae-lesson-read .btn.is-read {
+  border-style: solid;
+}
+
+.landing.module-desk .ae-lesson-read .tick {
+  display: block;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  color: #1c8c3a;
+}
+
+.landing.module-desk .ae-lesson-read .btn:hover:not(:disabled),
+.landing.module-desk .ae-lesson-read .btn:active:not(:disabled) {
+  background: transparent;
+  color: #111;
+  transform: none;
+}
+
+.landing.module-desk .ae-lesson-read .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.landing.module-desk .ae-lesson-read p {
+  margin: 0;
+  color: var(--t-2);
+  font: 400 calc(11px * var(--ft, 1))/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  text-align: right;
+}
+
 .landing.module-desk .kc .btn {
   min-height: 44px;
   padding: 0 22px 0 24px;
@@ -1313,6 +1375,11 @@
     min-height: var(--sheet-fixed);
     max-height: var(--sheet-fixed);
     padding: 28px 18px 20px 28px;
+  }
+
+  .landing.module-desk .ae-lesson-read {
+    top: 8px;
+    right: 18px;
   }
 
   .landing.module-desk .ae-reading-nav {

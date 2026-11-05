@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorNotice } from "@/components/ui";
 import { courses } from "@/lib/api";
+import { continueLabel, resumeHref } from "@/lib/course-progress";
 import { usePolling } from "@/lib/usePolling";
-import type { Course, CourseModule, ModuleState, ModuleSummary } from "@/types/generator";
+import type {
+  Course,
+  CourseModule,
+  CourseProgress,
+  LearningStatus,
+  ModuleState,
+  ModuleSummary,
+} from "@/types/generator";
 
 import { CourseOutlineScreen } from "./CourseOutlineScreen";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
-import { warmCourseReading } from "./module-reading-cache";
+import { afterReadingWrites, warmCourseReading } from "./module-reading-cache";
 import { Prose } from "./Prose";
 
 const BUILDING: Course["state"][] = [
@@ -43,7 +51,10 @@ function readingMinutes(wordCount: number): number {
   return Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
 }
 
-function moduleStatusClass(state: ModuleState): string {
+function moduleStatusClass(state: ModuleState, learning: LearningStatus | null): string {
+  if (state === "published" && learning === "completed") {
+    return "is-completed";
+  }
   switch (state) {
     case "published":
       return "is-ready";
@@ -61,7 +72,10 @@ function moduleStatusClass(state: ModuleState): string {
   }
 }
 
-function moduleStatusLabel(state: ModuleState): string {
+function moduleStatusLabel(state: ModuleState, learning: LearningStatus | null): string {
+  if (state === "published" && learning === "completed") {
+    return "Completed";
+  }
   switch (state) {
     case "published":
       return "Ready to read";
@@ -107,6 +121,19 @@ function courseHeaderStatus(course: Course | null): string {
   return "Your course";
 }
 
+/** Immediate outline while retry is still waiting on the API. */
+function asQueuedRetry(current: Course): Course {
+  return {
+    ...current,
+    state: "queued",
+    failure: null,
+    current_activity: null,
+    modules: current.modules.map((module) =>
+      module.state === "failed" ? { ...module, state: "queued" } : module,
+    ),
+  };
+}
+
 function failureForLearner(failure: string): string {
   const internal =
     /AI-STG-\d|lesson:[0-9a-f-]{8,}|round\d+|after the allowed attempts/i.test(
@@ -118,7 +145,11 @@ function failureForLearner(failure: string): string {
   return "We stopped before this part was ready to read. Modules that were already published are still available.";
 }
 
-function cifraLine(course: Course, details: Record<string, CourseModule>): string {
+function cifraLine(
+  course: Course,
+  details: Record<string, CourseModule>,
+  progress: CourseProgress | null,
+): string {
   const moduleCount = course.modules.length;
   const lessonCount = course.modules.reduce(
     (sum, module) => sum + module.lesson_count,
@@ -134,6 +165,9 @@ function cifraLine(course: Course, details: Record<string, CourseModule>): strin
     `${moduleCount} module${moduleCount === 1 ? "" : "s"}`,
     `${lessonCount} lesson${lessonCount === 1 ? "" : "s"}`,
   ];
+  if (progress && progress.lesson_total > 0) {
+    parts.push(`${progress.lessons_read} of ${progress.lesson_total} read`);
+  }
   if (published && words > 0) {
     parts.push(`${readingMinutes(words)} min estimated reading`);
   }
@@ -266,10 +300,14 @@ function ModuleSection({
   courseId,
   module,
   detail,
+  readIds,
+  learningStatus,
 }: {
   courseId: string;
   module: ModuleSummary;
   detail: CourseModule | undefined;
+  readIds: ReadonlySet<string>;
+  learningStatus: LearningStatus | null;
 }) {
   const live = ["writing", "researching", "reviewing"].includes(module.state);
   const loading = live || module.state === "queued" || module.state === "not_built";
@@ -281,7 +319,7 @@ function ModuleSection({
         <p className="mod-build">
           <span className="spin" aria-hidden="true" />
           <span>
-            Assembling module {pad(module.index)} · {moduleStatusLabel(module.state)}
+            Assembling module {pad(module.index)} · {moduleStatusLabel(module.state, null)}
           </span>
         </p>
       ) : null}
@@ -289,8 +327,19 @@ function ModuleSection({
       <div>
         <h2>
           {module.title}
-          <span className={`est-m ${moduleStatusClass(module.state)}`}>
-            {moduleStatusLabel(module.state)}
+          <span className={`est-m ${moduleStatusClass(module.state, learningStatus)}`}>
+            {moduleStatusLabel(module.state, learningStatus)}
+            {module.state === "published" && learningStatus === "completed" ? (
+              <svg className="est-tick" viewBox="0 0 12 12" aria-hidden="true">
+                <path
+                  d="M2.2 6.3 4.7 8.8 9.8 3.2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="square"
+                />
+              </svg>
+            ) : null}
           </span>
         </h2>
         <AboutModule
@@ -308,7 +357,9 @@ function ModuleSection({
                   >
                     <span className="k">{pad(lesson.index)}</span>
                     <span className="t">{lesson.title}</span>
-                    <span className="d">{readingMinutes(lesson.word_count)} min</span>
+                    <span className="d">
+                      {readIds.has(lesson.id) ? "Read" : `${readingMinutes(lesson.word_count)} min`}
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -357,9 +408,10 @@ function ModuleSection({
 /** UF-06: real build states, progressive publication, final synthesis. */
 export function CourseOverview({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<Course | null>(null);
+  const [progress, setProgress] = useState<CourseProgress | null>(null);
   const [details, setDetails] = useState<Record<string, CourseModule>>({});
   const [error, setError] = useState<unknown>(null);
-  const [retrying, setRetrying] = useState(false);
+  const retryLock = useRef(false);
 
   const loadDetails = useCallback(async (next: Course) => {
     const published = next.modules.filter((module) => module.state === "published");
@@ -382,19 +434,32 @@ export function CourseOverview({ courseId }: { courseId: string }) {
   }, []);
 
   const load = useCallback(
-    () =>
-      courses.get(courseId).then(
+    () => {
+      if (retryLock.current) {
+        return Promise.resolve();
+      }
+      return courses.get(courseId).then(
         async (next) => {
+          if (retryLock.current) {
+            return;
+          }
           try {
+            await afterReadingWrites();
+            const learning = await courses.progress(next.id).catch(() => null);
             await Promise.all([loadDetails(next), warmCourseReading(next)]);
+            if (retryLock.current) {
+              return;
+            }
             setCourse(next);
+            setProgress(learning);
             setError(null);
           } catch (err: unknown) {
             setError(err);
           }
         },
         (err: unknown) => setError(err),
-      ),
+      );
+    },
     [courseId, loadDetails],
   );
 
@@ -411,20 +476,37 @@ export function CourseOverview({ courseId }: { courseId: string }) {
   usePolling(load, building, 5000);
 
   async function retry() {
-    setRetrying(true);
+    const snapshot = course;
+    retryLock.current = true;
     setError(null);
+    if (snapshot) {
+      setCourse(asQueuedRetry(snapshot));
+    }
     try {
       const next = await courses.retry(courseId);
+      const learning = await courses.progress(next.id).catch(() => null);
       await Promise.all([loadDetails(next), warmCourseReading(next)]);
+      retryLock.current = false;
       setCourse(next);
+      setProgress(learning);
     } catch (err: unknown) {
+      retryLock.current = false;
+      if (snapshot) {
+        setCourse(snapshot);
+      }
       setError(err);
-    } finally {
-      setRetrying(false);
     }
   }
 
   const headerStatus = courseHeaderStatus(course);
+  const readIds = useMemo(
+    () =>
+      new Set(
+        progress?.lessons.filter((lesson) => lesson.read).map((lesson) => lesson.lesson_id) ??
+          [],
+      ),
+    [progress],
+  );
   const startModule = useMemo(
     () => course?.modules.find((module) => module.state === "published") ?? null,
     [course],
@@ -435,7 +517,32 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       : startModule
         ? `/courses/${courseId}/modules/${startModule.id}`
         : null;
+  const actionHref = course && progress ? resumeHref(course.id, progress) : startHref;
+  const actionLabel = progress
+    ? continueLabel(progress)
+    : startModule
+      ? `Start module ${pad(startModule.index)}`
+      : null;
   const note = course ? pieNote(course, building) : null;
+  const courseFailed = course?.state === "failed";
+  const presentedSynthesis = useRef(false);
+
+  useEffect(() => {
+    if (
+      !course?.final_synthesis ||
+      !progress?.synthesis_auto_open_pending ||
+      presentedSynthesis.current
+    ) {
+      return;
+    }
+    const node = document.getElementById("final-synthesis");
+    if (!node) {
+      return;
+    }
+    presentedSynthesis.current = true;
+    node.scrollIntoView({ block: "start" });
+    courses.presentSynthesis(course.id).catch(() => undefined);
+  }, [course, progress]);
 
   return (
     <CourseOutlineScreen title={headerStatus}>
@@ -468,30 +575,35 @@ export function CourseOverview({ courseId }: { courseId: string }) {
             <span className="k">Your course</span>
             <h1>{course.title}</h1>
             {course.subtitle ? <p className="sub">{course.subtitle}</p> : null}
-            <p className="cifras">{cifraLine(course, details)}</p>
+            <p className="cifras">{cifraLine(course, details, progress)}</p>
           </header>
 
-          {course.modules.map((module) => (
-            <ModuleSection
-              courseId={course.id}
-              detail={details[module.id]}
-              key={module.id}
-              module={module}
-            />
-          ))}
-
-          {course.state === "failed" && course.failure ? (
+          {courseFailed && course.failure ? (
             <div className="aviso err">
               <p>{failureForLearner(course.failure)}</p>
-              <button className="btn" disabled={retrying} type="button" onClick={retry}>
+              <button className="btn" type="button" onClick={retry}>
                 Retry this course
                 <span className="ar" aria-hidden="true" />
               </button>
             </div>
           ) : null}
 
+          {course.modules.map((module) => (
+            <ModuleSection
+              courseId={course.id}
+              detail={details[module.id]}
+              key={module.id}
+              learningStatus={
+                progress?.modules.find((item) => item.module_id === module.id)
+                  ?.learning_status ?? null
+              }
+              module={module}
+              readIds={readIds}
+            />
+          ))}
+
           {course.final_synthesis ? (
-            <section className="sintesis">
+            <section className="sintesis" id="final-synthesis">
               <h2>Final synthesis</h2>
               <Prose text={course.final_synthesis.body} />
               {course.final_synthesis.new_questions.length > 0 ? (
@@ -507,13 +619,20 @@ export function CourseOverview({ courseId }: { courseId: string }) {
             </section>
           ) : null}
 
-          {startHref || note ? (
+          {(actionHref && actionLabel) || note ? (
             <div className="pie-c">
-              {startHref && startModule ? (
-                <Link className="btn" href={startHref}>
-                  Start module {pad(startModule.index)}
-                  <span className="ar" aria-hidden="true" />
-                </Link>
+              {actionHref && actionLabel ? (
+                courseFailed || !startModule ? (
+                  <button className="btn" disabled type="button">
+                    {actionLabel}
+                    <span className="ar" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <Link className="btn" href={actionHref}>
+                    {actionLabel}
+                    <span className="ar" aria-hidden="true" />
+                  </Link>
+                )
               ) : null}
               {note ? <span className="nota">{note}</span> : null}
             </div>

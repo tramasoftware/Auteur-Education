@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Literal, Protocol
 
-from auteur_api.ai.tracing import StageTrace
+from auteur_api.ai.tracing import StageTrace, now
 from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.modules.blueprints.schemas import BlueprintRecord
 from auteur_api.modules.generation.schemas import (
@@ -19,6 +19,19 @@ from auteur_api.modules.generation.schemas import (
     CourseRecord,
     CourseState,
     ModuleState,
+)
+from auteur_api.modules.learning_progress.logic import (
+    CourseLearningProgress,
+    LessonRead,
+    ProgressWrite,
+    apply_read_mark,
+    reconcile_progress_row,
+)
+from auteur_api.modules.learning_progress.logic import (
+    record_lesson_visit as apply_lesson_visit,
+)
+from auteur_api.modules.learning_progress.logic import (
+    record_synthesis_presentation as apply_synthesis_presentation,
 )
 from auteur_api.modules.onboarding.schemas import LearningRequestRecord
 
@@ -160,6 +173,37 @@ class Store(Protocol):
 
     def reassign_owner(self, from_user_id: str, to_user_id: str) -> None: ...
 
+    def list_lesson_reads(self, user_id: str, course_id: str) -> list[LessonRead]: ...
+
+    def get_course_learning_progress(
+        self, user_id: str, course_id: str
+    ) -> CourseLearningProgress | None: ...
+
+    def apply_lesson_read(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        read: bool,
+        expected_updated_at: datetime | None,
+    ) -> ProgressWrite: ...
+
+    def record_lesson_visit(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        position_revision: int,
+    ) -> ProgressWrite: ...
+
+    def record_synthesis_presentation(
+        self, user_id: str, course_id: str
+    ) -> ProgressWrite: ...
+
+    def reconcile_learning_progress(self, user_id: str, course_id: str) -> None: ...
+
     def get_profile(self, user_id: str) -> ProfileRecord: ...
 
     def update_profile(self, user_id: str, profile: ProfileRecord) -> ProfileRecord: ...
@@ -186,6 +230,8 @@ class DemoStore:
         self.profiles: dict[str, ProfileRecord] = {}
         self.profile_photos: dict[str, bytes] = {}
         self._photo_versions: dict[str, int] = {}
+        self.lesson_reads: dict[tuple[str, str], LessonRead] = {}
+        self.course_progress: dict[tuple[str, str], CourseLearningProgress] = {}
 
     def reset(self) -> None:
         self.__init__()
@@ -288,6 +334,85 @@ class DemoStore:
         for record in self.courses.values():
             if record.user_id == from_user_id:
                 record.user_id = to_user_id
+        self._reassign_progress(from_user_id, to_user_id)
+
+    def list_lesson_reads(self, user_id: str, course_id: str) -> list[LessonRead]:
+        return [
+            row
+            for (owner, _lesson_id), row in self.lesson_reads.items()
+            if owner == user_id and row.course_id == course_id
+        ]
+
+    def get_course_learning_progress(
+        self, user_id: str, course_id: str
+    ) -> CourseLearningProgress | None:
+        return self.course_progress.get((user_id, course_id))
+
+    def apply_lesson_read(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        read: bool,
+        expected_updated_at: datetime | None,
+    ) -> ProgressWrite:
+        course, reads, progress = self._learning_inputs(user_id, course_id)
+        result = apply_read_mark(
+            course,
+            reads,
+            progress,
+            user_id=user_id,
+            lesson_id=lesson_id,
+            read=read,
+            expected_updated_at=expected_updated_at,
+            now=now(),
+        )
+        if result.outcome is ProgressWrite.APPLIED:
+            self._replace_reads(user_id, course_id, result.reads)
+            if result.progress is not None:
+                self.course_progress[(user_id, course_id)] = result.progress
+        return result.outcome
+
+    def record_lesson_visit(
+        self,
+        user_id: str,
+        course_id: str,
+        lesson_id: str,
+        *,
+        position_revision: int,
+    ) -> ProgressWrite:
+        course, reads, progress = self._learning_inputs(user_id, course_id)
+        result = apply_lesson_visit(
+            course,
+            reads,
+            progress,
+            user_id=user_id,
+            lesson_id=lesson_id,
+            position_revision=position_revision,
+            now=now(),
+        )
+        if (
+            result.outcome in {ProgressWrite.APPLIED, ProgressWrite.UNCHANGED}
+            and result.progress is not None
+        ):
+            self.course_progress[(user_id, course_id)] = result.progress
+        return result.outcome
+
+    def record_synthesis_presentation(
+        self, user_id: str, course_id: str
+    ) -> ProgressWrite:
+        _course, reads, progress = self._learning_inputs(user_id, course_id)
+        result = apply_synthesis_presentation(reads, progress, now=now())
+        if result.outcome is ProgressWrite.APPLIED and result.progress is not None:
+            self.course_progress[(user_id, course_id)] = result.progress
+        return result.outcome
+
+    def reconcile_learning_progress(self, user_id: str, course_id: str) -> None:
+        course, reads, progress = self._learning_inputs(user_id, course_id)
+        updated = reconcile_progress_row(course, reads, progress, now())
+        if updated is not None:
+            self.course_progress[(user_id, course_id)] = updated
 
     def get_profile(self, user_id: str) -> ProfileRecord:
         current = self.profiles.get(user_id, ProfileRecord())
@@ -361,6 +486,44 @@ class DemoStore:
             f"https://example.test/profile-photos/{user_id}/photo?v={version}",
         )
         return self.get_profile(user_id)
+
+    def _learning_inputs(
+        self, user_id: str, course_id: str
+    ) -> tuple[CourseRecord, dict[str, LessonRead], CourseLearningProgress | None]:
+        course = self.get_course(course_id, user_id=user_id)
+        reads = {
+            row.lesson_id: row
+            for row in self.list_lesson_reads(user_id, course_id)
+        }
+        return course, reads, self.get_course_learning_progress(user_id, course_id)
+
+    def _replace_reads(
+        self, user_id: str, course_id: str, reads: dict[str, LessonRead]
+    ) -> None:
+        stale = [
+            key
+            for key, row in self.lesson_reads.items()
+            if key[0] == user_id and row.course_id == course_id
+        ]
+        for key in stale:
+            del self.lesson_reads[key]
+        for lesson_id, row in reads.items():
+            self.lesson_reads[(user_id, lesson_id)] = row
+
+    def _reassign_progress(self, from_user_id: str, to_user_id: str) -> None:
+        for (user_id, lesson_id), row in list(self.lesson_reads.items()):
+            if user_id != from_user_id:
+                continue
+            del self.lesson_reads[(user_id, lesson_id)]
+            moved = replace(row, user_id=to_user_id)
+            self.lesson_reads[(to_user_id, lesson_id)] = moved
+        for (user_id, course_id), row in list(self.course_progress.items()):
+            if user_id != from_user_id:
+                continue
+            del self.course_progress[(user_id, course_id)]
+            self.course_progress[(to_user_id, course_id)] = replace(
+                row, user_id=to_user_id
+            )
 
 
 store = DemoStore()
