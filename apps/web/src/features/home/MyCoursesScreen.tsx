@@ -1,11 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { courses } from "@/lib/api";
-import type { LibraryCourse } from "@/types/generator";
+import {
+  byCreation,
+  folderStatusLabel,
+  inProgressCount,
+  inProgressCourses,
+  readingCardCopy,
+  resumeHref,
+} from "@/lib/course-progress";
+import {
+  currentUserId,
+  readMemberDisplay,
+  writeMemberDisplay,
+} from "@/lib/member-display";
+import { ReadingCoursePager } from "./ReadingCoursePager";
+import type { CourseList, CourseProgress, LibraryCourse } from "@/types/generator";
 
+import { LearningStatusLine } from "./LearningStatusLine";
 import { MemberFrame } from "./MemberFrame";
 
 /** Muted folder colors. The oldest course is always the first swatch.
@@ -50,19 +65,6 @@ function shortDate(value: string): string {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(date);
 }
 
-function byCreation(items: LibraryCourse[]): LibraryCourse[] {
-  return [...items].sort((a, b) => {
-    const aTime = Date.parse(a.created_at);
-    const bTime = Date.parse(b.created_at);
-    const aKey = Number.isNaN(aTime) ? Number.POSITIVE_INFINITY : aTime;
-    const bKey = Number.isNaN(bTime) ? Number.POSITIVE_INFINITY : bTime;
-    if (aKey !== bKey) {
-      return aKey - bKey;
-    }
-    return a.id.localeCompare(b.id);
-  });
-}
-
 function stamp(label: string, value: string): string {
   const date = shortDate(value);
   return date ? `${label} · ${date}` : label;
@@ -85,6 +87,8 @@ function folderFrom(item: LibraryCourse, index: number): FolderCourse {
     claro: palette.claro,
   };
 }
+
+const READING_PAGE_SIZE = 3;
 
 const chosen = [
   {
@@ -115,43 +119,78 @@ const chosen = [
 
 export function MyCoursesScreen() {
   const [created, setCreated] = useState<FolderCourse[] | null>(null);
+  const [library, setLibrary] = useState<LibraryCourse[]>([]);
+  const [progress, setProgress] = useState<Map<string, CourseProgress>>(new Map());
   const [failed, setFailed] = useState(false);
+  const [readingPage, setReadingPage] = useState(0);
+
+  const showLibrary = useCallback((body: CourseList) => {
+    setLibrary(body.courses);
+    setProgress(new Map(body.courses.map((item) => [item.id, item.progress])));
+    setCreated(byCreation(body.courses).map((item, index) => folderFrom(item, index)));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    courses
-      .list()
-      .then((body) => {
+    void (async () => {
+      const userId = await currentUserId();
+      const cached = userId ? readMemberDisplay(userId) : null;
+      if (cancelled) {
+        return;
+      }
+      if (cached?.library) {
+        showLibrary(cached.library);
+      }
+      try {
+        const body = await courses.list();
         if (cancelled) {
           return;
         }
-        setCreated(
-          byCreation(body.courses).map((item, index) => folderFrom(item, index)),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
+        showLibrary(body);
+        if (userId) {
+          writeMemberDisplay(userId, {
+            library: body,
+            inProgressCount: inProgressCount(
+              body.courses,
+              new Map(body.courses.map((item) => [item.id, item.progress])),
+            ),
+          });
+        }
+      } catch {
+        if (!cancelled && !cached?.library) {
           setFailed(true);
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showLibrary]);
+
+  const studying = inProgressCount(library, progress);
+  const reading = inProgressCourses(library, progress);
+  const readingPageCount = Math.max(1, Math.ceil(reading.length / READING_PAGE_SIZE));
+  const safeReadingPage = Math.min(readingPage, readingPageCount - 1);
+  const readingSlice = reading.slice(
+    safeReadingPage * READING_PAGE_SIZE,
+    safeReadingPage * READING_PAGE_SIZE + READING_PAGE_SIZE,
+  );
 
   return (
     <MemberFrame
       current="courses"
       status={
-        <>
-          <b>1</b> course in progress
-        </>
+        created === null && !failed ? (
+          <>Loading</>
+        ) : (
+          <LearningStatusLine count={studying} variant="header" />
+        )
       }
     >
       <section className="hola">
         <h1>My courses</h1>
         <p className="estado">
-          <b>1</b> in progress
+          <LearningStatusLine count={studying} variant="library" />
           {created ? (
             <>
               {" "}
@@ -160,28 +199,43 @@ export function MyCoursesScreen() {
           ) : null}
         </p>
       </section>
-      <section className="cursos">
-        <span className="lab">On your reading desk</span>
-        <div className="ae-reading-row">
-          <Link className="cf encurso" href="/home">
-            <span className="solapa folder-tab">
-              <span className="folder-tab-label">Reading</span>
-            </span>
-            <span className="cuerpo">
-              <b>Modern architecture and the city</b>
-              <span className="d">
-                How a city takes shape, and who signs off on it. You’re on lesson 2 of 3 in module 02.
-              </span>
-              <span className="pie">
-                <span>4 of 12</span>
-                <span className="prog">
-                  <i style={{ width: "33%" }} />
-                </span>
-              </span>
-            </span>
-          </Link>
-        </div>
-      </section>
+      {reading.length > 0 ? (
+        <section className="cursos">
+          <span className="lab">On your reading desk</span>
+          <div className="ae-reading-row ae-reading-row--triple">
+            {readingSlice.map((item) => {
+              const itemProgress = progress.get(item.id);
+              if (!itemProgress) {
+                return null;
+              }
+              const card = readingCardCopy(item, itemProgress);
+              return (
+                <Link className="cf encurso" href={resumeHref(item.id, itemProgress)} key={item.id}>
+                  <span className="solapa folder-tab">
+                    <span className="folder-tab-label">Reading</span>
+                  </span>
+                  <span className="cuerpo">
+                    <b>{item.title}</b>
+                    <span className="d">{card.blurb}</span>
+                    <span className="pie">
+                      <span>{card.fraction}</span>
+                      <span className="prog">
+                        <i style={{ width: `${card.percent}%` }} />
+                      </span>
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          <ReadingCoursePager
+            page={safeReadingPage}
+            pageCount={readingPageCount}
+            onNext={() => setReadingPage((value) => Math.min(value + 1, readingPageCount - 1))}
+            onPrevious={() => setReadingPage((value) => Math.max(0, value - 1))}
+          />
+        </section>
+      ) : null}
       <section className="cursos">
         <span className="lab">Courses you’ve created</span>
         {failed ? <p>Your courses could not be loaded.</p> : null}
@@ -189,7 +243,9 @@ export function MyCoursesScreen() {
         {created?.length === 0 ? <p>No courses yet. They appear here after you create one.</p> : null}
         {created && created.length > 0 ? (
         <div className="cajon">
-          {created.map((item) => (
+          {created.map((item) => {
+            const status = progress.get(item.id);
+            return (
             <article
               key={item.id}
               className={`carp${item.claro ? " claro" : ""}`}
@@ -205,6 +261,12 @@ export function MyCoursesScreen() {
                 </span>
               </span>
               <div className="cu">
+                {status ? (
+                  <span className="estado">
+                    <i aria-hidden="true" />
+                    {folderStatusLabel(status)}
+                  </span>
+                ) : null}
                 <div className="ficha-c">
                   <span className="k">{item.created}</span>
                   {item.subtitle ? <p className="sub">{item.subtitle}</p> : null}
@@ -219,10 +281,6 @@ export function MyCoursesScreen() {
                         <b>{item.lessons}</b>
                         lessons
                       </span>
-                      <span>
-                        <b>3</b>
-                        quizzes
-                      </span>
                     </div>
                     <Link className="abrir" href={item.href}>
                       Open the course <span className="ar" />
@@ -231,7 +289,8 @@ export function MyCoursesScreen() {
                 </div>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
         ) : null}
       </section>

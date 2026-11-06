@@ -65,8 +65,11 @@ class Settings(BaseSettings):
 
     @property
     def demo_commercial_bypass_enabled(self) -> bool:
-        # DEC-003: auth/subscription/entitlement preconditions are skipped in demo.
-        return not self.is_production
+        # DEC-003 / BR-BLP-001 / BR-SUB-003: subscription and entitlement checks
+        # are not implemented. Gating them on APP_ENV=production rejects every
+        # Blueprint, including an authenticated learner, and Try again repeats
+        # that rejection. Restore `not self.is_production` when billing can pass.
+        return True
 
     @property
     def supabase_configured(self) -> bool:

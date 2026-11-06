@@ -2,24 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { blueprintJourneyStep, useJourneyStep } from "@/components/layout";
 import {
-  BulletList,
-  Button,
   CheckingGenerationStatus,
-  DefinitionList,
-  outlineButtonClass,
   ErrorNotice,
-  Field,
   GenerationStatus,
   Notice,
-  StatusBadge,
-  textareaClass,
 } from "@/components/ui";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
+import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
 import {
   BLUEPRINT_APPROACH_MS,
   BLUEPRINT_PHASES,
@@ -31,9 +25,71 @@ import { blueprintStateLabel } from "@/lib/labels";
 import { forgetCourseFlowPath, forgetRequestId, recallRequestId } from "@/lib/session";
 import { usePolling } from "@/lib/usePolling";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
-import type { Blueprint } from "@/types/generator";
+import type { Blueprint, BlueprintVisible } from "@/types/generator";
 
 import { PreparingCourse, type PreparingSheet } from "./PreparingCourse";
+import "./blueprint.css";
+
+function counted(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function studyEstimate(hours: string, words: number) {
+  const parts: string[] = [];
+  const trimmed = hours.trim();
+  if (trimmed) {
+    parts.push(/hour/i.test(trimmed) ? trimmed : `${trimmed} hours`);
+  }
+  if (words > 0) {
+    parts.push(`~${words.toLocaleString("en-US")} words`);
+  }
+  return parts.join(" · ");
+}
+
+function sourceHref(value: string) {
+  if (!/^https?:\/\//i.test(value)) {
+    return null;
+  }
+  try {
+    return new URL(value).href;
+  } catch {
+    return null;
+  }
+}
+
+function sourceLabel(value: string) {
+  const href = sourceHref(value);
+  if (!href) {
+    return value;
+  }
+  try {
+    return new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
+}
+
+function BlueprintChrome({
+  requestId,
+  children,
+}: {
+  requestId?: string | null;
+  children: ReactNode;
+}) {
+  const backHref = requestId ? `/proposals?request=${requestId}` : "/proposals";
+  return (
+    <CourseSetupFrame
+      title="Blueprint"
+      backHref={backHref}
+      backLabel="Back to directions"
+      backAriaLabel="Back to your learning paths"
+      mainClassName="bp-main"
+      screenClassName="blueprint-screen"
+    >
+      {children}
+    </CourseSetupFrame>
+  );
+}
 
 const SHEET_LINES = [
   [92, 86, 78, 64],
@@ -197,9 +253,11 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   if (!blueprint) {
     if (error) {
       return (
-        <div className="flex flex-col gap-4 p-8">
-          <ErrorNotice error={error} />
-        </div>
+        <BlueprintChrome>
+          <div className="form-avisos">
+            <ErrorNotice error={error} />
+          </div>
+        </BlueprintChrome>
       );
     }
     const resumeRequestId = recallRequestId();
@@ -239,214 +297,331 @@ export function BlueprintFeature({ blueprintId }: { blueprintId: string }) {
   }
 
   const v = blueprint.blueprint;
-  const tone =
-    blueprint.state === "approved"
-      ? "success"
-      : blueprint.state === "failed"
-        ? "danger"
-        : blueprint.state === "generating"
-          ? "active"
-          : "neutral";
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col items-start gap-3">
-        {blueprint.state === "generating" ? null : (
-          <Link
-            href={`/proposals?request=${blueprint.request_id}`}
-            className={outlineButtonClass}
-          >
-            <span aria-hidden className="mr-1.5">
-              ←
-            </span>
-            Back to directions
+    <BlueprintChrome requestId={blueprint.request_id}>
+      {blueprint.state === "generating" && v ? (
+        <div className="bp-notices">
+          <GenerationStatus
+            title="Rewriting your Blueprint"
+            description="Applying your notes to a new version of the pedagogical contract."
+          />
+        </div>
+      ) : null}
+
+      {blueprint.failure_message ? (
+        <div className="bp-notices form-avisos">
+          <Notice tone="error" title="Generation problem">
+            {blueprint.failure_message}
+          </Notice>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="bp-notices form-avisos">
+          <ErrorNotice error={error} />
+        </div>
+      ) : null}
+
+      {blueprint.state === "failed" ? (
+        <p className="bp-notices">
+          <Link className="bp-return" href={`/proposals?request=${blueprint.request_id}`}>
+            Return to your directions and try again.
           </Link>
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge label={blueprintStateLabel[blueprint.state]} tone={tone} />
-          {blueprint.current_version ? (
-            <span className="text-sm text-muted">
-              Version {blueprint.current_version}
+        </p>
+      ) : null}
+
+      {v ? (
+        <BlueprintReview
+          blueprint={blueprint}
+          visible={v}
+          busy={busy}
+          revising={revising}
+          feedback={feedback}
+          onFeedback={setFeedback}
+          onToggleRevise={() => setRevising((open) => !open)}
+          onApprove={approve}
+          onRevise={revise}
+        />
+      ) : null}
+    </BlueprintChrome>
+  );
+}
+
+function BlueprintReview({
+  blueprint,
+  visible,
+  busy,
+  revising,
+  feedback,
+  onFeedback,
+  onToggleRevise,
+  onApprove,
+  onRevise,
+}: {
+  blueprint: Blueprint;
+  visible: BlueprintVisible;
+  busy: boolean;
+  revising: boolean;
+  feedback: string;
+  onFeedback: (value: string) => void;
+  onToggleRevise: () => void;
+  onApprove: () => void;
+  onRevise: () => void;
+}) {
+  const moduleCount = visible.estimates.modules || visible.modules.length;
+  const lessonCount =
+    visible.estimates.lessons ||
+    visible.modules.reduce((total, module) => total + module.lessons.length, 0);
+  const estimate = studyEstimate(visible.estimates.study_hours, visible.estimates.words);
+  const notes = [
+    ["Introduction", visible.intellectual_arc],
+    ["Level and assumptions", visible.level_and_assumed_knowledge],
+    ["Central problem", visible.central_problem],
+    ["Organizing principle", visible.organizing_principle],
+    ["Objective", visible.objective_statement],
+    ["Expected outcome", visible.expected_outcome],
+  ].filter((entry): entry is [string, string] => entry[1].trim().length > 0);
+  const version = blueprint.current_version;
+
+  return (
+    <>
+      <header className="bp-head">
+        <CourseStepLabel step={4} label="Blueprint" tight />
+        <h1>Review your course plan</h1>
+        <p className="bp-context">
+          Check the proposed modules and lessons. Approving this plan starts the course build.
+        </p>
+      </header>
+
+      <section className="bp-cover" aria-labelledby="course-title">
+        <div>
+          <h2 id="course-title">{visible.title}</h2>
+          <div className="bp-meta">
+            <span>{counted(moduleCount, "module", "modules")}</span>
+            <span>{counted(lessonCount, "lesson", "lessons")}</span>
+            {estimate ? <span className="bp-estimate">{estimate}</span> : null}
+          </div>
+        </div>
+        <div className="bp-cover-status">
+          <span className={blueprint.state === "failed" ? "bp-state is-failed" : "bp-state"}>
+            {blueprintStateLabel[blueprint.state]}
+          </span>
+          {version ? (
+            <span>
+              Version {version}
               {blueprint.previous_versions.length > 0
-                ? ` · previous: ${blueprint.previous_versions.join(", ")}`
+                ? ` · earlier: ${blueprint.previous_versions.join(", ")}`
                 : ""}
             </span>
           ) : null}
         </div>
-      </div>
+      </section>
 
-      {blueprint.state === "generating" && blueprint.blueprint ? (
-        <GenerationStatus
-          title="Rewriting your Blueprint"
-          description="Applying your notes to a new version of the pedagogical contract."
-        />
+      <section className="bp-details" aria-labelledby="course-details-title">
+        <h2 id="course-details-title">Course details</h2>
+        {visible.subtitle.trim() ? <p className="bp-lead">{visible.subtitle}</p> : null}
+        {visible.scope.length > 0 || visible.exclusions.length > 0 ? (
+          <div className="bp-bounds">
+            {visible.scope.length > 0 ? (
+              <section>
+                <h3>What you’ll cover</h3>
+                <ul>
+                  {visible.scope.map((item, index) => (
+                    <li key={`${index}-${item}`}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {visible.exclusions.length > 0 ? (
+              <section>
+                <h3>Outside the scope</h3>
+                <ul>
+                  {visible.exclusions.map((item, index) => (
+                    <li key={`${index}-${item}`}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {notes.length > 0 ? (
+        <details className="bp-fold">
+          <summary>The contract</summary>
+          <div className="bp-fold-body bp-plan">
+            {notes.map(([title, text]) => (
+              <section className="bp-plan-section" key={title}>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </section>
+            ))}
+          </div>
+        </details>
       ) : null}
 
-      {blueprint.failure_message ? (
-        <Notice tone="error" title="Generation problem">
-          {blueprint.failure_message}
-        </Notice>
-      ) : null}
+      <details className="bp-fold">
+        <summary>Why this structure</summary>
+        <div className="bp-fold-body bp-plan">
+          {visible.order_justification.trim() ? (
+            <section className="bp-plan-section">
+              <h3>Progression</h3>
+              <p>{visible.order_justification}</p>
+            </section>
+          ) : null}
+          {visible.length_justification.trim() ? (
+            <section className="bp-plan-section">
+              <h3>Length</h3>
+              <p>{visible.length_justification}</p>
+            </section>
+          ) : null}
+          {visible.relevant_controversies.length > 0 ? (
+            <section className="bp-plan-section">
+              <h3>Controversies</h3>
+              <ul>
+                {visible.relevant_controversies.map((item, index) => (
+                  <li key={`${index}-${item}`}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {visible.risks_and_limitations.length > 0 ? (
+            <section className="bp-plan-section">
+              <h3>Risks & limitations</h3>
+              <ul>
+                {visible.risks_and_limitations.map((item, index) => (
+                  <li key={`${index}-${item}`}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {visible.guiding_sources_or_traditions.length > 0 ? (
+            <section className="bp-plan-section">
+              <h3>Sources and traditions</h3>
+              <ul className="bp-sources">
+                {visible.guiding_sources_or_traditions.map((item, index) => {
+                  const href = sourceHref(item);
+                  return (
+                    <li key={`${index}-${item}`}>
+                      {href ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer">
+                          {sourceLabel(item)}
+                        </a>
+                      ) : (
+                        item
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      </details>
 
-      {blueprint.state === "failed" ? (
-        <Link
-          href={`/proposals?request=${blueprint.request_id}`}
-          className={outlineButtonClass}
-        >
-          Return to your directions and try again.
-        </Link>
-      ) : null}
-
-      <ErrorNotice error={error} />
-
-      {v ? (
-        <>
-          <section className="flex flex-col gap-2">
-            <h2 className="font-serif text-2xl font-semibold tracking-tight">{v.title}</h2>
-            <p className="text-lg text-muted">{v.subtitle}</p>
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <h3 className="text-lg font-semibold">The contract</h3>
-            <DefinitionList
-              items={[
-                { term: "Objective", detail: v.objective_statement },
-                { term: "Expected outcome", detail: v.expected_outcome },
-                { term: "Central problem", detail: v.central_problem },
-                { term: "Level and assumptions", detail: v.level_and_assumed_knowledge },
-                { term: "Scope", detail: <BulletList items={v.scope} /> },
-                { term: "Exclusions", detail: <BulletList items={v.exclusions} /> },
-                { term: "Organizing principle", detail: v.organizing_principle },
-              ]}
-            />
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h3 className="text-lg font-semibold">Introduction</h3>
-            <p className="text-sm leading-7">{v.intellectual_arc}</p>
-          </section>
-
-          <section className="flex flex-col gap-4">
-            <h3 className="text-lg font-semibold">Modules</h3>
-            <ol className="flex flex-col gap-4">
-              {v.modules.map((module, i) => (
-                <li
-                  key={module.title}
-                  className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4"
-                >
-                  <h4 className="font-semibold">
-                    {i + 1}. {module.title}
-                  </h4>
-                  <p className="text-sm leading-6">{module.function}</p>
-                  <DefinitionList
-                    items={[
-                      {
-                        term: "Guiding questions",
-                        detail: <BulletList items={module.guiding_questions} />,
-                      },
-                      { term: "Outcome", detail: module.outcome },
-                    ]}
-                  />
-                  <ol className="mt-1 flex flex-col gap-1 text-sm">
-                    {module.lessons.map((lesson, j) => (
-                      <li key={lesson.title} className="leading-6">
-                        <span className="font-medium">
-                          {i + 1}.{j + 1} {lesson.title}
+      <section className="bp-modules" aria-labelledby="modules-title">
+        <h2 id="modules-title">Modules</h2>
+        {visible.modules.map((module, moduleIndex) => (
+          <details className="bp-module" key={`${moduleIndex}-${module.title}`} name="blueprint-modules">
+            <summary>
+              <span className="bp-num">{String(moduleIndex + 1).padStart(2, "0")}</span>
+              <h3>{module.title}</h3>
+            </summary>
+            <div className="bp-module-body">
+              {module.function.trim() ? <p>{module.function}</p> : null}
+              {module.outcome.trim() ? (
+                <section>
+                  <h4>Outcome</h4>
+                  <p>{module.outcome}</p>
+                </section>
+              ) : null}
+              {module.guiding_questions.length > 0 ? (
+                <section>
+                  <h4>Guiding questions</h4>
+                  <ul>
+                    {module.guiding_questions.map((question, index) => (
+                      <li key={`${index}-${question}`}>{question}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {module.lessons.length > 0 ? (
+                <section className="bp-lessons">
+                  <h4>Lessons</h4>
+                  <ol className="bp-lesson-list">
+                    {module.lessons.map((lesson, lessonIndex) => (
+                      <li key={`${lessonIndex}-${lesson.title}`}>
+                        <span>
+                          {moduleIndex + 1}.{lessonIndex + 1}
                         </span>
-                        <span className="text-muted">
-                          {" "}
-                          — {lesson.purpose}
-                        </span>
+                        <div>
+                          <h4>{lesson.title}</h4>
+                          {lesson.purpose.trim() ? <p>{lesson.purpose}</p> : null}
+                        </div>
                       </li>
                     ))}
                   </ol>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <h3 className="text-lg font-semibold">Why this structure</h3>
-            <DefinitionList
-              items={[
-                { term: "Order", detail: v.order_justification },
-                { term: "Length", detail: v.length_justification },
-                {
-                  term: "Estimate",
-                  detail: `${v.estimates.modules} modules · ${v.estimates.lessons} lessons · ~${v.estimates.words.toLocaleString()} words · ${v.estimates.study_hours} hours`,
-                },
-                {
-                  term: "Sources and traditions",
-                  detail: <BulletList items={v.guiding_sources_or_traditions} />,
-                },
-                {
-                  term: "Controversies",
-                  detail: <BulletList items={v.relevant_controversies} />,
-                },
-                {
-                  term: "Risks and limitations",
-                  detail: <BulletList items={v.risks_and_limitations} />,
-                },
-              ]}
-            />
-          </section>
-
-          {blueprint.state === "awaiting_approval" ? (
-            <section className="flex flex-col gap-4 border-t border-line pt-6">
-              <p className="text-sm text-muted">
-                Approving version {blueprint.current_version} starts the course build.
-                You can request changes first; each request produces a new complete
-                version.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button type="button" busy={busy} onClick={approve}>
-                  Approve version {blueprint.current_version} and build the course
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => setRevising((x) => !x)}
-                >
-                  Request changes
-                </Button>
-              </div>
-              {revising ? (
-                <div className="flex flex-col gap-2">
-                  <Field id="blueprint-feedback" label="What should change in the Blueprint?">
-                    <textarea
-                      id="blueprint-feedback"
-                      className={textareaClass}
-                      rows={4}
-                      maxLength={4000}
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                    />
-                  </Field>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    busy={busy}
-                    disabled={!feedback.trim()}
-                    onClick={revise}
-                  >
-                    Generate a revised version
-                  </Button>
-                </div>
+                </section>
               ) : null}
-            </section>
-          ) : null}
+            </div>
+          </details>
+        ))}
+      </section>
 
-          {blueprint.state === "approved" && blueprint.course_id ? (
-            <Link
-              href={`/courses/${blueprint.course_id}`}
-              className="inline-flex w-fit items-center rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-surface cursor-pointer hover:bg-foreground/85"
+      {blueprint.state === "awaiting_approval" && version ? (
+        <footer className="bp-actions">
+          <div className="bp-action-row">
+            <button
+              className="btn"
+              type="button"
+              disabled={busy}
+              aria-busy={busy || undefined}
+              aria-label={`Approve version ${version} and build the course`}
+              onClick={onApprove}
             >
-              Open the course
-            </Link>
+              {busy ? "Working…" : "Approve & build course"}
+              {busy ? null : <span className="ar" aria-hidden="true" />}
+            </button>
+            <div className="bp-revision">
+              <button className="bp-text-btn" type="button" disabled={busy} onClick={onToggleRevise}>
+                Request changes
+              </button>
+              <p>Changes create a new plan version for you to review.</p>
+            </div>
+          </div>
+          {revising ? (
+            <div className="bp-revise">
+              <label htmlFor="blueprint-feedback">What should change in the Blueprint?</label>
+              <textarea
+                id="blueprint-feedback"
+                rows={4}
+                maxLength={4000}
+                value={feedback}
+                onChange={(event) => onFeedback(event.target.value)}
+              />
+              <button
+                className="btn"
+                type="button"
+                disabled={busy || !feedback.trim()}
+                aria-busy={busy || undefined}
+                onClick={onRevise}
+              >
+                {busy ? "Working…" : "Generate a revised version"}
+              </button>
+            </div>
           ) : null}
-        </>
+        </footer>
       ) : null}
-    </div>
+
+      {blueprint.state === "approved" && blueprint.course_id ? (
+        <footer className="bp-actions">
+          <Link className="btn" href={`/courses/${blueprint.course_id}`}>
+            Open the course
+            <span className="ar" aria-hidden="true" />
+          </Link>
+        </footer>
+      ) : null}
+    </>
   );
 }

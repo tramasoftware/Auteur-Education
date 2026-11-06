@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const generatedCourseCount = await requireMemberHome();
-  return <HomeScreen hasCourseInProgress={generatedCourseCount > 0} />;
+  await requireMemberHome();
+  return <HomeScreen />;
 }

@@ -272,12 +272,17 @@
 }
 
 .landing.preparing-screen .arma .tapa .tt {
-  display: block;
-  max-width: 10ch;
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: 100%;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   font-family: var(--font-editorial), Georgia, serif;
   font-size: clamp(calc(26px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(38px * var(--ft, 1)));
-  line-height: 1;
+  line-height: 1.05;
   letter-spacing: -0.02em;
+  text-overflow: ellipsis;
 }
 
 .landing.preparing-screen .arma .sello {

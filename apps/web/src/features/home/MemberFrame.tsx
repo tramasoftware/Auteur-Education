@@ -6,6 +6,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { LandingFooter } from "@/features/landing/LandingFooter";
 import "@/features/landing/landing.css";
 import { getAccountProfile } from "@/lib/api";
+import {
+  accountStampNow,
+  currentUserId,
+  readMemberDisplay,
+  rememberFetchedAccount,
+} from "@/lib/member-display";
 
 import { Portrait } from "./Portrait";
 import { RegisteredSessionWatch } from "./RegisteredSessionWatch";
@@ -31,17 +37,31 @@ export function MemberFrame({
       return;
     }
     let cancelled = false;
-    getAccountProfile()
-      .then((account) => {
-        if (!cancelled) {
-          setFetchedSrc(account.image_url ?? account.avatar_url);
+    void (async () => {
+      const userId = await currentUserId();
+      const cached = userId ? readMemberDisplay(userId) : null;
+      if (cancelled) {
+        return;
+      }
+      if (cached) {
+        setFetchedSrc(cached.imageUrl ?? cached.avatarUrl);
+      }
+      const stamp = accountStampNow();
+      try {
+        const account = await getAccountProfile();
+        if (cancelled || stamp !== accountStampNow()) {
+          return;
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
+        setFetchedSrc(account.image_url ?? account.avatar_url);
+        if (userId) {
+          rememberFetchedAccount(userId, account, stamp);
+        }
+      } catch {
+        if (!cancelled && !cached) {
           setFetchedSrc(null);
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };

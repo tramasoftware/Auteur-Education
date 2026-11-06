@@ -106,7 +106,8 @@ async def start_blueprint(
     ):
         raise invalid_state("Select a proposal before generating the Blueprint.")
     if not settings.demo_commercial_bypass_enabled:
-        # BR-BLP-001 / BR-SUB-003 / BR-CRD-005 are not implemented yet (DEC-003).
+        # BR-BLP-001 / BR-SUB-003 / BR-CRD-005. The switch stays open until a
+        # subscription check can succeed (DEC-003).
         raise invalid_state(
             "Blueprint generation requires an authenticated user with an active "
             "subscription. This is not available yet."

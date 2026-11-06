@@ -38,6 +38,7 @@ from auteur_api.modules.generation.schemas import (
     ResearchOutput,
     stored_lesson_draft,
 )
+from auteur_api.modules.learning_progress.service import reconcile_after_build
 
 logger = logging.getLogger("auteur_api.build")
 
@@ -402,6 +403,7 @@ async def _build_module(
     course.current_activity = None
     store.save_course(course)
     logger.info("module_published course=%s module=%s", course.id, module.id)
+    reconcile_after_build(store, course)
     return True
 
 
@@ -672,3 +674,4 @@ async def _finish_course(
     course.completed_at = now()
     course.current_activity = None
     store.save_course(course)
+    reconcile_after_build(store, course)

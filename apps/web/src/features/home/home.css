@@ -174,6 +174,13 @@
   text-transform: uppercase;
 }
 
+.member .ae-home-status {
+  box-sizing: border-box;
+  width: calc(100% - 96px);
+  max-width: 1280px;
+  margin: 44px auto 0;
+}
+
 .member .ae-home-welcome h1 {
   max-width: none;
   margin: 16px 0 0;
@@ -279,7 +286,7 @@
 
 .member .ae-resume-progress {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(var(--segments, 12), 1fr);
   gap: 4px;
   width: min(100%, 312px);
   height: 5px;
@@ -433,7 +440,11 @@
 }
 
 .member .hoja-s h2 {
-  max-width: 16ch;
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 24px 0 16px;
   color: var(--tinta);
   font-size: clamp(calc(28px * var(--ft, 1)), calc(2.8vw * var(--ft, 1)), calc(40px * var(--ft, 1)));
@@ -450,9 +461,12 @@
 }
 
 .member .hoja-s .meta {
+  max-width: none;
+  width: 100%;
   margin-top: 20px;
   color: var(--t-3);
   font-size: calc(13px * var(--ft, 1));
+  line-height: 1.55;
 }
 
 .member .hoja-s .acciones {
@@ -588,7 +602,11 @@
 }
 
 .member .tapa-c .frente h2 {
-  max-width: 15ch;
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   color: #f2f0ef;
   font-size: clamp(calc(34px * var(--ft, 1)), calc(3.25vw * var(--ft, 1)), calc(48px * var(--ft, 1)));
@@ -633,6 +651,12 @@
   transform: rotateY(180deg);
 }
 
+.member .ae-home-back-copy {
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
 .member .ae-home-back-caption {
   display: block;
   margin-bottom: 20px;
@@ -643,7 +667,11 @@
 }
 
 .member .curso-d {
-  max-width: 15ch;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   color: rgba(252, 252, 250, 0.85);
   font-family: var(--font-editorial), Georgia, serif;
   font-size: clamp(calc(30px * var(--ft, 1)), calc(3vw * var(--ft, 1)), calc(44px * var(--ft, 1)));
@@ -1099,6 +1127,91 @@
   grid-template-columns: minmax(0, 420px);
 }
 
+.member .ae-reading-row--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: stretch;
+}
+
+.member .ae-reading-row--triple > .cf {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.member .ae-reading-row--triple .cf .cuerpo {
+  flex: 1;
+}
+
+.member .ae-reading-row--triple .cf .d {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 1024px) {
+  .member .ae-reading-row--triple {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.member .ae-home-pager-slot {
+  box-sizing: border-box;
+  width: calc(100% - 96px);
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-top: 24px;
+}
+
+.member .ae-course-pager {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 16px;
+  margin-top: 28px;
+  color: var(--t-2);
+  font-size: calc(12px * var(--ft, 1));
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+}
+
+.member .ae-course-pager--above-desk {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.member .ae-course-pager-btn .ar.izq {
+  transform: scaleX(-1);
+}
+
+.member .ae-course-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.member .ae-course-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.member .ae-course-pager-btn:not(:disabled):hover {
+  color: var(--m-1);
+}
+
+.member .ae-course-pager-count {
+  color: var(--t-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .member .cf {
   --tc: var(--noche-2);
   --ts: var(--noche-3);
@@ -1227,6 +1340,41 @@
   letter-spacing: 0.06em;
 }
 
+.member .cajon .cu > .estado {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 36px);
+  padding: 6px 10px;
+  border: 1px dashed var(--tx2);
+  border-radius: 2px;
+  color: var(--tx2);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(10px * var(--ft, 1));
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.member .cajon .cu > .estado i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.member .cajon .cu:has(> .estado) .ficha-c .k,
+.member .cajon .cu:has(> .estado) .ficha-c p.sub,
+.member .cajon .cu:has(> .estado) .ficha-c p.obj {
+  padding-right: 138px;
+}
+
 .member .cajon .cu {
   position: relative;
   height: 64px;
@@ -1250,9 +1398,10 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   align-items: start;
+  column-gap: 20px;
   padding: 24px 30px 22px;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -1266,6 +1415,12 @@
 .member .cajon .carp:hover:not(:last-child) .ficha-c,
 .member .cajon .carp.on:not(:last-child) .ficha-c {
   padding-bottom: calc(22px + var(--stack-overlap) + 12px);
+}
+
+.member .cajon .ficha-c .k,
+.member .cajon .ficha-c p.sub,
+.member .cajon .ficha-c p.obj {
+  grid-column: 1;
 }
 
 .member .cajon .ficha-c .k {
@@ -1339,8 +1494,13 @@
   display: flex;
   grid-column: 1 / -1;
   grid-row: 4;
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 22px;
   margin-top: 14px;
   padding-top: 12px;
@@ -1790,7 +1950,8 @@
   .member .cnuevo,
   .member .cursos,
   .member .hola,
-  .member .per {
+  .member .per,
+  .member .ae-home-status {
     width: calc(100% - 48px);
     max-width: 760px;
   }
@@ -1922,6 +2083,12 @@
 
   .member .cajon .ficha-c {
     padding: 16px 18px 18px;
+  }
+
+  .member .cajon .cu:has(> .estado) .ficha-c .k,
+  .member .cajon .cu:has(> .estado) .ficha-c p.sub,
+  .member .cajon .cu:has(> .estado) .ficha-c p.obj {
+    padding-right: 150px;
   }
 
   .member .cajon .carp:hover:not(:last-child) .ficha-c,

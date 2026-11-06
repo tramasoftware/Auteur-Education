@@ -4,13 +4,13 @@
 
 **Versión:** 0.1
 
-**Estado:** Modelo de persistencia del generador en `auteur-education-dev`. No cubre Stripe, audio, biblioteca, administración ni progreso del estudiante.
+**Estado:** Modelo de persistencia del generador y del progreso de aprendizaje en `auteur-education-dev`. No cubre Stripe, posición de audio, biblioteca, administración ni respuestas de Knowledge Check.
 
 **Ubicación canónica:** `docs/DATA_MODEL.md`
 
 ## Propósito
 
-Describir las tablas que sustituyen el `DemoStore` in-memory para el flujo de generación (solicitud → objetivo → propuestas → Blueprint → curso).
+Describir las tablas que sustituyen el `DemoStore` in-memory para el flujo de generación (solicitud → objetivo → propuestas → Blueprint → curso) y para el progreso de lectura de quien estudia ese curso.
 
 El plano de datos para el navegador sigue siendo FastAPI (DEC-012). El frontend no usa PostgREST ni `service_role`.
 
@@ -55,9 +55,19 @@ UNIQUE `(blueprint_id, version)`. `visible` e `internal` son JSONB. `internal` n
 
 El build. UNIQUE `blueprint_id` (BR-GEN-012). Estados = `CourseState`.
 
+`completed_at` es el fin de la generación (`BR-GEN-006`). No es la finalización de aprendizaje.
+
 ### `modules` / `lessons`
 
-Filas reales del curso, no el plan del Blueprint. `user_id` y `course_id` denormalizados para RLS y listados. El API público de lección solo responde si el módulo está `published` (BR-GEN-004); RLS no sustituye esa regla.
+Filas reales del curso, no el plan del Blueprint. `user_id` y `course_id` denormalizados para RLS y listados. El API público de lección solo responde si el módulo está `published` (BR-GEN-004); RLS no sustituye esa regla. El `id` de la lección se conserva cuando cambia el texto o el orden.
+
+### `lesson_reads`
+
+Una marca por `(user_id, lesson_id)` (`BR-PRG-001`). `read` con `marked_at` solo mientras está leída. La ausencia de fila es «no leída». Borrar la lección o el curso borra la marca. No guarda un porcentaje.
+
+### `course_learning_progress`
+
+Una fila por `(user_id, course_id)`. Última lección abierta, última actividad, `position_revision`, `first_completed_at`, `current_completed_at` y `synthesis_auto_presented_at`. Esos tres tiempos no se reconstruyen solo con las marcas. El porcentaje y el estado `not_started` / `in_progress` / `completed` se calculan al leer: el total es el número de lecciones vigentes y solo cuentan como leídas las de módulos `published` (`BR-PRG-002`, `BR-PRG-003`).
 
 ### `generation_traces`
 
@@ -73,15 +83,17 @@ auth.users
               ├── blueprints
               │     └── blueprint_versions
               ├── courses
-              │     └── modules
-              │           └── lessons
+              │     ├── modules
+              │     │     └── lessons
+              │     │           └── lesson_reads
+              │     └── course_learning_progress
               └── generation_traces
 ```
 
 ## RLS
 
-RLS está activo en las nueve tablas de dominio. `anon` y `authenticated` no tienen grants: el navegador no lee esas tablas. `service_role` escribe después de verificar el JWT. Una policy restrictiva niega el JWT anónimo si esos grants volvieran a existir.
+RLS está activo en las tablas de dominio, incluidas `lesson_reads` y `course_learning_progress`. `anon` y `authenticated` no tienen grants: el navegador no lee esas tablas. `service_role` escribe después de verificar el JWT. Una policy restrictiva niega el JWT anónimo si esos grants volvieran a existir. Las escrituras de progreso pasan por funciones SQL para que la marca y la finalización se confirmen juntas.
 
 ## Fuera de alcance
 
-Stripe, créditos, ElevenLabs, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011).
+Stripe, créditos, ElevenLabs, posición y preferencias de audio, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011). El progreso de lectura sí está en alcance (DEC-020); el de audio y el resultado del Knowledge Check, no.

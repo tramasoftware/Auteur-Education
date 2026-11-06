@@ -331,7 +331,9 @@ export function PreparingCourse({
         <div className="tapa" ref={coverRef}>
           <span className="l">{coverKicker}</span>
           <span className="n">{coverLabel}</span>
-          <span className="tt">{coverTitle}</span>
+          <span className="tt" title={coverTitle}>
+            {coverTitle}
+          </span>
           <svg className="sello" viewBox="0 0 100 100" aria-hidden="true">
             <defs>
               <path

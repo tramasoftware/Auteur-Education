@@ -13,7 +13,6 @@ from auteur_api.core.store import CourseBuildSnapshot, Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
-    CourseListResponse,
     CourseRecord,
     CourseResponse,
     CourseState,
@@ -22,10 +21,13 @@ from auteur_api.modules.generation.schemas import (
     LessonResponse,
     LessonSummary,
     ModuleDiagnostics,
+    ModuleLessonOutline,
     ModuleRecord,
     ModuleResponse,
     ModuleState,
     ModuleSummary,
+    OutlineLesson,
+    OutlineModule,
     SourceView,
 )
 from auteur_api.modules.generation.validators import shuffle_knowledge_check_options
@@ -122,9 +124,52 @@ def create_course_for_blueprint(
 # --- Views ---
 
 
-def list_courses_for_user(store: Store, user_id: str) -> CourseListResponse:
+def list_courses_for_user(store: Store, user_id: str):
     """BR-LIB-001/002: the caller's courses, most recent activity first."""
-    return CourseListResponse(courses=store.list_courses_for_user(user_id))
+    from auteur_api.modules.learning_progress.schemas import (
+        CourseLibraryResponse,
+        LibraryCourseItem,
+    )
+    from auteur_api.modules.learning_progress.service import snapshot_for
+
+    courses = []
+    for entry in store.list_library(user_id):
+        progress = snapshot_for(store, entry.course, entry.reads, entry.progress)
+        courses.append(
+            LibraryCourseItem(
+                id=entry.item.id,
+                title=entry.item.title,
+                subtitle=entry.item.subtitle,
+                objective_statement=entry.item.objective_statement,
+                state=entry.item.state,
+                updated_at=entry.item.updated_at,
+                created_at=entry.item.created_at,
+                module_count=entry.item.module_count,
+                lesson_count=entry.item.lesson_count,
+                progress=progress,
+                modules=[
+                    OutlineModule(
+                        id=module.id,
+                        index=module.index,
+                        title=module.title,
+                        state=module.state,
+                    )
+                    for module in entry.course.modules
+                ],
+                lessons=[
+                    OutlineLesson(
+                        id=lesson.id,
+                        module_id=module.id,
+                        index=lesson.index,
+                        title=lesson.title,
+                        word_count=lesson.word_count,
+                    )
+                    for module in entry.course.modules
+                    for lesson in module.lessons
+                ],
+            )
+        )
+    return CourseLibraryResponse(courses=courses)
 
 
 def course_view(course: CourseRecord) -> CourseResponse:
@@ -149,6 +194,22 @@ def course_view(course: CourseRecord) -> CourseResponse:
                 state=m.state,
                 lesson_count=len(m.lessons),
                 published_at=m.published_at,
+                lessons=[
+                    ModuleLessonOutline(
+                        id=lesson.id,
+                        index=lesson.index,
+                        title=lesson.title,
+                        word_count=lesson.word_count,
+                    )
+                    for lesson in m.lessons
+                ],
+                has_synthesis=bool(m.synthesis and m.synthesis.strip()),
+                source_count=len(_sources(m.lessons)),
+                question_count=(
+                    len(m.knowledge_check.questions)
+                    if m.knowledge_check is not None
+                    else None
+                ),
             )
             for m in course.modules
         ],

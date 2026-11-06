@@ -7,6 +7,7 @@ import type {
   CourseDiagnostics,
   CourseList,
   CourseModule,
+  CourseProgress,
   CreateLearningRequest,
   ErrorCode,
   LearningRequest,
@@ -101,6 +102,13 @@ function post<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
+function put<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 export type AccountProfile = {
   first_name: string | null;
   last_name: string | null;
@@ -112,8 +120,15 @@ export type AccountProfile = {
   generated_course_count: number;
 };
 
+let profileRequest: Promise<AccountProfile> | null = null;
+
 export function getAccountProfile(): Promise<AccountProfile> {
-  return request<AccountProfile>("/auth/profile");
+  if (!profileRequest) {
+    profileRequest = request<AccountProfile>("/auth/profile").finally(() => {
+      profileRequest = null;
+    });
+  }
+  return profileRequest;
 }
 
 export function updateAccountProfile(profile: {
@@ -214,4 +229,18 @@ export const courses = {
   getDiagnostics: (courseId: string) =>
     request<CourseDiagnostics>(`/courses/${courseId}/diagnostics`),
   retry: (courseId: string) => post<Course>(`/courses/${courseId}/retry`),
+  progress: (courseId: string) =>
+    request<CourseProgress>(`/courses/${courseId}/progress`),
+  setLessonRead: (
+    courseId: string,
+    lessonId: string,
+    body: { read: boolean; updated_at: string | null },
+  ) =>
+    put<CourseProgress>(`/courses/${courseId}/lessons/${lessonId}/read`, body),
+  visitLesson: (courseId: string, lessonId: string, positionRevision: number) =>
+    put<CourseProgress>(`/courses/${courseId}/lessons/${lessonId}/visit`, {
+      position_revision: positionRevision,
+    }),
+  presentSynthesis: (courseId: string) =>
+    post<CourseProgress>(`/courses/${courseId}/synthesis-presentation`),
 };
