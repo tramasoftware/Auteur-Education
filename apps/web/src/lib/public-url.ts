@@ -1,7 +1,7 @@
 /**
- * Off Vercel, redirects and API calls stay on this machine even if a proxy
- * sends x-forwarded-host for the deployed demo. On Vercel, the public host
- * is that forwarded host: the runtime sees an internal localhost.
+ * Local defaults stay for the dev machine. On the deployed demo, the browser
+ * calls /api/v1 on the same host. Server Components use the internal API
+ * binding so they are not blocked by Vercel Deployment Protection.
  */
 
 function stripSlash(value: string): string {
@@ -54,15 +54,8 @@ type RequestLike = {
   nextUrl: { origin: string; host: string };
 };
 
-function onVercel(): boolean {
-  return Boolean(process.env.VERCEL);
-}
-
-/** Browser-facing origin. Local requests stay local. */
+/** Browser-facing origin. Ignores an internal localhost host behind the Vercel proxy. */
 export function requestOrigin(request: RequestLike): string {
-  if (!onVercel()) {
-    return request.nextUrl.origin;
-  }
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   if (forwardedHost && !isLocalHost(forwardedHost)) {
@@ -80,7 +73,7 @@ export function redirectTo(request: RequestLike, path: string): URL {
 
 /**
  * Absolute or same-origin URL for an API path.
- * Off Vercel this uses NEXT_PUBLIC_API_URL. On Vercel a localhost value is ignored.
+ * A localhost NEXT_PUBLIC_API_URL is kept only while the page itself is local.
  */
 export function apiUrl(path: string, host?: string | null): string {
   const suffix = path.startsWith("/") ? path : `/${path}`;
@@ -88,7 +81,7 @@ export function apiUrl(path: string, host?: string | null): string {
   const configuredPublic = publicOrigin(configured);
   const pageHost = host ?? (typeof window !== "undefined" ? window.location.host : null);
 
-  if (!onVercel() || (pageHost && isLocalHost(pageHost))) {
+  if (pageHost && isLocalHost(pageHost)) {
     return `${stripSlash(configured || "http://localhost:8000")}${suffix}`;
   }
   if (typeof window !== "undefined") {
