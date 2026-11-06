@@ -69,6 +69,16 @@ def course_structure_counts(course: CourseRecord) -> tuple[int, int]:
     )
 
 
+@dataclass(frozen=True)
+class LibraryEntry:
+    """One library course with the structure progress and the desk can render."""
+
+    item: CourseListItem
+    course: CourseRecord
+    reads: list[LessonRead]
+    progress: CourseLearningProgress | None
+
+
 def course_list_item(
     course: CourseRecord, *, updated_at: datetime | None = None
 ) -> CourseListItem:
@@ -150,6 +160,24 @@ class Store(Protocol):
     def save_course(self, record: CourseRecord) -> None: ...
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]: ...
+
+    def list_library(self, user_id: str) -> list[LibraryEntry]: ...
+
+    def get_course_outline(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord: ...
+
+    def get_course_view(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord: ...
+
+    def get_module_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord: ...
+
+    def get_lesson_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord: ...
 
     def list_course_build_snapshots(
         self, user_id: str
@@ -273,13 +301,47 @@ class DemoStore:
         self.courses[record.id] = record
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
-        items = [
-            course_list_item(course)
-            for course in self.courses.values()
-            if course.user_id == user_id
+        return [entry.item for entry in self.list_library(user_id)]
+
+    def list_library(self, user_id: str) -> list[LibraryEntry]:
+        courses = [
+            course for course in self.courses.values() if course.user_id == user_id
         ]
-        items.sort(key=lambda item: item.updated_at, reverse=True)
-        return items
+        courses.sort(
+            key=lambda course: course_list_item(course).updated_at, reverse=True
+        )
+        return [
+            LibraryEntry(
+                item=course_list_item(course),
+                course=course,
+                reads=self.list_lesson_reads(user_id, course.id),
+                progress=self.get_course_learning_progress(user_id, course.id),
+            )
+            for course in courses
+        ]
+
+    def get_course_outline(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        return self.get_course(course_id, user_id=user_id)
+
+    def get_course_view(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        return self.get_course(course_id, user_id=user_id)
+
+    def get_module_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        course = self.get_course(course_id, user_id=user_id)
+        if not any(module.id == module_id for module in course.modules):
+            raise not_found("Module")
+        return course
+
+    def get_lesson_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        return self.get_module_course(course_id, module_id, user_id=user_id)
 
     def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
         idle = {CourseState.COMPLETE, CourseState.FAILED}

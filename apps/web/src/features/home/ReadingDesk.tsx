@@ -9,9 +9,14 @@ import {
   inProgressCourses,
   type ReadingDeskModel,
 } from "@/lib/course-progress";
-import type { CourseProgress, LibraryCourse } from "@/types/generator";
+import {
+  currentUserId,
+  readMemberDisplay,
+  writeMemberDisplay,
+} from "@/lib/member-display";
+import type { CourseList, LibraryCourse } from "@/types/generator";
 
-import { loadReadingDeskModel } from "./reading-desk-load";
+import { readingDeskModel } from "./reading-desk-load";
 import { ReadingCoursePager } from "./ReadingCoursePager";
 
 export function ReadingDesk({
@@ -20,13 +25,12 @@ export function ReadingDesk({
   onInProgress: (count: number) => void;
 }) {
   const [phase, setPhase] = useState<"loading" | "ready" | "empty" | "failed">("loading");
-  const [library, setLibrary] = useState<LibraryCourse[]>([]);
-  const [progress, setProgress] = useState<Map<string, CourseProgress>>(new Map());
   const [inProgressList, setInProgressList] = useState<LibraryCourse[]>([]);
   const [coursePage, setCoursePage] = useState(0);
+  const coursePageRef = useRef(0);
+  const shownCourseRef = useRef<string | null>(null);
   const modelsRef = useRef<Record<string, ReadingDeskModel>>({});
   const [model, setModel] = useState<ReadingDeskModel | null>(null);
-  const [deskLoading, setDeskLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(0);
   const [compact, setCompact] = useState(false);
@@ -44,49 +48,78 @@ export function ReadingDesk({
     return () => media.removeEventListener("change", apply);
   }, []);
 
+  const showLibrary = useCallback(
+    (body: CourseList) => {
+      const progressMap = new Map(
+        body.courses.map((item) => [item.id, item.progress] as const),
+      );
+      const active = inProgressCourses(body.courses, progressMap);
+      onInProgress(inProgressCount(body.courses, progressMap));
+      setInProgressList(active);
+      const models: Record<string, ReadingDeskModel> = {};
+      for (const item of active) {
+        models[item.id] = readingDeskModel(item, body.courses);
+      }
+      modelsRef.current = models;
+      if (active.length === 0) {
+        setModel(null);
+        coursePageRef.current = 0;
+        setCoursePage(0);
+        setPhase("empty");
+        return;
+      }
+      const index = Math.min(coursePageRef.current, active.length - 1);
+      const readyModel = models[active[index].id];
+      const courseId = active[index].id;
+      coursePageRef.current = index;
+      setCoursePage(index);
+      setModel(readyModel);
+      if (shownCourseRef.current !== courseId) {
+        shownCourseRef.current = courseId;
+        setCurrent(readyModel.openIndex);
+        setOpen(false);
+      }
+      setPhase("ready");
+    },
+    [onInProgress],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    courses
-      .list()
-      .then(async (body) => {
-        const loaded = await Promise.all(
-          body.courses.map(async (item) => {
-            try {
-              return [item.id, await courses.progress(item.id)] as const;
-            } catch {
-              return null;
-            }
-          }),
-        );
+    void (async () => {
+      const userId = await currentUserId();
+      const cached = userId ? readMemberDisplay(userId) : null;
+      if (cancelled) {
+        return;
+      }
+      if (cached?.library) {
+        showLibrary(cached.library);
+      }
+      try {
+        const body = await courses.list();
         if (cancelled) {
           return;
         }
-        const progressMap = new Map(
-          loaded.flatMap((entry) => (entry ? [entry] : [])),
-        );
-        const active = inProgressCourses(body.courses, progressMap);
-        onInProgress(inProgressCount(body.courses, progressMap));
-        setLibrary(body.courses);
-        setProgress(progressMap);
-        setInProgressList(active);
-        modelsRef.current = {};
-        setCoursePage(0);
-        if (active.length === 0) {
-          setModel(null);
-          setPhase("empty");
-          return;
+        showLibrary(body);
+        if (userId) {
+          writeMemberDisplay(userId, {
+            library: body,
+            inProgressCount: inProgressCount(
+              body.courses,
+              new Map(body.courses.map((item) => [item.id, item.progress])),
+            ),
+          });
         }
-        setPhase("loading");
-      })
-      .catch(() => {
-        if (!cancelled) {
+      } catch {
+        if (!cancelled && !cached?.library) {
           setPhase("failed");
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [onInProgress]);
+  }, [showLibrary]);
 
   const showCachedCourse = useCallback(
     (pageIndex: number) => {
@@ -98,71 +131,15 @@ export function ReadingDesk({
       if (!cached) {
         return;
       }
+      coursePageRef.current = index;
       setCoursePage(index);
       setModel(cached);
       setCurrent(cached.openIndex);
       setOpen(false);
+      shownCourseRef.current = inProgressList[index].id;
     },
     [inProgressList],
   );
-
-  useEffect(() => {
-    if (inProgressList.length === 0 || library.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    setPhase("loading");
-    setDeskLoading(true);
-    setModel(null);
-
-    void (async () => {
-      try {
-        await Promise.all(
-          inProgressList.map(async (item) => {
-            const itemProgress = progress.get(item.id);
-            if (!itemProgress) {
-              throw new Error("missing progress");
-            }
-            if (modelsRef.current[item.id]) {
-              return;
-            }
-            const next = await loadReadingDeskModel(item, library, itemProgress);
-            if (cancelled) {
-              return;
-            }
-            modelsRef.current[item.id] = next;
-          }),
-        );
-        if (cancelled) {
-          return;
-        }
-        const index = 0;
-        const readyModel = modelsRef.current[inProgressList[index].id];
-        if (!readyModel) {
-          setPhase("empty");
-          return;
-        }
-        setCoursePage(index);
-        setModel(readyModel);
-        setCurrent(readyModel.openIndex);
-        setOpen(false);
-        setPhase("ready");
-      } catch {
-        if (!cancelled) {
-          setPhase("failed");
-        }
-      } finally {
-        if (!cancelled) {
-          setDeskLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [inProgressList, library, progress]);
 
   if (phase === "failed") {
     return (
@@ -172,7 +149,7 @@ export function ReadingDesk({
   if (phase === "empty") {
     return null;
   }
-  if (phase !== "ready" || !model || deskLoading) {
+  if (phase !== "ready" || !model) {
     return (
       <>
         {inProgressList.length > 1 ? (

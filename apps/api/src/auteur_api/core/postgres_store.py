@@ -18,6 +18,7 @@ from auteur_api.core.config import Settings, settings
 from auteur_api.core.errors import ApiError, invalid_state, not_found
 from auteur_api.core.store import (
     CourseBuildSnapshot,
+    LibraryEntry,
     ProfileRecord,
     assert_owner,
     course_structure_counts,
@@ -67,6 +68,166 @@ from auteur_api.modules.onboarding.schemas import (
 from auteur_api.modules.proposals.schemas import ProposalSetRecord
 
 logger = logging.getLogger("auteur_api.profile_photo")
+
+_OUTLINE_COURSE = (
+    "id,user_id,request_id,blueprint_id,blueprint_version,title,subtitle,"
+    "objective_statement,state,created_at"
+)
+_VIEW_COURSE = (
+    f"{_OUTLINE_COURSE},current_activity,final_synthesis,failure,module_limit"
+)
+_LIBRARY_COURSE = (
+    "id,user_id,request_id,blueprint_id,blueprint_version,title,subtitle,"
+    "objective_statement,state,updated_at,created_at,module_count,lesson_count"
+)
+_OUTLINE_MODULE = "id,course_id,index,title,state"
+_VIEW_MODULE = (
+    "id,course_id,index,title,function,guiding_questions,outcome,state,"
+    "synthesis,knowledge_check,published_at"
+)
+_OUTLINE_LESSON = "id,course_id,module_id,index,title,word_count,state"
+_MODULE_LESSON = (
+    "id,course_id,module_id,index,title,purpose,state,word_count,evidence"
+)
+_LESSON_BODY = f"{_MODULE_LESSON},draft"
+_VIEW_LESSON = "id,course_id,module_id,index,title,word_count,state,evidence"
+
+
+def _group(rows: list[dict[str, Any]], key: str) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(row[key], []).append(row)
+    return grouped
+
+
+def _list_item_from_row(row: dict[str, Any]) -> CourseListItem:
+    return CourseListItem(
+        id=row["id"],
+        title=row["title"],
+        subtitle=row["subtitle"],
+        objective_statement=row["objective_statement"],
+        state=CourseState(row["state"]),
+        updated_at=_dt(row.get("updated_at") or row["created_at"]),
+        created_at=_dt(row["created_at"]),
+        module_count=row.get("module_count") or 0,
+        lesson_count=row.get("lesson_count") or 0,
+    )
+
+
+def _lesson_outline(row: dict[str, Any]) -> LessonRecord:
+    evidence = [
+        EvidenceItem.model_validate(item) for item in (row.get("evidence") or [])
+    ]
+    draft = (
+        LessonDraftOutput.model_validate(row["draft"]) if row.get("draft") else None
+    )
+    return LessonRecord(
+        id=row["id"],
+        index=row["index"],
+        title=row.get("title") or "",
+        purpose=row.get("purpose") or "",
+        state=LessonState(row["state"]) if row.get("state") else LessonState.QUEUED,
+        evidence=evidence,
+        draft=draft,
+        word_count=row.get("word_count") or 0,
+    )
+
+
+def _module_outline(
+    row: dict[str, Any], lessons: list[LessonRecord]
+) -> ModuleRecord:
+    lessons.sort(key=lambda lesson: lesson.index)
+    knowledge = row.get("knowledge_check")
+    return ModuleRecord(
+        id=row["id"],
+        index=row["index"],
+        title=row.get("title") or "",
+        function=row.get("function") or "",
+        guiding_questions=row.get("guiding_questions") or [],
+        outcome=row.get("outcome") or "",
+        qa_criteria=[],
+        state=ModuleState(row["state"]),
+        lessons=lessons,
+        synthesis=row.get("synthesis"),
+        knowledge_check=(
+            KnowledgeCheckOutput.model_validate(knowledge) if knowledge else None
+        ),
+        published_at=_dt(row["published_at"]) if row.get("published_at") else None,
+    )
+
+
+def _course_from_parts(
+    row: dict[str, Any],
+    module_rows: list[dict[str, Any]],
+    lessons_by_module: dict[str, list[dict[str, Any]]],
+) -> CourseRecord:
+    modules = [
+        _module_outline(
+            module,
+            [
+                _lesson_outline(lesson)
+                for lesson in lessons_by_module.get(module["id"], [])
+            ],
+        )
+        for module in module_rows
+    ]
+    modules.sort(key=lambda module: module.index)
+    synthesis = row.get("final_synthesis")
+    return CourseRecord(
+        id=row["id"],
+        user_id=row["user_id"],
+        request_id=row.get("request_id") or "",
+        blueprint_id=row.get("blueprint_id") or "",
+        blueprint_version=int(row.get("blueprint_version") or 0),
+        title=row.get("title") or "",
+        subtitle=row.get("subtitle") or "",
+        objective_statement=row.get("objective_statement") or "",
+        state=CourseState(row["state"]),
+        current_activity=row.get("current_activity"),
+        modules=modules,
+        final_synthesis=(
+            CourseSynthesisOutput.model_validate(synthesis) if synthesis else None
+        ),
+        failure=row.get("failure"),
+        module_limit=row.get("module_limit"),
+        created_at=_dt(row["created_at"]),
+    )
+
+
+def _read_from_row(row: dict[str, Any]) -> LessonRead:
+    return LessonRead(
+        user_id=row["user_id"],
+        lesson_id=row["lesson_id"],
+        course_id=row["course_id"],
+        read=bool(row["read"]),
+        marked_at=_dt(row["marked_at"]) if row.get("marked_at") else None,
+        updated_at=_dt(row["updated_at"]),
+    )
+
+
+def _progress_from_row(row: dict[str, Any]) -> CourseLearningProgress:
+    return CourseLearningProgress(
+        user_id=row["user_id"],
+        course_id=row["course_id"],
+        last_lesson_id=row.get("last_lesson_id"),
+        last_activity_at=(
+            _dt(row["last_activity_at"]) if row.get("last_activity_at") else None
+        ),
+        position_revision=int(row.get("position_revision") or 0),
+        first_completed_at=(
+            _dt(row["first_completed_at"]) if row.get("first_completed_at") else None
+        ),
+        current_completed_at=(
+            _dt(row["current_completed_at"])
+            if row.get("current_completed_at")
+            else None
+        ),
+        synthesis_auto_presented_at=(
+            _dt(row["synthesis_auto_presented_at"])
+            if row.get("synthesis_auto_presented_at")
+            else None
+        ),
+    )
 
 
 def _dt(value: object) -> datetime:
@@ -425,31 +586,208 @@ class PostgresStore:
                 ).execute()
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
+        return [entry.item for entry in self.list_library(user_id)]
+
+    def list_library(self, user_id: str) -> list[LibraryEntry]:
+        """One pass over course, module, and lesson columns the library renders."""
         rows = (
             self._table("courses")
-            .select(
-                "id,title,subtitle,objective_statement,state,updated_at,created_at,module_count,lesson_count"
-            )
+            .select(_LIBRARY_COURSE)
             .eq("user_id", user_id)
             .order("updated_at", desc=True)
             .execute()
             .data
             or []
         )
-        return [
-            CourseListItem(
-                id=row["id"],
-                title=row["title"],
-                subtitle=row["subtitle"],
-                objective_statement=row["objective_statement"],
-                state=CourseState(row["state"]),
-                updated_at=_dt(row.get("updated_at") or row["created_at"]),
-                created_at=_dt(row["created_at"]),
-                module_count=row.get("module_count") or 0,
-                lesson_count=row.get("lesson_count") or 0,
+        if not rows:
+            return []
+        course_ids = [row["id"] for row in rows]
+        modules = self._rows_for_courses("modules", _OUTLINE_MODULE, course_ids)
+        lessons = self._rows_for_courses("lessons", _OUTLINE_LESSON, course_ids)
+        read_rows = self._rows_for_courses(
+            "lesson_reads",
+            "user_id,lesson_id,course_id,read,marked_at,updated_at",
+            course_ids,
+            user_id=user_id,
+        )
+        progress_rows = self._rows_for_courses(
+            "course_learning_progress",
+            "user_id,course_id,last_lesson_id,last_activity_at,position_revision,"
+            "first_completed_at,current_completed_at,synthesis_auto_presented_at",
+            course_ids,
+            user_id=user_id,
+        )
+        modules_by_course = _group(modules, "course_id")
+        lessons_by_module = _group(lessons, "module_id")
+        reads_by_course = _group(read_rows, "course_id")
+        progress_by_course = {
+            row["course_id"]: row for row in progress_rows
+        }
+        entries: list[LibraryEntry] = []
+        for row in rows:
+            course = _course_from_parts(
+                row,
+                modules_by_course.get(row["id"], []),
+                lessons_by_module,
             )
-            for row in rows
-        ]
+            progress_row = progress_by_course.get(row["id"])
+            entries.append(
+                LibraryEntry(
+                    item=_list_item_from_row(row),
+                    course=course,
+                    reads=[
+                        _read_from_row(item)
+                        for item in reads_by_course.get(row["id"], [])
+                    ],
+                    progress=(
+                        _progress_from_row(progress_row) if progress_row else None
+                    ),
+                )
+            )
+        return entries
+
+    def get_course_outline(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        """Structure progress needs: ids, indexes, and publication state."""
+        return self._course_with_parts(
+            course_id,
+            user_id=user_id,
+            course_columns=_OUTLINE_COURSE,
+            module_columns=_OUTLINE_MODULE,
+            lesson_columns=_OUTLINE_LESSON,
+        )
+
+    def get_course_view(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        """Course page fields, including source evidence, without lesson drafts."""
+        return self._course_with_parts(
+            course_id,
+            user_id=user_id,
+            course_columns=_VIEW_COURSE,
+            module_columns=_VIEW_MODULE,
+            lesson_columns=_VIEW_LESSON,
+        )
+
+    def get_module_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        return self._one_module_course(
+            course_id,
+            module_id,
+            user_id=user_id,
+            lesson_columns=_MODULE_LESSON,
+        )
+
+    def get_lesson_course(
+        self, course_id: str, module_id: str, *, user_id: str | None = None
+    ) -> CourseRecord:
+        return self._one_module_course(
+            course_id,
+            module_id,
+            user_id=user_id,
+            lesson_columns=_LESSON_BODY,
+        )
+
+    def require_course_owner(self, course_id: str, *, user_id: str | None) -> None:
+        row = self._course_row(course_id, "id,user_id")
+        assert_owner(row["user_id"], user_id)
+
+    def _course_row(self, course_id: str, columns: str) -> dict[str, Any]:
+        rows = (
+            self._read(
+                lambda: self._table("courses")
+                .select(columns)
+                .eq("id", course_id)
+                .limit(1)
+            ).data
+            or []
+        )
+        if not rows:
+            raise not_found("Course")
+        return rows[0]
+
+    def _rows_for_courses(
+        self,
+        table: str,
+        columns: str,
+        course_ids: list[str],
+        *,
+        user_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        def build() -> Any:
+            query = self._table(table).select(columns).in_("course_id", course_ids)
+            if user_id is not None:
+                query = query.eq("user_id", user_id)
+            return query
+
+        return self._read(build).data or []
+
+    def _course_with_parts(
+        self,
+        course_id: str,
+        *,
+        user_id: str | None,
+        course_columns: str,
+        module_columns: str,
+        lesson_columns: str,
+    ) -> CourseRecord:
+        row = self._course_row(course_id, course_columns)
+        assert_owner(row["user_id"], user_id)
+        modules = (
+            self._read(
+                lambda: self._table("modules")
+                .select(module_columns)
+                .eq("course_id", course_id)
+                .order("index")
+            ).data
+            or []
+        )
+        lessons = (
+            self._read(
+                lambda: self._table("lessons")
+                .select(lesson_columns)
+                .eq("course_id", course_id)
+                .order("index")
+            ).data
+            or []
+        )
+        return _course_from_parts(row, modules, _group(lessons, "module_id"))
+
+    def _one_module_course(
+        self,
+        course_id: str,
+        module_id: str,
+        *,
+        user_id: str | None,
+        lesson_columns: str,
+    ) -> CourseRecord:
+        row = self._course_row(course_id, _VIEW_COURSE)
+        assert_owner(row["user_id"], user_id)
+        modules = (
+            self._read(
+                lambda: self._table("modules")
+                .select(_VIEW_MODULE)
+                .eq("course_id", course_id)
+                .eq("id", module_id)
+                .limit(1)
+            ).data
+            or []
+        )
+        if not modules:
+            raise not_found("Module")
+        lessons = (
+            self._read(
+                lambda: self._table("lessons")
+                .select(lesson_columns)
+                .eq("course_id", course_id)
+                .eq("module_id", module_id)
+                .order("index")
+            ).data
+            or []
+        )
+        return _course_from_parts(row, modules, {module_id: lessons})
 
     def list_course_build_snapshots(self, user_id: str) -> list[CourseBuildSnapshot]:
         """BR-GEN-002: one read of course and module states. Lessons stay unread."""
@@ -952,7 +1290,7 @@ class PostgresStore:
         read: bool,
         expected_updated_at: datetime | None,
     ) -> ProgressWrite:
-        self.get_course(course_id, user_id=user_id)
+        self.require_course_owner(course_id, user_id=user_id)
         return self._progress_outcome(
             "apply_lesson_read",
             {
@@ -974,7 +1312,7 @@ class PostgresStore:
         *,
         position_revision: int,
     ) -> ProgressWrite:
-        self.get_course(course_id, user_id=user_id)
+        self.require_course_owner(course_id, user_id=user_id)
         return self._progress_outcome(
             "record_lesson_visit",
             {
@@ -988,7 +1326,7 @@ class PostgresStore:
     def record_synthesis_presentation(
         self, user_id: str, course_id: str
     ) -> ProgressWrite:
-        self.get_course(course_id, user_id=user_id)
+        self.require_course_owner(course_id, user_id=user_id)
         return self._progress_outcome(
             "record_synthesis_presentation",
             {"p_user_id": user_id, "p_course_id": course_id},

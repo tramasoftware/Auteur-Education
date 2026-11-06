@@ -219,6 +219,21 @@ def test_library_lists_only_the_callers_courses_newest_first(client) -> None:
     assert body[0]["lesson_count"] == 3
     assert body[1]["module_count"] == 0
     assert body[1]["lesson_count"] == 0
+    assert body[0]["progress"]["lesson_total"] == 3
+    assert body[0]["progress"]["learning_status"] == "not_started"
+    assert [module["title"] for module in body[0]["modules"]] == [
+        "Module 1",
+        "Module 2",
+    ]
+    assert [lesson["title"] for lesson in body[0]["lessons"]] == [
+        "Opening",
+        "Development",
+        "Close",
+    ]
+    assert "draft" not in body[0]["lessons"][0]
+    assert body[1]["progress"]["lesson_total"] == 0
+    assert body[1]["modules"] == []
+    assert body[1]["lessons"] == []
 
 
 def test_library_is_empty_without_courses(client) -> None:
@@ -363,6 +378,89 @@ class _TableClient:
 
     def table(self, _name: str) -> _RecordingQuery:
         return self._query
+
+
+def test_library_read_skips_lesson_bodies() -> None:
+    from auteur_api.core.postgres_store import PostgresStore
+
+    selected: dict[str, str] = {}
+
+    class Query:
+        def __init__(self, name: str, rows: list[dict[str, object]]) -> None:
+            self._name = name
+            self._rows = rows
+
+        def select(self, columns: str) -> Query:
+            selected[self._name] = columns
+            return self
+
+        def eq(self, _column: str, _value: object) -> Query:
+            return self
+
+        def in_(self, _column: str, _values: list[str]) -> Query:
+            return self
+
+        def order(self, _column: str, *, desc: bool = False) -> Query:
+            return self
+
+        def execute(self) -> object:
+            return type("Response", (), {"data": self._rows})()
+
+    tables = {
+        "courses": [
+            {
+                "id": "c1",
+                "user_id": "user-1",
+                "request_id": "r1",
+                "blueprint_id": "b1",
+                "blueprint_version": 1,
+                "title": "City",
+                "subtitle": "Reading the city",
+                "objective_statement": "Understand the city.",
+                "state": "complete",
+                "updated_at": "2026-09-02T00:00:00+00:00",
+                "created_at": "2026-09-01T00:00:00+00:00",
+                "module_count": 1,
+                "lesson_count": 1,
+            }
+        ],
+        "modules": [
+            {
+                "id": "m1",
+                "course_id": "c1",
+                "index": 1,
+                "title": "Streets",
+                "state": "published",
+            }
+        ],
+        "lessons": [
+            {
+                "id": "l1",
+                "course_id": "c1",
+                "module_id": "m1",
+                "index": 1,
+                "title": "The corner",
+                "word_count": 900,
+                "state": "approved",
+            }
+        ],
+        "lesson_reads": [],
+        "course_learning_progress": [],
+    }
+
+    class Client:
+        def table(self, name: str) -> Query:
+            return Query(name, tables[name])
+
+    entries = PostgresStore(Client()).list_library("user-1")  # type: ignore[arg-type]
+    assert entries[0].item.title == "City"
+    assert entries[0].course.modules[0].title == "Streets"
+    assert entries[0].course.modules[0].lessons[0].title == "The corner"
+    assert entries[0].course.modules[0].lessons[0].draft is None
+    assert "draft" not in selected["lessons"]
+    assert "evidence" not in selected["lessons"]
+    assert "synthesis" not in selected["modules"]
+    assert "knowledge_check" not in selected["modules"]
 
 
 def test_read_retries_when_the_connection_drops() -> None:

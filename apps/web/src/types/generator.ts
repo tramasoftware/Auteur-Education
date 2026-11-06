@@ -222,6 +222,13 @@ export type ModuleState =
   | "failed"
   | "not_built";
 
+export type ModuleLessonOutline = {
+  id: string;
+  index: number;
+  title: string;
+  word_count: number;
+};
+
 export type ModuleSummary = {
   id: string;
   index: number;
@@ -232,24 +239,27 @@ export type ModuleSummary = {
   state: ModuleState;
   lesson_count: number;
   published_at: string | null;
+  lessons: ModuleLessonOutline[];
+  has_synthesis: boolean;
+  source_count: number;
+  question_count: number | null;
 };
 
 export type CourseSynthesis = { body: string; new_questions: string[] };
 
-export type LibraryCourse = {
+export type OutlineModule = {
   id: string;
+  index: number;
   title: string;
-  subtitle: string;
-  objective_statement: string;
-  state: CourseState;
-  updated_at: string;
-  created_at: string;
-  module_count: number;
-  lesson_count: number;
+  state: ModuleState;
 };
 
-export type CourseList = {
-  courses: LibraryCourse[];
+export type OutlineLesson = {
+  id: string;
+  module_id: string;
+  index: number;
+  title: string;
+  word_count: number;
 };
 
 export type LearningStatus = "not_started" | "in_progress" | "completed";
@@ -290,6 +300,25 @@ export type CourseProgress = {
   current_completed_at: string | null;
   synthesis_auto_presented_at: string | null;
   synthesis_auto_open_pending: boolean;
+};
+
+export type LibraryCourse = {
+  id: string;
+  title: string;
+  subtitle: string;
+  objective_statement: string;
+  state: CourseState;
+  updated_at: string;
+  created_at: string;
+  module_count: number;
+  lesson_count: number;
+  progress: CourseProgress;
+  modules: OutlineModule[];
+  lessons: OutlineLesson[];
+};
+
+export type CourseList = {
+  courses: LibraryCourse[];
 };
 
 export type Course = {

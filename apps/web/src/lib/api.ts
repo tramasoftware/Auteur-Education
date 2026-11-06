@@ -120,8 +120,15 @@ export type AccountProfile = {
   generated_course_count: number;
 };
 
+let profileRequest: Promise<AccountProfile> | null = null;
+
 export function getAccountProfile(): Promise<AccountProfile> {
-  return request<AccountProfile>("/auth/profile");
+  if (!profileRequest) {
+    profileRequest = request<AccountProfile>("/auth/profile").finally(() => {
+      profileRequest = null;
+    });
+  }
+  return profileRequest;
 }
 
 export function updateAccountProfile(profile: {

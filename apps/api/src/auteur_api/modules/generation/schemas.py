@@ -351,6 +351,15 @@ class CourseRecord(BaseModel):
 # --- API responses (published content only) ---
 
 
+class ModuleLessonOutline(BaseModel):
+    """Lesson identity shown on the course page. The draft stays on the lesson read."""
+
+    id: str
+    index: int
+    title: str
+    word_count: int
+
+
 class ModuleSummary(BaseModel):
     id: str
     index: int
@@ -361,6 +370,10 @@ class ModuleSummary(BaseModel):
     state: ModuleState
     lesson_count: int
     published_at: datetime | None
+    lessons: list[ModuleLessonOutline] = []
+    has_synthesis: bool = False
+    source_count: int = 0
+    question_count: int | None = None
 
 
 class CourseResponse(BaseModel):
@@ -402,8 +415,23 @@ class CourseListItem(BaseModel):
     lesson_count: int
 
 
-class CourseListResponse(BaseModel):
-    courses: list[CourseListItem]
+class OutlineModule(BaseModel):
+    """Module row the library and reading desk can render without module bodies."""
+
+    id: str
+    index: int
+    title: str
+    state: ModuleState
+
+
+class OutlineLesson(BaseModel):
+    """Lesson row the library and reading desk can render without the draft."""
+
+    id: str
+    module_id: str
+    index: int
+    title: str
+    word_count: int
 
 
 class LessonSummary(BaseModel):

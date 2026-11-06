@@ -9,7 +9,6 @@ import { continueLabel, resumeHref } from "@/lib/course-progress";
 import { usePolling } from "@/lib/usePolling";
 import type {
   Course,
-  CourseModule,
   CourseProgress,
   LearningStatus,
   ModuleState,
@@ -145,20 +144,18 @@ function failureForLearner(failure: string): string {
   return "We stopped before this part was ready to read. Modules that were already published are still available.";
 }
 
-function cifraLine(
-  course: Course,
-  details: Record<string, CourseModule>,
-  progress: CourseProgress | null,
-): string {
+function cifraLine(course: Course, progress: CourseProgress | null): string {
   const moduleCount = course.modules.length;
   const lessonCount = course.modules.reduce(
     (sum, module) => sum + module.lesson_count,
     0,
   );
   const published = course.modules.every((module) => module.state === "published");
-  const words = Object.values(details).reduce(
+  const words = course.modules.reduce(
     (sum, module) =>
-      sum + module.lessons.reduce((inner, lesson) => inner + lesson.word_count, 0),
+      module.state === "published"
+        ? sum + module.lessons.reduce((inner, lesson) => inner + lesson.word_count, 0)
+        : sum,
     0,
   );
   const parts = [
@@ -299,13 +296,11 @@ function PendingExtras() {
 function ModuleSection({
   courseId,
   module,
-  detail,
   readIds,
   learningStatus,
 }: {
   courseId: string;
   module: ModuleSummary;
-  detail: CourseModule | undefined;
   readIds: ReadonlySet<string>;
   learningStatus: LearningStatus | null;
 }) {
@@ -348,9 +343,9 @@ function ModuleSection({
           text={module.function}
         />
         <ol className="ren">
-          {ready && detail ? (
+          {ready ? (
             <>
-              {detail.lessons.map((lesson) => (
+              {module.lessons.map((lesson) => (
                 <li key={lesson.id}>
                   <Link
                     href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
@@ -363,7 +358,7 @@ function ModuleSection({
                   </Link>
                 </li>
               ))}
-              {detail.synthesis ? (
+              {module.has_synthesis ? (
                 <OutlineExtraLink
                   href={`/courses/${courseId}/modules/${module.id}/synthesis`}
                   title="Module synthesis"
@@ -372,16 +367,16 @@ function ModuleSection({
               <OutlineExtraLink
                 href={`/courses/${courseId}/modules/${module.id}/sources`}
                 meta={
-                  detail.sources.length === 1
+                  module.source_count === 1
                     ? "1 source"
-                    : `${detail.sources.length} sources`
+                    : `${module.source_count} sources`
                 }
                 title="Sources used in this module"
               />
-              {detail.knowledge_check ? (
+              {module.question_count !== null ? (
                 <OutlineExtraLink
                   href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}
-                  meta={`${detail.knowledge_check.questions.length} questions`}
+                  meta={`${module.question_count} questions`}
                   title="Knowledge Check"
                 />
               ) : null}
@@ -409,29 +404,8 @@ function ModuleSection({
 export function CourseOverview({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [progress, setProgress] = useState<CourseProgress | null>(null);
-  const [details, setDetails] = useState<Record<string, CourseModule>>({});
   const [error, setError] = useState<unknown>(null);
   const retryLock = useRef(false);
-
-  const loadDetails = useCallback(async (next: Course) => {
-    const published = next.modules.filter((module) => module.state === "published");
-    if (published.length === 0) {
-      setDetails({});
-      return;
-    }
-    const loaded = await Promise.all(
-      published.map((module) =>
-        courses.getModule(next.id, module.id).catch(() => null),
-      ),
-    );
-    const map: Record<string, CourseModule> = {};
-    loaded.forEach((module, index) => {
-      if (module) {
-        map[published[index].id] = module;
-      }
-    });
-    setDetails(map);
-  }, []);
 
   const load = useCallback(
     () => {
@@ -446,13 +420,13 @@ export function CourseOverview({ courseId }: { courseId: string }) {
           try {
             await afterReadingWrites();
             const learning = await courses.progress(next.id).catch(() => null);
-            await Promise.all([loadDetails(next), warmCourseReading(next)]);
             if (retryLock.current) {
               return;
             }
             setCourse(next);
             setProgress(learning);
             setError(null);
+            void warmCourseReading(next);
           } catch (err: unknown) {
             setError(err);
           }
@@ -460,7 +434,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
         (err: unknown) => setError(err),
       );
     },
-    [courseId, loadDetails],
+    [courseId],
   );
 
   useEffect(() => {
@@ -485,10 +459,10 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     try {
       const next = await courses.retry(courseId);
       const learning = await courses.progress(next.id).catch(() => null);
-      await Promise.all([loadDetails(next), warmCourseReading(next)]);
       retryLock.current = false;
       setCourse(next);
       setProgress(learning);
+      void warmCourseReading(next);
     } catch (err: unknown) {
       retryLock.current = false;
       if (snapshot) {
@@ -511,12 +485,12 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     () => course?.modules.find((module) => module.state === "published") ?? null,
     [course],
   );
-  const startHref =
-    startModule && details[startModule.id]?.lessons[0]
-      ? `/courses/${courseId}/modules/${startModule.id}/lessons/${details[startModule.id].lessons[0].id}`
-      : startModule
-        ? `/courses/${courseId}/modules/${startModule.id}`
-        : null;
+  const startLesson = startModule?.lessons[0] ?? null;
+  const startHref = startLesson
+    ? `/courses/${courseId}/modules/${startModule?.id}/lessons/${startLesson.id}`
+    : startModule
+      ? `/courses/${courseId}/modules/${startModule.id}`
+      : null;
   const actionHref = course && progress ? resumeHref(course.id, progress) : startHref;
   const actionLabel = progress
     ? continueLabel(progress)
@@ -575,7 +549,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
             <span className="k">Your course</span>
             <h1>{course.title}</h1>
             {course.subtitle ? <p className="sub">{course.subtitle}</p> : null}
-            <p className="cifras">{cifraLine(course, details, progress)}</p>
+            <p className="cifras">{cifraLine(course, progress)}</p>
           </header>
 
           {courseFailed && course.failure ? (
@@ -591,7 +565,6 @@ export function CourseOverview({ courseId }: { courseId: string }) {
           {course.modules.map((module) => (
             <ModuleSection
               courseId={course.id}
-              detail={details[module.id]}
               key={module.id}
               learningStatus={
                 progress?.modules.find((item) => item.module_id === module.id)

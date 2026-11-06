@@ -12,6 +12,7 @@ import {
   updateAccountTextSize,
   type AccountProfile,
 } from "@/lib/api";
+import { accountSession } from "@/lib/auth/claims";
 import {
   GENDERS,
   birthDateLimits,
@@ -19,6 +20,14 @@ import {
   genderLabel,
   registrationProfile,
 } from "@/lib/auth/profile";
+import {
+  accountStampNow,
+  clearMemberDisplay,
+  currentUserId,
+  readMemberDisplay,
+  rememberAccount,
+  rememberFetchedAccount,
+} from "@/lib/member-display";
 import {
   LESSON_BODY_PX,
   TEXT_SIZES,
@@ -64,6 +73,9 @@ export function ProfileScreen({
   const [savingSize, setSavingSize] = useState(false);
   const [sizeError, setSizeError] = useState("");
   const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [cachedName, setCachedName] = useState("");
+  const [cachedPhoto, setCachedPhoto] = useState<string | null>(null);
+  const [hasCache, setHasCache] = useState(false);
   const [email, setEmail] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -82,25 +94,46 @@ export function ProfileScreen({
   const [photoError, setPhotoError] = useState("");
   const previewUrlRef = useRef<string | null>(null);
   const birthLimits = useMemo(() => birthDateLimits(), []);
-  const name = accountName(profile);
+  const name = accountName(profile) || cachedName;
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const userId = await currentUserId();
+      const cached = userId ? readMemberDisplay(userId) : null;
+      if (!cancelled && cached) {
+        setHasCache(true);
+        setCachedName(
+          [cached.firstName, cached.lastName]
+            .map((part) => part?.trim() ?? "")
+            .filter(Boolean)
+            .join(" "),
+        );
+        setCachedPhoto(cached.imageUrl ?? cached.avatarUrl);
+      }
+      const stamp = accountStampNow();
       try {
-        const [account, userResult] = await Promise.all([
+        const [account, claims] = await Promise.all([
           getAccountProfile(),
-          createClient().auth.getUser(),
+          createClient().auth.getClaims(),
         ]);
         if (cancelled) {
           return;
         }
         const saved = textSizeOrStandard(account.text_size);
-        setProfile(account);
+        if (stamp === accountStampNow()) {
+          setProfile(account);
+        }
         setSize(saved);
         setSavedSize(saved);
         rememberReadingPreference(saved);
-        setEmail(userResult.data.user?.email ?? "");
+        const session = accountSession(
+          claims.data?.claims as Record<string, unknown> | undefined,
+        );
+        setEmail(session.status === "registered" ? session.email ?? "" : "");
+        if (userId) {
+          rememberFetchedAccount(userId, account, stamp);
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(
@@ -175,6 +208,10 @@ export function ProfileScreen({
       const next = registrationProfile(draft);
       const saved = await updateAccountProfile(next);
       setProfile(saved);
+      const userId = await currentUserId();
+      if (userId) {
+        rememberAccount(userId, saved);
+      }
       setEditing(false);
     } catch (error) {
       setSaveError(
@@ -197,6 +234,7 @@ export function ProfileScreen({
       return;
     }
     clearReadingPreference();
+    clearMemberDisplay();
     window.location.replace("/");
   }
 
@@ -291,6 +329,10 @@ export function ProfileScreen({
           : await createAccountPhoto(pendingFile)
         : await deleteAccountPhoto();
       setProfile(saved);
+      const userId = await currentUserId();
+      if (userId) {
+        rememberAccount(userId, saved);
+      }
       setPhotoOpen(false);
       resetPhotoDraft();
     } catch (error) {
@@ -304,14 +346,16 @@ export function ProfileScreen({
     }
   }
 
-  const savedPhoto = profile?.image_url ?? profile?.avatar_url ?? null;
+  const savedPhoto = profile
+    ? profile.image_url ?? profile.avatar_url
+    : cachedPhoto;
   const modalPhoto = previewUrl ?? (pendingRemoval ? null : savedPhoto);
 
   return (
     <MemberFrame
       current="profile"
-      status={loaded ? name || "Your profile" : "…"}
-      portraitSrc={loaded ? savedPhoto : undefined}
+      status={loaded || hasCache ? name || "Your profile" : "…"}
+      portraitSrc={loaded || hasCache ? savedPhoto : undefined}
     >
       <main className="per">
         <header className="per-cab">
@@ -319,7 +363,7 @@ export function ProfileScreen({
             <span className="k">Profile</span>
             <h1>Your profile</h1>
             <p className="datos">
-              {loaded ? name || "Your profile" : "…"}
+              {loaded || hasCache ? name || "Your profile" : "…"}
               <br />
               Member since <b>August 2026</b> · Plan: <b>Monthly · 4 courses</b>
             </p>

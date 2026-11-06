@@ -10,7 +10,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from auteur_api.modules.generation.schemas import CourseState, ModuleState
+from auteur_api.modules.generation.schemas import (
+    CourseListItem,
+    CourseState,
+    ModuleState,
+    OutlineLesson,
+    OutlineModule,
+)
 
 
 class LearningStatus(StrEnum):
@@ -63,3 +69,15 @@ class LessonReadRequest(BaseModel):
 
 class LessonVisitRequest(BaseModel):
     position_revision: int = Field(ge=0)
+
+
+class LibraryCourseItem(CourseListItem):
+    """Library row plus the learning progress and outline those screens render."""
+
+    progress: CourseProgressResponse
+    modules: list[OutlineModule]
+    lessons: list[OutlineLesson]
+
+
+class CourseLibraryResponse(BaseModel):
+    courses: list[LibraryCourseItem]

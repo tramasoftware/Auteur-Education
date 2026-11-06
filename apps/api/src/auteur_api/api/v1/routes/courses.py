@@ -14,12 +14,12 @@ from auteur_api.modules.generation import build
 from auteur_api.modules.generation import service as courses
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
-    CourseListResponse,
     CourseResponse,
     LessonResponse,
     ModuleResponse,
 )
 from auteur_api.modules.learning_progress.schemas import (
+    CourseLibraryResponse,
     CourseProgressResponse,
     LessonReadRequest,
     LessonVisitRequest,
@@ -42,8 +42,8 @@ class ActiveGenerationResponse(BaseModel):
     course_id: str | None
 
 
-@router.get("", response_model=CourseListResponse)
-def list_courses(store: Store, user_id: CurrentUserId) -> CourseListResponse:
+@router.get("", response_model=CourseLibraryResponse)
+def list_courses(store: Store, user_id: CurrentUserId) -> CourseLibraryResponse:
     """BR-LIB-001: private library of courses generated for the caller."""
     return courses.list_courses_for_user(store, user_id)
 
@@ -61,7 +61,7 @@ def active_generation(
 @router.get("/{course_id}", response_model=CourseResponse)
 def get_course(course_id: str, store: Store, user_id: CurrentUserId) -> CourseResponse:
     """UF-06: real build state and published modules (BR-GEN-007)."""
-    return courses.course_view(store.get_course(course_id, user_id=user_id))
+    return courses.course_view(store.get_course_view(course_id, user_id=user_id))
 
 
 @router.get("/{course_id}/modules/{module_id}", response_model=ModuleResponse)
@@ -69,7 +69,7 @@ def get_module(
     course_id: str, module_id: str, store: Store, user_id: CurrentUserId
 ) -> ModuleResponse:
     """UF-07: a published module with lessons, synthesis, Knowledge Check, sources."""
-    course = store.get_course(course_id, user_id=user_id)
+    course = store.get_module_course(course_id, module_id, user_id=user_id)
     module = courses.published_module(course, module_id)
     return courses.module_view(course, module)
 
@@ -85,7 +85,7 @@ def get_lesson(
     store: Store,
     user_id: CurrentUserId,
 ) -> LessonResponse:
-    course = store.get_course(course_id, user_id=user_id)
+    course = store.get_lesson_course(course_id, module_id, user_id=user_id)
     module = courses.published_module(course, module_id)
     return courses.lesson_view(course, module, lesson_id)
 

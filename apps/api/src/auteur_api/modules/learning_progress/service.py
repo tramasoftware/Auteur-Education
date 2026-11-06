@@ -10,6 +10,8 @@ from auteur_api.core.errors import ApiError, invalid_state, not_found
 from auteur_api.core.store import Store
 from auteur_api.modules.generation.schemas import CourseRecord
 from auteur_api.modules.learning_progress.logic import (
+    CourseLearningProgress,
+    LessonRead,
     ProgressWrite,
     build_snapshot,
     read_map,
@@ -20,22 +22,32 @@ from auteur_api.modules.learning_progress.schemas import CourseProgressResponse
 logger = logging.getLogger("auteur_api.learning_progress")
 
 
+def snapshot_for(
+    store: Store,
+    course: CourseRecord,
+    reads: list[LessonRead],
+    progress: CourseLearningProgress | None,
+) -> CourseProgressResponse:
+    """Repair completion timestamps, then build the learning snapshot."""
+    if reconcile_progress_row(course, read_map(reads), progress, now()) is not None:
+        try:
+            store.reconcile_learning_progress(course.user_id, course.id)
+            progress = store.get_course_learning_progress(course.user_id, course.id)
+        except Exception:
+            logger.exception(
+                "learning_progress_reconcile_failed course=%s", course.id
+            )
+    return build_snapshot(course, reads, progress)
+
+
 def get_course_progress(
     store: Store, course_id: str, user_id: str
 ) -> CourseProgressResponse:
     """Return learning progress, repairing completion timestamps if needed."""
-    course = store.get_course(course_id, user_id=user_id)
+    course = store.get_course_outline(course_id, user_id=user_id)
     reads = store.list_lesson_reads(user_id, course_id)
     progress = store.get_course_learning_progress(user_id, course_id)
-    if reconcile_progress_row(course, read_map(reads), progress, now()) is not None:
-        try:
-            store.reconcile_learning_progress(user_id, course_id)
-            progress = store.get_course_learning_progress(user_id, course_id)
-        except Exception:
-            logger.exception(
-                "learning_progress_reconcile_failed course=%s", course_id
-            )
-    return build_snapshot(course, reads, progress)
+    return snapshot_for(store, course, reads, progress)
 
 
 def set_lesson_read(
@@ -47,7 +59,6 @@ def set_lesson_read(
     read: bool,
     expected_updated_at: datetime | None,
 ) -> CourseProgressResponse:
-    store.get_course(course_id, user_id=user_id)
     outcome = store.apply_lesson_read(
         user_id,
         course_id,
@@ -74,7 +85,6 @@ def visit_lesson(
     *,
     position_revision: int,
 ) -> CourseProgressResponse:
-    store.get_course(course_id, user_id=user_id)
     outcome = store.record_lesson_visit(
         user_id,
         course_id,
@@ -95,7 +105,6 @@ def visit_lesson(
 def present_synthesis(
     store: Store, course_id: str, user_id: str
 ) -> CourseProgressResponse:
-    store.get_course(course_id, user_id=user_id)
     outcome = store.record_synthesis_presentation(user_id, course_id)
     _reject(
         outcome,

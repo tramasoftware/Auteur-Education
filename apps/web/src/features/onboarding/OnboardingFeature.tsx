@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
 import {
@@ -1125,6 +1133,60 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
   );
 }
 
+function ObjectiveItems({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return <p>None named.</p>;
+  }
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function objectiveDetailBlocks(objective: NonNullable<LearningRequest["objective"]>): {
+  title: string;
+  achieve?: boolean;
+  body: ReactNode;
+}[] {
+  const blocks: { title: string; achieve?: boolean; body: ReactNode }[] = [
+    {
+      title: "Starting point",
+      body: <p>{objective.assumed_level_and_knowledge}</p>,
+    },
+    {
+      title: "Scope & boundaries",
+      body: (
+        <div className="obj-scope">
+          <section>
+            <h3>Included</h3>
+            <ObjectiveItems items={objective.scope} />
+          </section>
+          <section>
+            <h3>Not included</h3>
+            <ObjectiveItems items={objective.exclusions} />
+          </section>
+        </div>
+      ),
+    },
+    {
+      title: "Signs of achievement",
+      achieve: true,
+      body: <ObjectiveItems items={objective.achievement_criteria} />,
+    },
+  ];
+
+  if (objective.medium_limitations.length > 0) {
+    blocks.push({
+      title: "Limits of text and audio",
+      body: <ObjectiveItems items={objective.medium_limitations} />,
+    });
+  }
+  return blocks;
+}
+
 type ObjectivePanelProps = {
   request: LearningRequest;
   busy: boolean;
@@ -1159,76 +1221,38 @@ function ObjectivePanel({
     ? o.confirmed
       ? "Reformulate objective"
       : "Confirm these changes"
-    : "Continue to learning directions";
+    : "Confirm & see learning paths";
 
   return (
-    <article className="lect">
-      <CourseStepLabel step={2} label="Confirm your learning objective" />
+    <article className="lect obj-confirm">
+      <div className="obj-head">
+        <CourseStepLabel step={2} label="Confirm your learning objective" tight />
+        <h1>Confirm what you want to achieve</h1>
+      </div>
 
-      <div className="preg disp">
-        <h1>Is this the objective?</h1>
-        <p className="bajada">Review it before we generate learning paths.</p>
+      <section className="obj-intro" aria-label="Learning objective">
         <p className="obj-statement">{o.statement}</p>
-      </div>
+        <div className="obj-meta">
+          <span>{request.inputs.experience_level}</span>
+          <span>Text + audio</span>
+        </div>
+      </section>
 
-      <div className="preg">
-        <dl className="obj-facts">
-          <dt>You will be able to</dt>
-          <dd>{o.observable_capability}</dd>
-          <dt>Object of learning</dt>
-          <dd>{o.learning_object}</dd>
-          <dt>Assumed level</dt>
-          <dd>{o.assumed_level_and_knowledge}</dd>
-          <dt>Scope</dt>
-          <dd>
-            {o.scope.length > 0 ? (
-              <ul>
-                {o.scope.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : (
-              "None named."
-            )}
-          </dd>
-          <dt>Exclusions</dt>
-          <dd>
-            {o.exclusions.length > 0 ? (
-              <ul>
-                {o.exclusions.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : (
-              "None named."
-            )}
-          </dd>
-          <dt>Signs of achievement</dt>
-          <dd>
-            {o.achievement_criteria.length > 0 ? (
-              <ul>
-                {o.achievement_criteria.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : (
-              "None named."
-            )}
-          </dd>
-          {o.medium_limitations.length > 0 ? (
-            <>
-              <dt>Limits of text and audio</dt>
-              <dd>
-                <ul>
-                  {o.medium_limitations.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      </div>
+      <details className="obj-fold">
+        <summary>Review the details</summary>
+        <div className="obj-fold-body">
+          {objectiveDetailBlocks(o).map((block, index) => (
+            <section
+              className={block.achieve ? "obj-block is-achieve" : "obj-block"}
+              key={block.title}
+            >
+              <span className="obj-index">{String(index + 1).padStart(2, "0")}</span>
+              <h2>{block.title}</h2>
+              {block.body}
+            </section>
+          ))}
+        </div>
+      </details>
 
       {!o.confirmed && !locked ? (
         <div className="preg">
@@ -1245,12 +1269,12 @@ function ObjectivePanel({
             <summary>
               <span className="mas" aria-hidden="true" />
               <span className="txt" id="objective-feedback-label">
-                What should change?
+                What should we change?
                 <small>Leave empty to accept this objective and continue.</small>
               </span>
             </summary>
             <label className="plano">
-              <span className="sr-only">What should change?</span>
+              <span className="sr-only">What should we change?</span>
               <textarea
                 id="objective-feedback"
                 rows={1}

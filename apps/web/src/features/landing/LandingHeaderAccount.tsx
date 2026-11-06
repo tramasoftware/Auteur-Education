@@ -7,6 +7,7 @@ import { ExitDoorIcon } from "@/components/icons/ExitDoorIcon";
 import { LogoutDialog } from "@/features/auth/LogoutDialog";
 import { Portrait } from "@/features/home/Portrait";
 import type { LandingAccountSummary } from "@/lib/auth/landing-account";
+import { clearMemberDisplay } from "@/lib/member-display";
 import { clearReadingPreference } from "@/lib/reading-preference";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -66,6 +67,7 @@ function LandingMemberAccount({ account }: { account: LandingAccountSummary }) {
       return;
     }
     clearReadingPreference();
+    clearMemberDisplay();
     window.location.replace("/");
   }
 

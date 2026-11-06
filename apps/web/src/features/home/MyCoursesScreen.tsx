@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { courses } from "@/lib/api";
 import {
@@ -12,8 +12,13 @@ import {
   readingCardCopy,
   resumeHref,
 } from "@/lib/course-progress";
+import {
+  currentUserId,
+  readMemberDisplay,
+  writeMemberDisplay,
+} from "@/lib/member-display";
 import { ReadingCoursePager } from "./ReadingCoursePager";
-import type { CourseProgress, LibraryCourse } from "@/types/generator";
+import type { CourseList, CourseProgress, LibraryCourse } from "@/types/generator";
 
 import { LearningStatusLine } from "./LearningStatusLine";
 import { MemberFrame } from "./MemberFrame";
@@ -119,36 +124,48 @@ export function MyCoursesScreen() {
   const [failed, setFailed] = useState(false);
   const [readingPage, setReadingPage] = useState(0);
 
+  const showLibrary = useCallback((body: CourseList) => {
+    setLibrary(body.courses);
+    setProgress(new Map(body.courses.map((item) => [item.id, item.progress])));
+    setCreated(byCreation(body.courses).map((item, index) => folderFrom(item, index)));
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    courses
-      .list()
-      .then(async (body) => {
-        const loaded = await Promise.all(
-          body.courses.map(async (item) => {
-            try {
-              return [item.id, await courses.progress(item.id)] as const;
-            } catch {
-              return null;
-            }
-          }),
-        );
+    void (async () => {
+      const userId = await currentUserId();
+      const cached = userId ? readMemberDisplay(userId) : null;
+      if (cancelled) {
+        return;
+      }
+      if (cached?.library) {
+        showLibrary(cached.library);
+      }
+      try {
+        const body = await courses.list();
         if (cancelled) {
           return;
         }
-        setLibrary(body.courses);
-        setProgress(new Map(loaded.flatMap((entry) => (entry ? [entry] : []))));
-        setCreated(byCreation(body.courses).map((item, index) => folderFrom(item, index)));
-      })
-      .catch(() => {
-        if (!cancelled) {
+        showLibrary(body);
+        if (userId) {
+          writeMemberDisplay(userId, {
+            library: body,
+            inProgressCount: inProgressCount(
+              body.courses,
+              new Map(body.courses.map((item) => [item.id, item.progress])),
+            ),
+          });
+        }
+      } catch {
+        if (!cancelled && !cached?.library) {
           setFailed(true);
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showLibrary]);
 
   const studying = inProgressCount(library, progress);
   const reading = inProgressCourses(library, progress);
