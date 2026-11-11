@@ -440,12 +440,12 @@
 @media (max-width: 920px) {
   .landing.course-outline-screen .cur {
     width: calc(100% - 24px);
-    padding: 24px 0 64px;
+    padding: 24px 0 calc(88px + env(safe-area-inset-bottom));
   }
 
   .landing.course-outline-screen .cur h1 {
     max-width: 100%;
-    font-size: clamp(calc(34px * var(--ft, 1)), calc(9vw * var(--ft, 1)), calc(48px * var(--ft, 1)));
+    font-size: calc(34px * var(--ft, 1));
   }
 
   .landing.course-outline-screen .cur-mod {

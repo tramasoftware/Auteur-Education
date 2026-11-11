@@ -1301,6 +1301,7 @@
 @media (max-width: 920px) {
   .landing.module-desk .desk-main {
     width: calc(100% - 20px);
+    margin-bottom: calc(86px + env(safe-area-inset-bottom));
   }
 
   .landing.module-desk .carpeta {
@@ -1315,12 +1316,15 @@
   }
 
   .landing.module-desk .stabs {
-    position: static;
+    position: sticky;
+    top: 64px;
+    z-index: 4;
     order: -1;
     flex-direction: row;
     width: 100%;
     margin-bottom: 0;
     overflow-x: auto;
+    background: #fff;
   }
 
   .landing.module-desk .stab,
@@ -1428,7 +1432,18 @@
   .landing.module-desk .side .ae-audio-slot {
     margin-top: 0;
   }
+}
 
+@media (max-width: 920px) and (max-height: 520px) {
+  .landing.module-desk .stabs {
+    top: 52px;
+  }
+
+  .landing.module-desk .sheet {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

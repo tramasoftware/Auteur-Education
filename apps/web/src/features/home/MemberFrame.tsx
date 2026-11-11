@@ -13,9 +13,11 @@ import {
   rememberFetchedAccount,
 } from "@/lib/member-display";
 
+import { MemberMobileNav } from "./MemberMobileNav";
 import { Portrait } from "./Portrait";
 import { RegisteredSessionWatch } from "./RegisteredSessionWatch";
 import "./home.css";
+import "@/features/course-setup/mobile-chrome.css";
 
 type MemberPage = "home" | "courses" | "profile";
 
@@ -70,7 +72,7 @@ export function MemberFrame({
   const photo = portraitSrc !== undefined ? portraitSrc : fetchedSrc;
 
   return (
-    <div className="landing member">
+    <div className="landing member ae-has-mobile-nav">
       <RegisteredSessionWatch />
       <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
       <link
@@ -100,6 +102,7 @@ export function MemberFrame({
         </div>
       </header>
       {children}
+      <MemberMobileNav current={current} />
       <LandingFooter member />
     </div>
   );

@@ -22,6 +22,7 @@ export function CourseOutlineScreen({
       mainClassName="cur"
       screenClassName="course-outline-screen"
       showFooter
+      mobileNav="courses"
     >
       {children}
     </CourseSetupFrame>

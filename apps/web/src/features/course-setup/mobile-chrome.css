@@ -1,0 +1,297 @@
+/* Mobile chrome. Base rules hide the new nodes so desktop (921px and up) is unchanged. */
+
+.ae-mobile-nav,
+.ae-v9-steps {
+  display: none;
+}
+
+@media (max-width: 920px) {
+  .landing.ae-has-mobile-nav {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+
+  .landing .ae-mobile-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: calc(70px + env(safe-area-inset-bottom));
+    margin: 0;
+    padding: 8px 12px calc(5px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(37, 42, 64, 0.12);
+    background: #fff;
+  }
+
+  .landing .ae-mobile-nav a svg {
+    width: 24px;
+    height: 24px;
+    flex: none;
+  }
+
+  .landing .ae-mobile-nav a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    color: rgba(37, 42, 64, 0.62);
+    font-family: var(--font-ui);
+    font-size: calc(11px * var(--ft, 1));
+    font-weight: 500;
+    line-height: 1.2;
+    text-decoration: none;
+  }
+
+  .landing .ae-mobile-nav a[aria-current="page"] {
+    color: var(--noche, #111936);
+  }
+
+  .landing .ae-mobile-nav a[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 22px;
+    height: 2px;
+    background: currentColor;
+  }
+
+  .landing .ae-mobile-nav a:focus-visible {
+    outline: 2px solid var(--borgona, #7b303b);
+    outline-offset: 2px;
+  }
+
+  .landing.course-setup .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: calc(100% - 40px);
+    height: 64px;
+  }
+
+  .landing.course-setup .marca {
+    display: none;
+  }
+
+  .landing.course-setup .back .txt {
+    display: inline;
+  }
+
+  .landing.course-setup .donde {
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+  }
+
+  .landing.course-setup:not(.ae-has-mobile-nav) .ae-v9-steps,
+  .blueprint-review .ae-v9-steps {
+    display: block;
+    padding: 0 0 12px;
+    background: #fff;
+  }
+
+  .ae-v9-steps ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 14px 16px 0;
+    list-style: none;
+  }
+
+  .ae-v9-steps li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: rgb(86, 91, 112);
+    font-family: var(--font-ui, var(--font-inter), Inter, sans-serif);
+    font-size: calc(11px * var(--ft, 1));
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .ae-v9-steps li.current {
+    color: rgb(25, 28, 55);
+    font-weight: 600;
+  }
+
+  .ae-v9-steps b {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .ae-v9-steps li.current b {
+    border: 1px solid #191c37;
+    background: #191c37;
+    color: #f9f8f7;
+  }
+
+  .ae-v9-steps li.complete b {
+    background: #edf0f3;
+    color: #191c37;
+  }
+
+  .landing.course-setup .course-step {
+    display: none;
+  }
+
+  .ae-v9-steps li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 13px;
+    left: calc(50% + 18px);
+    width: calc(100% - 36px);
+    height: 1px;
+    background: rgba(37, 42, 64, 0.2);
+  }
+
+  .landing.course-setup:not(.ae-has-mobile-nav) .question-main,
+  .landing.course-setup:not(.ae-has-mobile-nav) .paths-main,
+  .landing.preparing-screen .preparing-main,
+  .blueprint-review {
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+
+  .landing.onboarding-screen .pie-l,
+  .landing.onboarding-screen .refine .pie-go,
+  .landing.onboarding-screen .cierre-o > .acciones,
+  .landing.proposals-screen .cierre-o > .acciones,
+  .landing.preparing-screen .gen .acciones,
+  .landing.course-setup .stage-failure .acciones,
+  .blueprint-review .ae-setup-actions {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 16;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 12px 20px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(37, 42, 64, 0.12);
+    background: #fff;
+  }
+
+  .landing.onboarding-screen .pie-l .btn,
+  .landing.onboarding-screen .refine .pie-go .btn,
+  .landing.onboarding-screen .cierre-o > .acciones .btn,
+  .landing.proposals-screen .cierre-o > .acciones .btn,
+  .landing.preparing-screen .gen .acciones .btn,
+  .landing.course-setup .stage-failure .acciones .btn,
+  .blueprint-review .ae-setup-actions > button,
+  .blueprint-review a.ae-setup-actions {
+    width: 100%;
+    min-height: 56px;
+    border-radius: 14px;
+    justify-content: center;
+  }
+
+  .blueprint-review a.ae-setup-actions {
+    position: fixed;
+    right: 20px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    left: 20px;
+    z-index: 16;
+    display: inline-flex;
+    width: auto;
+  }
+
+  .landing.onboarding-screen .reform-sheet .btn {
+    width: auto;
+    min-height: 48px;
+    border-radius: 10px 10px 4px 4px;
+  }
+
+  .landing.onboarding-screen .preg h1,
+  .landing.onboarding-screen .refine h1.t,
+  .landing.proposals-screen .caminos-h h2,
+  .landing.stage-preparing-screen .gen h1,
+  .landing.preparing-screen .gen h1 {
+    font-size: calc(32px * var(--ft, 1));
+  }
+
+  .landing.preparing-screen .gen h1,
+  .landing.stage-preparing-screen .gen h1 {
+    font-size: calc(36px * var(--ft, 1));
+  }
+}
+
+@media (max-width: 920px) and (max-height: 520px) {
+  .landing .ae-mobile-nav {
+    height: calc(56px + env(safe-area-inset-bottom));
+    padding-top: 4px;
+  }
+
+  .landing.ae-has-mobile-nav {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  .landing.course-setup .top {
+    height: 52px;
+  }
+
+  .landing.course-setup:not(.ae-has-mobile-nav) .ae-v9-steps,
+  .blueprint-review .ae-v9-steps {
+    padding-bottom: 6px;
+  }
+
+  .ae-v9-steps ol {
+    padding-top: 8px;
+  }
+
+  .ae-v9-steps li span {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing.course-setup.onboarding-screen:not(.ae-has-mobile-nav) .question-main {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .landing.course-setup.onboarding-screen:not(.ae-has-mobile-nav) .question-main:has(.recovery) {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .landing.onboarding-screen .recovery .cierre-o > .acciones {
+    position: static;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    background: transparent;
+  }
+}
+
+@media (max-width: 359px) {
+  .landing.course-setup .top {
+    width: calc(100% - 24px);
+  }
+
+  .landing.onboarding-screen .preg h1 {
+    font-size: calc(28px * var(--ft, 1));
+  }
+
+  .ae-v9-steps li {
+    font-size: calc(10px * var(--ft, 1));
+  }
+}

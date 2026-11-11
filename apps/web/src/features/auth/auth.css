@@ -426,6 +426,21 @@
   }
 }
 
+@media (max-width: 920px) {
+  .auth-screen h1 {
+    font-size: calc(32px * var(--ft, 1));
+  }
+
+  .auth-screen .btn {
+    height: 54px;
+    border-radius: 12px;
+  }
+
+  .auth-screen .dos-c {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .auth-screen .top,
   .auth-screen .sesion {
@@ -434,24 +449,6 @@
 
   .auth-screen .sesion {
     margin-top: 24px;
-  }
-
-  .auth-screen h1 {
-    font-size: calc(34px * var(--ft, 1));
-  }
-
-  .auth-screen .back .txt {
-    display: none;
-  }
-
-  .auth-screen .back .ar {
-    width: 13px;
-    height: 13px;
-    margin: 0;
-  }
-
-  .auth-screen .dos-c {
-    grid-template-columns: 1fr;
   }
 }
 

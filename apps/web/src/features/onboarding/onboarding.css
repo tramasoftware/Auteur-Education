@@ -1184,7 +1184,28 @@
   letter-spacing: -0.012em;
 }
 
+.landing.onboarding-screen .refine .cita-l summary {
+  display: contents;
+  cursor: default;
+  list-style: none;
+}
+
+@media (min-width: 641px) {
+  .landing.onboarding-screen .refine .cita-l summary {
+    pointer-events: none;
+  }
+}
+
+.landing.onboarding-screen .refine .cita-l summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing.onboarding-screen .refine .cita-l .cita-chevron {
+  display: none;
+}
+
 .landing.onboarding-screen .refine .cita-l .cita-q {
+  margin: 0;
   font-size: clamp(calc(15px * var(--ft, 1)), calc(1.5vw * var(--ft, 1)), calc(17px * var(--ft, 1)));
   line-height: 1.35;
 }
@@ -1256,6 +1277,10 @@
   font-size: calc(18px * var(--ft, 1));
   font-weight: 400;
   letter-spacing: -0.014em;
+}
+
+.landing.onboarding-screen .refine .op .tx .tx-desc {
+  display: block;
 }
 
 .landing.onboarding-screen .refine .op .tx em {
@@ -1413,8 +1438,8 @@
     width: 100%;
   }
 
-  .landing.onboarding-screen .niveles {
-    grid-template-columns: 1fr;
+  .landing.onboarding-screen .preg .niveles .niv > small {
+    display: none;
   }
 
   .landing.onboarding-screen .pie-l {
@@ -1518,6 +1543,126 @@
 
   .landing.onboarding-screen .preg h1 {
     font-size: calc(32px * var(--ft, 1));
+  }
+
+  .landing.onboarding-screen .question-main,
+  .landing.onboarding-screen .question-main:has(.recovery) {
+    flex: 0 1 auto;
+    margin-bottom: 8px;
+  }
+
+  .landing.onboarding-screen .refine .cita-l {
+    display: block;
+    margin-top: 20px;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .landing.onboarding-screen .refine .cita-l summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 1px solid rgba(37, 42, 64, 0.18);
+    border-radius: 4px;
+    background: rgba(37, 42, 64, 0.03);
+    cursor: pointer;
+  }
+
+  .landing.onboarding-screen .refine .cita-l .cita-chevron {
+    display: block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-top: 1.5px solid var(--m-2);
+    border-right: 1.5px solid var(--m-2);
+    transform: rotate(45deg);
+    transform-origin: center;
+    transition: transform 200ms ease;
+  }
+
+  .landing.onboarding-screen .refine .cita-l[open] .cita-chevron {
+    transform: rotate(135deg);
+  }
+
+  .landing.onboarding-screen .refine .cita-l .lab {
+    letter-spacing: 0.14em;
+  }
+
+  .landing.onboarding-screen .refine .cita-l .cita-q {
+    margin-top: 10px;
+    padding: 0 2px 2px;
+    font-size: calc(15px * var(--ft, 1));
+  }
+
+  .landing.onboarding-screen .refine .op .tx em {
+    display: none;
+  }
+
+  .landing.onboarding-screen .refine .op .tx .tx-desc {
+    font-size: calc(12.5px * var(--ft, 1));
+    line-height: 1.45;
+  }
+
+  .landing.onboarding-screen .refine .campo textarea {
+    box-sizing: border-box;
+    min-height: 48px;
+    padding: 12px 14px;
+    border: 1px solid rgba(37, 42, 64, 0.22);
+    border-radius: 4px;
+    background: #fff;
+  }
+
+  .landing.onboarding-screen .refine .campo textarea:focus {
+    border-color: var(--borgona);
+  }
+
+  .landing.onboarding-screen .recovery .sol {
+    display: none;
+  }
+
+  .landing.onboarding-screen .recovery .lomo {
+    padding-top: 0;
+  }
+
+  .landing.onboarding-screen .recovery .lomo.is-on .sol {
+    display: none;
+  }
+
+  .landing.onboarding-screen .recovery .caminos {
+    gap: 20px;
+    padding-bottom: 0;
+  }
+
+  .landing.onboarding-screen .recovery .cierre-o {
+    margin-top: 12px;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top: 0;
+  }
+
+  .landing.onboarding-screen .recovery .cierre-o > .acciones {
+    position: static;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    gap: 12px;
+    margin: 0;
+    padding: 14px 0 calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(37, 42, 64, 0.12);
+    background: transparent;
+  }
+
+  .landing.onboarding-screen .recovery .acciones .btn,
+  .landing.onboarding-screen .recovery .acciones .reform-link {
+    width: 100%;
+  }
+
+  .landing.onboarding-screen .recovery .acciones .nota {
+    flex: 1 1 100%;
+    max-width: none;
   }
 }
 

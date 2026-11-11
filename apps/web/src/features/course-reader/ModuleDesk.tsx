@@ -1274,6 +1274,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
       mainClassName="desk-main"
       screenClassName="module-desk"
       showFooter
+      mobileNav="courses"
     >
       <div className="archivo" data-pane={pane}>
         <Link className="archive-tab" href={`/courses/${courseId}`}>

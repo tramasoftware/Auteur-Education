@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { CourseFilm } from "./CourseFilm";
-import { CourseFolders } from "./CourseFolders";
 import { EditorialFrame } from "./EditorialFrame";
 
 const topics = [
@@ -21,11 +20,11 @@ export function LandingPage() {
             <div className="cta">
               <CreateCourseLink />
             </div>
-            <p className="prom">Your first lesson is free with an account. No card needed.</p>
           </div>
           <CourseFilm />
         </section>
 
+        {/* Colección oculta temporalmente
         <section className="lp-sec" id="coleccion">
           <div className="col-cab">
             <div>
@@ -35,6 +34,7 @@ export function LandingPage() {
           </div>
           <CourseFolders />
         </section>
+        */}
 
         <section className="ae-topics" aria-labelledby="ae-topics-title">
           <div className="ae-topics-head">

@@ -47,7 +47,7 @@ export async function EditorialFrame({
             <span className="m1">Auteur</span>
             <span className="m2">Education</span>
           </Link>
-          <LandingHeaderAccount account={account} />
+          <LandingHeaderAccount account={account} current={current} />
         </div>
       </header>
       {children}

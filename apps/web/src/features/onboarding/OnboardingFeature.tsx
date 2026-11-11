@@ -557,7 +557,6 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
       </div>
 
       <div className="acciones pie-l">
-        <span className="nota">Your first lesson is free with an account. No card needed.</span>
         <button
           className="btn"
           type="submit"
@@ -764,8 +763,6 @@ function IncompatibleIntention({
   const alternatives = request.compatibility.recovery_alternatives ?? [];
   const [drafts, setDrafts] = useState<AltDraft[]>(() => alternatives.map(draftFromAlternative));
   const [selected, setSelected] = useState<number | null>(null);
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const alternativeKey = alternatives
     .map((item) => `${item.title}:${item.suggested_intent}`)
     .join("|");
@@ -773,15 +770,13 @@ function IncompatibleIntention({
   useEffect(() => {
     setDrafts(alternatives.map(draftFromAlternative));
     setSelected(null);
-    setOpenIndex(null);
-    setEditingIndex(null);
     // alternativeKey is the content identity; `alternatives` is read from that render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alternativeKey]);
   const more = [
     explanation.trim(),
     alternatives.length > 0
-      ? "These related directions can be taught that way. Open one, edit it if you want, and choose it to start a new intention. It is not the same result."
+      ? "These related directions can be taught that way. Choose one to start a new intention. It is not the same result."
       : "",
     alternative
       ? `A related idea can be a new intention. It is not the same as the practical result. ${alternative}`
@@ -789,12 +784,6 @@ function IncompatibleIntention({
   ].filter(Boolean);
   const selectedDraft = selected === null ? null : drafts[selected];
   const canContinue = selectedDraft !== null && draftReady(selectedDraft);
-
-  const updateDraft = (index: number, patch: Partial<AltDraft>) => {
-    setDrafts((current) =>
-      current.map((draft, draftIndex) => (draftIndex === index ? { ...draft, ...patch } : draft)),
-    );
-  };
 
   const choose = (index: number) => {
     const draft = drafts[index];
@@ -839,16 +828,8 @@ function IncompatibleIntention({
               index={index}
               draft={drafts[index] ?? draftFromAlternative(item)}
               selected={selected === index}
-              open={openIndex === index}
-              editing={editingIndex === index}
               busy={busy}
               onSelect={() => setSelected(index)}
-              onToggle={() => {
-                setSelected(index);
-                setOpenIndex((current) => (current === index ? null : index));
-              }}
-              onEdit={() => setEditingIndex(index)}
-              onChange={(patch) => updateDraft(index, patch)}
             />
           ))}
         </div>
@@ -874,7 +855,7 @@ function IncompatibleIntention({
           <ReformulateIntention busy={busy} onReset={onStartOver} />
           <span className="nota">
             {selected === null
-              ? "Choose a folder to continue, or return to your question."
+              ? "Choose a suggestion to continue, or return to your question."
               : "This becomes a new intention. It is not the same result."}
           </span>
         </div>
@@ -896,124 +877,30 @@ function RecoveryAlternativeCard({
   index,
   draft,
   selected,
-  open,
-  editing,
   busy,
   onSelect,
-  onToggle,
-  onEdit,
-  onChange,
 }: {
   item: RecoveryAlternative;
   index: number;
   draft: AltDraft;
   selected: boolean;
-  open: boolean;
-  editing: boolean;
   busy: boolean;
   onSelect: () => void;
-  onToggle: () => void;
-  onEdit: () => void;
-  onChange: (patch: Partial<AltDraft>) => void;
 }) {
-  const fieldId = (name: string) => `recovery-${index}-${name}`;
   const ready = draftReady(draft);
 
   return (
-    <div className={`lomo${selected ? " is-on" : ""}${open ? " abierta" : ""}`}>
+    <div className={`lomo${selected ? " is-on" : ""}`}>
       <button className="sol" type="button" onClick={onSelect}>
         <span className="n">{String(index + 1).padStart(2, "0")}</span>
         <span className="tt">{item.title}</span>
       </button>
       <div className="caja">
         <div className="abierto">
-          <button className="pick" type="button" onClick={onSelect}>
+          <button className="pick" type="button" onClick={onSelect} aria-pressed={selected}>
             <b>{draft.initial_intent}</b>
             <span className="sint">{item.explanation}</span>
           </button>
-          <button
-            className="ver"
-            type="button"
-            aria-expanded={open}
-            onClick={onToggle}
-          >
-            {open ? "Hide details" : "View details"}
-          </button>
-          {open ? (
-            <div className="mas">
-              {editing ? (
-                <div className="editor">
-                  <label className="plano" htmlFor={fieldId("intent")}>
-                    <span>What do you want to learn?</span>
-                    <textarea
-                      id={fieldId("intent")}
-                      rows={3}
-                      required
-                      maxLength={MAX_FREE_TEXT_CHARS}
-                      value={draft.initial_intent}
-                      onChange={(event) => onChange({ initial_intent: event.target.value })}
-                    />
-                  </label>
-                  <div className="niveles" role="radiogroup" aria-labelledby={fieldId("level")}>
-                    <span className="editor-label" id={fieldId("level")}>
-                      Your current level
-                    </span>
-                    {LEVELS.map((level) => (
-                      <label className="niv" key={level}>
-                        <input
-                          type="radio"
-                          name={fieldId("level")}
-                          value={level}
-                          checked={draft.experience_level === level}
-                          onChange={() => onChange({ experience_level: level })}
-                        />
-                        <span className="c" aria-hidden="true" />
-                        <b>{level}</b>
-                        <small>{LEVEL_NOTES[level]}</small>
-                      </label>
-                    ))}
-                  </div>
-                  <label className="plano" htmlFor={fieldId("prior")}>
-                    <span>Previous knowledge (optional)</span>
-                    <textarea
-                      id={fieldId("prior")}
-                      rows={2}
-                      maxLength={MAX_FREE_TEXT_CHARS}
-                      value={draft.prior_knowledge}
-                      onChange={(event) => onChange({ prior_knowledge: event.target.value })}
-                    />
-                  </label>
-                  <label className="plano" htmlFor={fieldId("outcome")}>
-                    <span>What do you want to be able to do or understand?</span>
-                    <textarea
-                      id={fieldId("outcome")}
-                      rows={2}
-                      required
-                      maxLength={MAX_FREE_TEXT_CHARS}
-                      value={draft.expected_outcome}
-                      onChange={(event) => onChange({ expected_outcome: event.target.value })}
-                    />
-                  </label>
-                </div>
-              ) : (
-                <dl>
-                  <dt>Intention</dt>
-                  <dd>{draft.initial_intent}</dd>
-                  <dt>Level</dt>
-                  <dd>{draft.experience_level}</dd>
-                  <dt>Prior knowledge</dt>
-                  <dd>{draft.prior_knowledge.trim() || "Not provided"}</dd>
-                  <dt>Expected outcome</dt>
-                  <dd>{draft.expected_outcome}</dd>
-                </dl>
-              )}
-              {editing ? null : (
-                <button className="edit" type="button" disabled={busy} onClick={onEdit}>
-                  Edit
-                </button>
-              )}
-            </div>
-          ) : null}
           <div className="pie">
             <button
               className="marca"
@@ -1038,9 +925,20 @@ type PrecisionPanelProps = {
   onChoose: (payload: { option_id?: string; free_text?: string }) => void;
 };
 
+function subscribeMobile640(onStoreChange: () => void) {
+  const media = window.matchMedia("(max-width: 640px)");
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getMobile640Snapshot() {
+  return window.matchMedia("(max-width: 640px)").matches;
+}
+
 function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProps) {
   const [optionId, setOptionId] = useState<string>("");
   const [freeText, setFreeText] = useState("");
+  const isMobile = useSyncExternalStore(subscribeMobile640, getMobile640Snapshot, () => false);
   const p = request.precision;
   const wrote = request.inputs.initial_intent.trim();
 
@@ -1053,10 +951,17 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
       </h1>
       <p className="bajada">Choose a focus for your course.</p>
       {wrote ? (
-        <blockquote className="cita-l">
-          <span className="lab">You wrote</span>
-          <span className="cita-q">{wrote}</span>
-        </blockquote>
+        <details
+          className="cita-l"
+          key={isMobile ? "question-mobile" : "question-desktop"}
+          defaultOpen={!isMobile}
+        >
+          <summary>
+            <span className="cita-chevron" aria-hidden="true" />
+            <span className="lab">Your question</span>
+          </summary>
+          <p className="cita-q">{wrote}</p>
+        </details>
       ) : null}
 
       <div className="regla" />
@@ -1076,7 +981,7 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
             />
             <span className="tx">
               <b>{option.title}</b>
-              {option.explanation}
+              <span className="tx-desc">{option.explanation}</span>
               {option.relation_to_intention ? <em>{option.relation_to_intention}</em> : null}
             </span>
           </label>
@@ -1091,7 +996,11 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
             rows={1}
             maxLength={MAX_FREE_TEXT_CHARS}
             value={freeText}
-            placeholder="For example: the difference between social and demographic drivers of neighborhood change."
+            placeholder={
+              isMobile
+                ? "A focus you want to explore"
+                : "For example: the difference between social and demographic drivers of neighborhood change."
+            }
             onChange={(e) => {
               setFreeText(e.target.value);
               setOptionId("");

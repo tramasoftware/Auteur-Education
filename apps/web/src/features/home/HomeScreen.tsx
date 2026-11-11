@@ -59,6 +59,9 @@ const ideas = [
   },
 ] as const;
 
+/** Temporarily off — editorial “Worth exploring” carousel on the member home. */
+const showWorthExploring = false;
+
 function pad(step: number): string {
   return String(step).padStart(2, "0");
 }
@@ -88,8 +91,8 @@ export function HomeScreen() {
           </Link>
         </header>
         <ReadingDesk onInProgress={setInProgress} />
-        <Curiosity step={2} fromCurrentCourse />
-        <NewQuestion step={3} />
+        {showWorthExploring ? <Curiosity step={2} fromCurrentCourse /> : null}
+        <NewQuestion step={showWorthExploring ? 3 : 2} />
       </main>
     </MemberFrame>
   );

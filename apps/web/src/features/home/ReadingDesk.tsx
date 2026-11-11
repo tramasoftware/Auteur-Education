@@ -18,6 +18,9 @@ import type { CourseList, LibraryCourse } from "@/types/generator";
 
 import { readingDeskModel } from "./reading-desk-load";
 import { ReadingCoursePager } from "./ReadingCoursePager";
+import { ReadingDeskMobile } from "./ReadingDeskMobile";
+
+const MOBILE_MEMBER_MAX_PX = 920;
 
 export function ReadingDesk({
   onInProgress,
@@ -36,11 +39,11 @@ export function ReadingDesk({
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 900px)");
+    const media = window.matchMedia(`(max-width: ${MOBILE_MEMBER_MAX_PX}px)`);
     const apply = () => {
       setCompact(media.matches);
       if (media.matches) {
-        setOpen(true);
+        setOpen(false);
       }
     };
     apply();
@@ -190,6 +193,15 @@ export function ReadingDesk({
         />
       </div>
     ) : null;
+
+  if (compact) {
+    return (
+      <>
+        {homePager}
+        <ReadingDeskMobile model={model} />
+      </>
+    );
+  }
 
   return (
     <>

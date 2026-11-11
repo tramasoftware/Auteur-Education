@@ -4,9 +4,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { JourneyFrame, useJourneyStepValue } from "@/components/layout";
+import { MemberMobileNav } from "@/features/home/MemberMobileNav";
 import { LandingFooter } from "@/features/landing/LandingFooter";
 import "@/features/landing/landing.css";
 import "@/features/onboarding/onboarding.css";
+import "./mobile-chrome.css";
+import { MobileSetupStepper } from "./MobileSetupStepper";
 
 type CourseSetupFrameProps = {
   children: ReactNode;
@@ -19,6 +22,11 @@ type CourseSetupFrameProps = {
   screenClassName?: string;
   /** Public footer chrome; omitted during onboarding, proposals, and Blueprint. */
   showFooter?: boolean;
+  /**
+   * Reader and outline keep the member destinations. Setup screens get the
+   * stepper instead. Both are hidden from 921px up.
+   */
+  mobileNav?: "home" | "courses";
 };
 
 /**
@@ -45,9 +53,12 @@ export function CourseSetupFrame({
   mainClassName = "question-main",
   screenClassName,
   showFooter = false,
+  mobileNav,
 }: CourseSetupFrameProps) {
   return (
-    <div className={`landing course-setup${screenClassName ? ` ${screenClassName}` : ""}`}>
+    <div
+      className={`landing course-setup${mobileNav ? " ae-has-mobile-nav" : ""}${screenClassName ? ` ${screenClassName}` : ""}`}
+    >
       <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
       <link
         rel="stylesheet"
@@ -66,8 +77,10 @@ export function CourseSetupFrame({
             </Link>
             <ScreenTitle title={title} />
           </div>
+          {mobileNav ? null : <MobileSetupStepper />}
         </header>
         <main className={mainClassName}>{children}</main>
+        {mobileNav ? <MemberMobileNav current={mobileNav} /> : null}
         {showFooter ? <LandingFooter /> : null}
       </JourneyFrame>
     </div>

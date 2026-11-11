@@ -181,6 +181,19 @@ body:has(.landing.not-found) > :not(:has(.landing.not-found)) {
   .landing.not-found .nota-err h1 {
     font-size: calc(26px * var(--ft, 1));
   }
+
+  .landing.not-found .acciones {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .landing.not-found .acciones .btn {
+    width: min(100%, 260px);
+    min-height: 56px;
+    justify-content: center;
+    border-radius: 14px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
