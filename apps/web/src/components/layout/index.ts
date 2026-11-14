@@ -1,2 +1,2 @@
-export { JourneyFrame, useJourneyStep, useJourneyStepValue, onboardingJourneyStep, proposalsJourneyStep, blueprintJourneyStep } from "./JourneyProgress";
+export { JourneyFrame, useJourneyStep, useJourneyStepValue, onboardingJourneyStep, proposalsJourneyStep } from "./JourneyProgress";
 export { SiteHeader } from "./SiteHeader";

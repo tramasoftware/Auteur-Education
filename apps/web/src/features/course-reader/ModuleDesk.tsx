@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -21,6 +22,7 @@ import {
   loadModuleReading,
   peekModuleReading,
   replaceModuleProgress,
+  subscribeModuleReading,
   type ModuleReading,
 } from "./module-reading-cache";
 import "./module-desk.css";
@@ -1072,11 +1074,44 @@ function QuizSheet({
   );
 }
 
+function lessonStillLoading(
+  pane: ModulePane,
+  lessonId: string | undefined,
+  courseId: string,
+  moduleId: string,
+): boolean {
+  return (
+    pane === "lesson" &&
+    !!lessonId &&
+    !peekModuleReading(courseId, moduleId)?.lessons.has(lessonId)
+  );
+}
+
 export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskProps) {
-  const [pack, setPack] = useState<ModuleReading | null>(() =>
+  const [loadedPack, setPack] = useState<ModuleReading | null>(() =>
     peekModuleReading(courseId, moduleId),
   );
+  const [readingVersion, setReadingVersion] = useState(0);
+  const cachedPack = useMemo(() => {
+    void readingVersion;
+    return peekModuleReading(courseId, moduleId);
+  }, [courseId, moduleId, readingVersion]);
+  const pack =
+    cachedPack ??
+    (loadedPack?.course.id === courseId && loadedPack.module.id === moduleId
+      ? loadedPack
+      : null);
   const [error, setError] = useState<unknown>(null);
+  const lessonKey = `${courseId}:${moduleId}:${pane}:${lessonId ?? ""}`;
+  const [trackedLesson, setTrackedLesson] = useState(lessonKey);
+  const [lessonPending, setLessonPending] = useState(() =>
+    lessonStillLoading(pane, lessonId, courseId, moduleId),
+  );
+  if (trackedLesson !== lessonKey) {
+    setTrackedLesson(lessonKey);
+    setLessonPending(lessonStillLoading(pane, lessonId, courseId, moduleId));
+    setError(null);
+  }
   const [learnerName, setLearnerName] = useState<string | null>(null);
   const progressRef = useRef<CourseProgress | null>(pack?.progress ?? null);
   progressRef.current = pack?.progress ?? null;
@@ -1105,26 +1140,32 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
   }, []);
 
   useEffect(() => {
+    return subscribeModuleReading(() => {
+      setReadingVersion((version) => version + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    const preferLessonId = pane === "lesson" ? lessonId : undefined;
     const ready = peekModuleReading(courseId, moduleId);
-    if (ready) {
-      setPack(ready);
-      setError(null);
+    if (ready && (!preferLessonId || ready.lessons.has(preferLessonId))) {
       return;
     }
     let cancelled = false;
-    setPack(null);
-    setError(null);
-    loadModuleReading(courseId, moduleId)
+    loadModuleReading(courseId, moduleId, { preferLessonId })
       .then((next) => {
         if (!cancelled) setPack(next);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLessonPending(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [courseId, moduleId]);
+  }, [courseId, moduleId, lessonId, pane]);
 
   function applyProgress(next: CourseProgress) {
     replaceModuleProgress(courseId, moduleId, next);
@@ -1254,7 +1295,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
                 key: "missing",
                 node: (
                   <p className="sheet-loading">
-                    {pack ? "This lesson is not available." : "Loading…"}
+                    {pack && !lessonPending ? "This lesson is not available." : "Loading…"}
                   </p>
                 ),
               },

@@ -7,6 +7,56 @@ from __future__ import annotations
 from auteur_api.ai.stages import untrusted
 from auteur_api.modules.onboarding.schemas import LearningRequestInputs
 
+# BR-OBJ-009: whole words the objective filter rejects. Prompt text is this tuple,
+# so the instruction and the regex cannot drift.
+UNSUPPORTED_DELIVERABLE_TERMS: tuple[str, ...] = (
+    "essay",
+    "essays",
+    "project",
+    "projects",
+    "portfolio",
+    "presentation",
+    "slide deck",
+    "upload",
+    "submit",
+    "assignment",
+    "capstone",
+    "exam",
+)
+
+# Nearby forms the filter does not match. Kept out of model-authored text so a
+# paraphrase does not swap one deliverable noun for another.
+_NEARBY_DELIVERABLE_FORMS: tuple[str, ...] = (
+    "presentations",
+    "portfolios",
+    "exams",
+    "assignments",
+    "uploads",
+    "capstones",
+)
+
+
+def deliverable_exclusion_block(fields: str) -> str:
+    """Lexical exclusion for fields that are written by the model and reused later."""
+    exact = ", ".join(UNSUPPORTED_DELIVERABLE_TERMS)
+    nearby = ", ".join(_NEARBY_DELIVERABLE_FORMS)
+    return f"""
+Forbidden deliverable words (BR-OBJ-009). The check is whole-word and
+case-insensitive. A topical use still fails: naming the subject with one of
+these words is treated the same as promising the deliverable.
+Do not use these words in {fields}: {exact}.
+Also avoid these nearby forms, which name the same deliverables: {nearby}.
+If the learner's own words use one of them as the subject or the use
+("for my projects", "learn about projects"), paraphrase that subject without
+the token. Write "the work you are already making" or "how a body of work is
+scoped and judged". Never promise that the learner will produce, submit, or
+present a project, essay, portfolio, presentation, or exam.
+Learner-written text may keep the original word: the intention, the expected
+outcome, a selected focus, and revision feedback. Do not copy it into the
+fields above.
+"""
+
+
 SHARED_RULES = """
 You are part of Auteur Education, a platform for personalized education delivered
 exclusively through written text and narrated audio, in English only.
@@ -74,7 +124,13 @@ be understood without a short subordinate frame.
 """
 
 
-ANALYZE_REQUEST_V5 = "analyze_request_v5"
+ANALYZE_REQUEST_V6 = "analyze_request_v6"
+
+_ANALYSIS_DELIVERABLE_FIELDS = (
+    "precision option title, explanation, and relation_to_intention; "
+    "recovery alternative title, explanation, suggested_intent, and "
+    "suggested_outcome; and safe_reframing"
+)
 
 ANALYZE_REQUEST_INSTRUCTIONS = (
     SHARED_RULES
@@ -172,6 +228,7 @@ Task: analyze a new learning request in one pass.
    If the request is Incompatible, needs_precision must be false and options=[].
    Never narrow an incompatible skill into techniques, recipes, styles, or steps.
 """
+    + deliverable_exclusion_block(_ANALYSIS_DELIVERABLE_FIELDS)
 )
 
 
@@ -186,7 +243,11 @@ def analyze_request_input(inputs: LearningRequestInputs) -> str:
     )
 
 
-FORMULATE_OBJECTIVE_V2 = "formulate_objective_v2"
+FORMULATE_OBJECTIVE_V3 = "formulate_objective_v3"
+
+_OBJECTIVE_DELIVERABLE_FIELDS = (
+    "statement, observable_capability, and learning_object"
+)
 
 FORMULATE_OBJECTIVE_INSTRUCTIONS = (
     SHARED_RULES
@@ -201,9 +262,8 @@ Requirements:
   theoretical orientation, use capabilities such as understand, distinguish,
   explain, compare, analyze, or evaluate. For an applied orientation, those verbs
   remain available, and so do judge, apply criteria, formulate, and compare
-  decisions. Do not describe deliverables (essays, projects, portfolios,
-  presentations, uploads). Do not describe a course structure. Do not promise
-  that the learner will operate a tool or perform a physical procedure.
+  decisions. Do not describe a course structure. Do not promise that the learner
+  will operate a tool or perform a physical procedure.
 - Preserve the learner's underlying purpose, expected outcome, declared level,
   orientation, and any selected narrowing (learning object). Do not swap an
   applied aim for a philosophical or historical one, and do not swap the goal for
@@ -222,9 +282,11 @@ Requirements:
   refused procedure has been achieved. Do not convert that core into the history
   or philosophy of the subject.
 - If revision feedback from the learner is provided, produce a corrected objective
-  that addresses the feedback while respecting every rule above.
+  that addresses the feedback while respecting every rule above, including the
+  forbidden-word list. Do not copy a forbidden word from that feedback.
 - Obey the ORIENTATION block in the input.
 """
+    + deliverable_exclusion_block(_OBJECTIVE_DELIVERABLE_FIELDS)
 )
 
 

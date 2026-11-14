@@ -98,7 +98,7 @@ Do not declare one objectively superior.
 
 The proposal output should give the learner enough information to choose or refine a direction.
 
-The learner's choice is a product interaction and must follow the approved user flow.
+The learner's choice is a product interaction and must follow the approved user flow. After the choice, the system generates and confirms the Blueprint and starts the course without a review screen (`DEC-022`).
 
 ## Guardrails
 

@@ -60,7 +60,7 @@ export function AboutPage() {
           </ul>
         </section>
         <section className="lp-sec lp-cierre">
-          <Link className="btn" href="/onboarding">
+          <Link className="btn" href="/onboarding?new=1">
             Create my course
             <span className="ar" aria-hidden="true" />
           </Link>

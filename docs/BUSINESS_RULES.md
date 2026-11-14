@@ -71,7 +71,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-ONB-005` | Los conocimientos previos son opcionales y no reemplazan la selección de nivel. | El sistema acepta el campo vacío y no inventa experiencia ausente. |
 | `BR-ONB-006` | Nivel y conocimientos previos modifican punto de entrada, lenguaje, profundidad, recapitulación, ejemplos, fuentes y razonamiento exigido. | Dos usuarios con preparación distinta no reciben únicamente un cambio superficial de tono. |
 | `BR-ONB-007` | El ritmo, las horas semanales y un calendario personal de cursada no forman parte del onboarding del MVP. | Ninguno de esos datos es obligatorio para avanzar. |
-| `BR-ONB-008` | Antes de confirmar el objetivo, el usuario puede modificar respuestas previas. | Los datos posteriores compatibles se conservan; los resultados dependientes incompatibles se invalidan y recalculan. |
+| `BR-ONB-008` | Antes de que el sistema confirme el objetivo, el usuario puede modificar respuestas previas. | Los datos posteriores compatibles se conservan; los resultados dependientes incompatibles se invalidan y recalculan. |
 | `BR-ONB-009` | La solicitud anónima debe persistir temporalmente y poder reanudarse mientras su sesión siga vigente. | Al regresar se recupera el último paso real; si expiró, se informa la pérdida y se ofrece reiniciar. |
 
 ## 3. Compatibilidad, precisión y objetivo
@@ -87,7 +87,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-OBJ-007` | Si la intención ya es suficientemente específica, la etapa de precisión se omite. | El usuario no atraviesa preguntas redundantes. |
 | `BR-OBJ-008` | El objetivo debe expresar una capacidad intelectual alcanzable: comprender, distinguir, explicar, comparar, analizar o evaluar. | El objetivo puede utilizarse como criterio de alcance y QA. |
 | `BR-OBJ-009` | El objetivo no puede inventar ensayos, proyectos, portfolios, presentaciones, cargas ni entregables no solicitados o no soportados. | Una intención de comprensión no se convierte automáticamente en producción evaluable. |
-| `BR-OBJ-010` | El usuario debe confirmar o corregir explícitamente el objetivo antes de recibir propuestas. | No existe un conjunto vigente de propuestas sin una versión confirmada del objetivo. |
+| `BR-OBJ-010` | Al formular el objetivo, el sistema confirma esa versión. El usuario no la revisa ni la corrige en una pantalla propia (`DEC-021`). | No existe un conjunto vigente de propuestas sin una versión confirmada del objetivo. |
 | `BR-OBJ-011` | Cada cambio posterior del objetivo crea una nueva versión e invalida los resultados dependientes anteriores. | Propuestas o Blueprints de una versión anterior no pueden seleccionarse ni aprobarse accidentalmente. |
 
 ## 4. Propuestas de curso
@@ -118,7 +118,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-SUB-010` | Si la cancelación todavía no fue efectiva, el cliente puede reactivarla sin crear una segunda suscripción. | La fecha de cancelación programada se elimina y continúa el mismo vínculo comercial. |
 | `BR-SUB-011` | El registro y la conversión inicial se realizan una sola vez. Un cliente autenticado no vuelve a registrarse al crear cursos posteriores. | Al iniciar otra creación, el sistema conserva la cuenta existente y comienza directamente el nuevo onboarding. |
 | `BR-SUB-012` | El checkout se presenta únicamente cuando el cliente no posee una suscripción activa que habilite la creación. | Un cliente con suscripción activa no vuelve a pagar ni a contratar el plan por cada curso. |
-| `BR-SUB-013` | Para cada curso posterior, el cliente completa un nuevo onboarding, elige una propuesta y revisa un nuevo Blueprint; si mantiene la suscripción activa, continúa sin repetir registro ni checkout. | La repetición corresponde al recorrido pedagógico de cada curso, no a la conversión comercial inicial. |
+| `BR-SUB-013` | Para cada curso posterior, el cliente completa un nuevo onboarding y elige una propuesta; el sistema confirma el Blueprint sin pantalla (`DEC-022`). Si mantiene la suscripción activa, continúa sin repetir registro ni checkout. | La repetición corresponde al recorrido pedagógico de cada curso, no a la conversión comercial inicial. |
 | `BR-SUB-014` | Un cliente autenticado cuya suscripción no está activa no vuelve a registrarse, pero debe activar o reactivar el plan antes de generar un nuevo Blueprint. | El sistema lo dirige a la resolución comercial conservando la nueva solicitud y su propuesta. |
 
 ## 6. Beneficio de bienvenida y créditos de generación
@@ -128,13 +128,13 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-CRD-001` | Los derechos comerciales se presentan como beneficio de bienvenida o créditos de generación, nunca como tokens técnicos de IA. | La interfaz no expone unidades internas de proveedores. |
 | `BR-CRD-002` | La primera suscripción activa asigna un beneficio de bienvenida para el primer curso. | El primer build elegible puede iniciarse sin reducir el balance de créditos. |
 | `BR-CRD-003` | El beneficio de bienvenida es independiente de los créditos y se utiliza una sola vez. | Reintentos, webhooks duplicados o reactivaciones no lo vuelven a asignar. |
-| `BR-CRD-004` | Generar o revisar un Blueprint no reserva ni consume un entitlement. | El usuario puede iterar antes de aprobar sin alterar su balance. |
-| `BR-CRD-005` | Al aprobar un Blueprint se reserva exactamente un entitlement disponible. | Dos aprobaciones equivalentes no generan dos reservas. |
+| `BR-CRD-004` | Generar un Blueprint no reserva ni consume un entitlement. La revisión previa a la confirmación no forma parte del recorrido actual (`DEC-022`). | El balance no cambia mientras el sistema prepara el contrato. |
+| `BR-CRD-005` | Al confirmar un Blueprint el sistema reserva exactamente un entitlement disponible (`DEC-022`). | Dos confirmaciones equivalentes no generan dos reservas. |
 | `BR-CRD-006` | El consumo se confirma únicamente cuando el build persistido comienza correctamente. | Si falla antes de iniciar trabajo persistido, la reserva se libera. |
 | `BR-CRD-007` | Un fallo técnico definitivo restaura una vez el entitlement consumido por ese build. | Reintentar el mismo evento no produce restituciones múltiples. |
 | `BR-CRD-008` | El audio, los reintentos automáticos y las revisiones técnicas no consumen créditos adicionales. | Un curso mantiene un único costo comercial aunque requiera recuperación técnica. |
 | `BR-CRD-009` | Eliminar un curso o abandonarlo voluntariamente no devuelve el entitlement. | La acción voluntaria no incrementa el balance. |
-| `BR-CRD-010` | Sin beneficio ni créditos, el usuario puede completar onboarding, ver propuestas y revisar un Blueprint permitido, pero no aprobarlo para iniciar un build. | El bloqueo ocurre antes de la reserva y explica cuándo habrá un nuevo derecho, si se conoce. |
+| `BR-CRD-010` | Sin beneficio ni créditos, el usuario puede completar onboarding y ver propuestas, pero la confirmación del Blueprint no inicia un build. | El bloqueo ocurre antes de la reserva y explica cuándo habrá un nuevo derecho, si se conoce. |
 | `BR-CRD-011` | Todo ajuste administrativo de créditos requiere cantidad, motivo, actor y fecha. | El historial permite auditar el balance y no admite mutaciones silenciosas. |
 | `BR-CRD-012` | Después de utilizar el beneficio de bienvenida, cada nuevo curso consume un crédito de generación disponible en el balance asociado a la suscripción del cliente. | Crear cursos posteriores no provoca un pago individual ni un nuevo checkout; requiere suscripción activa y al menos un crédito disponible. |
 
@@ -144,21 +144,21 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | --- | --- | --- |
 | `BR-BLP-001` | Para generar un Blueprint se requiere usuario autenticado, suscripción activa, objetivo confirmado y propuesta vigente. | Si falta una condición, el proceso no comienza y señala la acción necesaria. |
 | `BR-BLP-002` | El Blueprint es el contrato pedagógico entre intención, propuesta y curso; no es solo un índice. | Explicita qué se enseñará, qué quedará fuera, cómo progresará y por qué. |
-| `BR-BLP-003` | El Blueprint visible incluye objetivo, resultado, problema central, nivel, supuestos, alcance, exclusiones, arco intelectual, módulos ordenados, lecciones, justificación, estimaciones y fuentes o tradiciones relevantes. | El usuario puede evaluar el recorrido antes de consumir un entitlement. |
+| `BR-BLP-003` | El Blueprint visible incluye objetivo, resultado, problema central, nivel, supuestos, alcance, exclusiones, arco intelectual, módulos ordenados, lecciones, justificación, estimaciones y fuentes o tradiciones relevantes. | Esos campos siguen formando el contrato del build. El usuario no los revisa en una pantalla (`DEC-022`). |
 | `BR-BLP-004` | El sistema conserva internamente dependencias, prerrequisitos, confusiones previsibles, afirmaciones a investigar, pertinencia del marco materialista y riesgos de QA. | La generación y la revisión pueden validar esos criterios sin exponer razonamiento privado. |
 | `BR-BLP-005` | La estructura se determina por el recorrido mínimo suficiente para alcanzar el objetivo. | No se agrega relleno ni se fragmenta contenido para cumplir cuotas. |
 | `BR-BLP-006` | Como referencia, un curso suele tener de cuatro a ocho módulos, con un mínimo de dos; la cantidad no es una cuota rígida. | Una estructura fuera del rango requiere justificación pedagógica, no rechazo automático. |
 | `BR-BLP-007` | Como referencia, el primer módulo suele tener tres lecciones y los siguientes entre tres y seis, con un mínimo de dos por módulo. | La cantidad se adapta a dependencias y objetivo sin fragmentación artificial. |
 | `BR-BLP-008` | Como referencia, una lección apunta a unas 1.500–2.000 palabras; menos de 800 activa revisión, no rechazo automático. | La calidad y suficiencia prevalecen sobre una cuota de palabras. |
-| `BR-BLP-009` | Cada solicitud de cambios produce una nueva versión completa y conserva la anterior para trazabilidad. | Solo una versión queda vigente y cualquier aprobación previa se invalida. |
-| `BR-BLP-010` | El usuario debe aprobar explícitamente la versión exacta visible antes de iniciar la construcción. | No existe build válido sin Blueprint aprobado y versionado. |
-| `BR-BLP-011` | Antes de aprobar, el usuario puede pedir nuevas revisiones, elegir otra propuesta o cancelar sin consumo. | Ninguna de esas acciones inicia lecciones ni altera el entitlement. |
+| `BR-BLP-009` | Una revisión, si una versión posterior la vuelve a ofrecer, produce una versión completa y conserva la anterior. | Solo una versión queda vigente y cualquier confirmación previa se invalida. Hoy no hay pantalla ni ruta de revisión (`DEC-022`). |
+| `BR-BLP-010` | El sistema confirma la versión exacta vigente al terminar la generación y solo entonces inicia la construcción (`DEC-022`). | No existe build válido sin Blueprint confirmado y versionado. |
+| `BR-BLP-011` | La revisión en texto libre, el cambio de propuesta y la cancelación antes de construir quedan para una versión posterior. | No hay pantalla que las dispare. Un curso ya confirmado no se descarta eligiendo otra propuesta. |
 
 ## 8. Construcción, publicación y recuperación
 
 | ID | Regla | Consecuencia verificable |
 | --- | --- | --- |
-| `BR-GEN-001` | La aprobación válida inicia un build asíncrono y persistente asociado a una versión exacta del Blueprint. | Cerrar la pantalla, navegar o cerrar sesión no detiene ni duplica el proceso. |
+| `BR-GEN-001` | La confirmación del sistema inicia un build asíncrono y persistente asociado a una versión exacta del Blueprint (`DEC-022`). | Cerrar la pantalla, navegar o cerrar sesión no detiene ni duplica el proceso. |
 | `BR-GEN-002` | Solo puede existir un build activo por usuario. | Un segundo intento dirige al build existente y no consume otro entitlement. |
 | `BR-GEN-003` | Los módulos se construyen en el orden aprobado. | No se publica una etapa que dependa de contenido anterior aún incompleto. |
 | `BR-GEN-004` | Un módulo se publica atómicamente solo cuando sus lecciones, fuentes, síntesis, Knowledge Check y QA local están completos. | El usuario nunca recibe borradores, placeholders, fragmentos truncados ni módulos parcialmente válidos. |
@@ -245,7 +245,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-LIB-001` | Todo curso y solicitud convertida del usuario se conserva en una biblioteca privada. | Otro cliente no puede descubrirla ni abrirla. |
 | `BR-LIB-002` | La biblioteca se ordena por actividad reciente. | La última interacción relevante actualiza su posición sin requerir orden manual. |
 | `BR-LIB-003` | Cada elemento muestra título personalizado, objetivo o enfoque, nivel, estado de build, progreso, última actividad y siguiente acción. | El usuario puede distinguir qué existe y cómo continuarlo. |
-| `BR-LIB-004` | Reanudar dirige a la superficie correcta según estado: propuesta, Blueprint, generación, módulo disponible o lección pendiente. | No se envía a todos los estados al mismo destino genérico. |
+| `BR-LIB-004` | Reanudar dirige a la superficie correcta según estado: propuesta, generación, módulo disponible o lección pendiente. | No hay destino de revisión del Blueprint (`DEC-022`). |
 | `BR-LIB-005` | El usuario puede asignar un nombre personal al curso y restaurar el título editorial original. | Renombrar no modifica contenido, Blueprint ni metadatos editoriales canónicos. |
 | `BR-LIB-006` | Un curso solo puede eliminarse si no tiene un build activo y después de una confirmación explícita. | Durante generación la acción está bloqueada con explicación. |
 | `BR-LIB-007` | Eliminar un curso elimina su acceso y progreso, es irreversible en el MVP y no devuelve créditos. | El curso desaparece de la biblioteca y no existe opción de restauración para el cliente. |
@@ -258,7 +258,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-ACC-001` | La cuenta muestra perfil básico, estado de plan, importe, frecuencia, renovación o finalización, créditos y beneficio de bienvenida. | El cliente puede comprender su situación comercial actual. |
 | `BR-ACC-002` | Actualización del medio de pago y comprobantes se gestionan mediante Stripe. | La plataforma no almacena ni muestra datos completos de tarjeta. |
 | `BR-ACC-003` | El MVP no incluye selector de idioma. | La cuenta no permite cambiar el idioma funcional definido. |
-| `BR-NOT-001` | Se envían notificaciones transaccionales para verificación y recuperación, suscripción y pagos, pago fallido, cancelación, Blueprint disponible, primer módulo disponible, curso completo y fallo definitivo con restitución. | Cada evento aprobado tiene una notificación rastreable. |
+| `BR-NOT-001` | Se envían notificaciones transaccionales para verificación y recuperación, suscripción y pagos, pago fallido, cancelación, primer módulo disponible, curso completo y fallo definitivo con restitución. | No se avisa “Blueprint disponible”: el learner no revisa ese artefacto (`DEC-022`). |
 | `BR-NOT-002` | Una notificación se envía solo después de persistir y validar el evento que la origina. | No se anuncia un estado que todavía no existe. |
 | `BR-NOT-003` | Reintentos o eventos duplicados no pueden enviar dos notificaciones equivalentes. | Cada evento lógico produce como máximo un envío correspondiente. |
 | `BR-NOT-004` | Las notificaciones están en inglés y no incluyen secretos ni contenido privado innecesario. | Los enlaces sensibles requieren autenticación o un token seguro y limitado. |
@@ -283,7 +283,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-STA-001` | Solicitud, Blueprint, build, módulo, audio, curso, suscripción, entitlement y progreso tienen estados explícitos y persistidos. | Recargar o reconectar muestra el último estado válido, no uno ficticio. |
 | `BR-STA-002` | Toda transición relevante se persiste antes de presentarse como completada. | Un mensaje de éxito corresponde a un cambio durable. |
 | `BR-STA-003` | Solo se permiten transiciones válidas desde el estado actual y la versión vigente. | Eventos atrasados o repetidos no hacen retroceder ni saltar el proceso. |
-| `BR-STA-004` | No puede existir build sin Blueprint aprobado, publicación sin QA, consumo sin entitlement ni curso completo con unidades faltantes. | Las invariantes se validan del lado servidor y en pruebas. |
+| `BR-STA-004` | No puede existir build sin Blueprint confirmado por el sistema (`DEC-022`), publicación sin QA, consumo sin entitlement ni curso completo con unidades faltantes. | Las invariantes se validan del lado servidor y en pruebas. |
 | `BR-STA-005` | Los estados de generación, aprendizaje y suscripción permanecen separados salvo una regla explícita. | Un cambio en una dimensión no modifica las otras por efecto colateral. |
 | `BR-ERR-001` | Todo error visible explica qué ocurrió, qué se conservó y cuál es la siguiente acción disponible. | El usuario no queda ante un spinner indefinido ni un callejón sin salida. |
 | `BR-ERR-002` | Un timeout de interfaz no equivale automáticamente al fallo del proceso asíncrono. | Al regresar se consulta y muestra el estado persistido real. |
@@ -301,7 +301,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | Objetivo confirmado antes de propuestas | Propuestas basadas en una intención no aceptada por el usuario. |
 | Propuesta vigente antes de Blueprint | Blueprints desconectados de la elección actual. |
 | Suscripción activa antes de Blueprint | Generación paga sin derecho comercial vigente. |
-| Blueprint vigente aprobado antes del build | Construcción de una versión obsoleta o no aceptada. |
+| Blueprint vigente confirmado por el sistema antes del build (`DEC-022`) | Construcción de una versión obsoleta o no confirmada. |
 | Entitlement disponible antes del build | Consumo negativo o creación comercial no autorizada. |
 | Un build activo por usuario | Cursos duplicados y doble consumo. |
 | QA local antes de publicar módulo | Contenido parcial, sin fuentes o sin Knowledge Check. |

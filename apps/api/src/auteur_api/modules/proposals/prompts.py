@@ -8,7 +8,7 @@ from auteur_api.modules.onboarding.schemas import (
     LearningRequestInputs,
 )
 
-GENERATE_PROPOSALS_V3 = "generate_proposals_v4"
+GENERATE_PROPOSALS_V3 = "generate_proposals_v5"
 
 GENERATE_PROPOSALS_INSTRUCTIONS = (
     SHARED_RULES
@@ -36,16 +36,13 @@ Differentiation (mandatory):
 
 Each proposal must state: title, description, central_question, intellectual_outcome
 (what the learner will be able to do/understand), distinctive_trajectory (the arc
-in prose), organizing_principle, direction_label, scope, exclusions, level_fit
+in prose), organizing_principle, scope, exclusions, level_fit
 (how it suits the declared level), guiding_authors_or_traditions (real, verifiable),
 estimated_modules (usually 4-8), estimated_lessons, estimated_duration,
 main_advantage and a real trade_off. Do not hide limitations.
 
-direction_label is the short tab name for the folder: 2 to 4 words that name the
-approach, in the same line as "Through history", "By theme",
-"Through case studies", or "Through debate". It is not a sentence, not the title,
-and not a restatement of organizing_principle. Each proposal's direction_label
-must be distinct.
+Do not invent a short tab name, approach label, or folder label. The interface
+numbers the folders itself.
 
 estimated_lessons is a total count implied by the module estimate, not a lesson
 list. estimated_duration is a short range such as "4-6 weeks". Do not write

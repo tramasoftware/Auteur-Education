@@ -134,23 +134,20 @@ def run(api: Api, case_key: str, until: str, evidence: dict[str, Any]) -> None:
         )
         print(f"  chose option 1 -> state={req['state']}")
 
-    if req.get("objective"):
-        obj = req["objective"]
-        print(f"  objective v{obj['version']}: {obj['statement']}")
-        print(f"  assumed level: {obj['assumed_level_and_knowledge']}")
-        if until != "objective":
-            req = api.call(
-                "POST",
-                f"/learning-requests/{rid}/objective/confirm",
-                {"version": obj["version"]},
-            )
-            print(f"  confirmed -> state={req['state']}")
-
-    if (
+    if until == "objective":
+        print(
+            "  objective is formulated with the learning paths; "
+            f"stopping before /directions (state={req['state']})"
+        )
+    elif (
         until in ("proposals", "blueprint", "course")
-        and req["state"] == "objective_confirmed"
+        and req["state"] == "objective_confirmation"
     ):
-        req = api.call("POST", f"/learning-requests/{rid}/proposals")
+        req = api.call("POST", f"/learning-requests/{rid}/directions")
+        obj = req.get("objective") or {}
+        print(f"  objective v{obj.get('version')}: {obj.get('statement')}")
+        print(f"  assumed level: {obj.get('assumed_level_and_knowledge')}")
+        print(f"  confirmed -> state={req['state']}")
         ps = req["proposals"]
         print(
             f"  proposals: {len(ps['proposals'])} (recommended={ps['recommended_proposal_id']})"
@@ -169,7 +166,7 @@ def run(api: Api, case_key: str, until: str, evidence: dict[str, Any]) -> None:
     if until in ("blueprint", "course") and req["state"] == "proposal_selected":
         bp = api.call("POST", f"/learning-requests/{rid}/blueprint")
         bp = wait(
-            api, f"/blueprints/{bp['id']}", {"awaiting_approval", "failed"}, "blueprint"
+            api, f"/blueprints/{bp['id']}", {"approved", "failed"}, "blueprint"
         )
         if bp["state"] == "failed":
             print(f"  blueprint failed: {bp.get('failure_message')}")
@@ -181,14 +178,9 @@ def run(api: Api, case_key: str, until: str, evidence: dict[str, Any]) -> None:
                     f"    {index}. {module['title']} ({len(module['lessons'])} lessons)"
                 )
             if until == "course":
-                approved = api.call(
-                    "POST",
-                    f"/blueprints/{bp['id']}/approve",
-                    {"version": bp["current_version"]},
-                )
                 course = wait(
                     api,
-                    f"/courses/{approved['course_id']}",
+                    f"/courses/{bp['course_id']}",
                     {"complete", "partially_available", "failed"},
                     "course",
                     every=15.0,

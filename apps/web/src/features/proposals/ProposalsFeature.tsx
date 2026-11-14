@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { createPathRouteMotion } from "./pathRouteMotion";
 
 import { proposalsJourneyStep, useJourneyStep } from "@/components/layout";
 import { CheckingGenerationStatus } from "@/components/ui";
+import { pathPreparingCopy, PreparingCourse } from "@/features/blueprint/PreparingCourse";
+import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
 import {
-  BLUEPRINT_APPROACH_MS,
-  BLUEPRINT_PHASES,
   PROPOSAL_APPROACH_MS,
   PROPOSAL_PHASES,
   StagePreparing,
@@ -19,28 +20,43 @@ import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
 import { isAnonymousClaim } from "@/lib/auth/claims";
-import { blueprints, learningRequests } from "@/lib/api";
-import { recallRequestId, rememberRequestId } from "@/lib/session";
+import { blueprints, courses, generateDirectionsOnce, learningRequests } from "@/lib/api";
+import {
+  peekLearningRequest,
+  recallRequestId,
+  rememberBlueprint,
+  rememberLearningRequest,
+} from "@/lib/session";
 import { createClient } from "@/lib/supabase/browser";
-import type { CourseProposal, LearningRequest } from "@/types/generator";
+import type { Course, CourseProposal, LearningRequest } from "@/types/generator";
 
-function directionLabel(proposal: CourseProposal): string {
-  const label = proposal.direction_label?.trim();
-  return label || proposal.organizing_principle;
+function courseOutlineReady(course: Course): boolean {
+  return (
+    course.title.trim().length > 0 &&
+    course.modules.some(
+      (module) => module.title.trim().length > 0 && module.lessons.length > 0,
+    )
+  );
 }
 
-function durationLabel(value: string): string {
-  return value.replace(/\s*\(\s*self-paced\s*\)\s*/gi, "").trim();
+const FOLDER_COLORS = ["#C6D4DF", "#372018", "#D4CBC2", "#243044"] as const;
+const DARK_FOLDER_COLORS = new Set<string>(["#372018", "#243044"]);
+
+function folderTone(index: number): { color: string; dark: boolean } {
+  const color = FOLDER_COLORS[index % FOLDER_COLORS.length] ?? FOLDER_COLORS[0];
+  return { color, dark: DARK_FOLDER_COLORS.has(color) };
+}
+
+function firstSentence(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^[\s\S]+?[.!?](?=\s|$)/);
+  return (match?.[0] ?? trimmed).trim();
 }
 
 function estimateLine(proposal: CourseProposal): string {
   const parts = [`${proposal.estimated_modules} modules`];
   if ((proposal.estimated_lessons ?? 0) > 0) {
     parts.push(`${proposal.estimated_lessons} lessons`);
-  }
-  const duration = durationLabel(proposal.estimated_duration);
-  if (duration) {
-    parts.push(duration);
   }
   return parts.join(" · ");
 }
@@ -197,43 +213,59 @@ function turnPaperSheet(
   animation.finished.then(settle).catch(settle);
 }
 
-/** Dedupe concurrent generateProposals calls for the same request (React Strict Mode). */
-const proposalGenerationByRequest = new Map<string, Promise<LearningRequest>>();
-
-async function loadProposalsForRequest(requestId: string): Promise<LearningRequest> {
+/** Dedupe is inside generateDirectionsOnce (DEC-021). */
+async function loadDirectionsForRequest(requestId: string): Promise<LearningRequest> {
   const current = await learningRequests.get(requestId);
-  if (current.state !== "objective_confirmed") {
+  if (
+    current.proposals &&
+    current.state !== "objective_confirmed" &&
+    current.state !== "objective_confirmation"
+  ) {
     return current;
   }
-
-  const pending = proposalGenerationByRequest.get(requestId);
-  if (pending) {
-    return pending;
+  if (
+    current.state !== "objective_confirmed" &&
+    current.state !== "objective_confirmation"
+  ) {
+    return current;
   }
-
-  const generation = learningRequests
-    .generateProposals(requestId)
-    .finally(() => proposalGenerationByRequest.delete(requestId));
-  proposalGenerationByRequest.set(requestId, generation);
-  return generation;
+  return generateDirectionsOnce(requestId, current.state);
 }
 
-/** UF-04: exactly four learning directions (DEC-019); select one, then Blueprint. */
+/** UF-04: exactly four learning directions (DEC-019); select one, then the course. */
 export function ProposalsFeature() {
   const router = useRouter();
   const params = useSearchParams();
-  const blockingActiveBuild = useRedirectIfActiveBuild();
   const requestId = params.get("request") ?? recallRequestId();
   const missing = !requestId;
-  const [request, setRequest] = useState<LearningRequest | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(true);
+  const cachedRequest = requestId ? peekLearningRequest(requestId) : null;
+  const resumeBlueprint =
+    cachedRequest?.state === "blueprint_generating" && cachedRequest.blueprint_id
+      ? cachedRequest.blueprint_id
+      : null;
+  const [courseScreen, setCourseScreen] = useState<"off" | "wait">(
+    resumeBlueprint ? "wait" : "off",
+  );
+  const blockingActiveBuild = useRedirectIfActiveBuild(courseScreen === "off");
+  const cachedDirections =
+    cachedRequest != null &&
+    cachedRequest.proposals != null &&
+    cachedRequest.state !== "objective_confirmed"
+      ? cachedRequest
+      : null;
+  const [request, setRequest] = useState<LearningRequest | null>(cachedDirections);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    cachedDirections?.selected_proposal_id ?? null,
+  );
+  const [busy, setBusy] = useState(cachedDirections == null && requestId != null);
   const [failure, setFailure] = useState<"directions" | "blueprint" | null>(null);
   const [pathScreen, setPathScreen] = useState<"off" | "wait" | "ready">(() =>
-    requestId ? "wait" : "off",
+    cachedDirections ? "off" : requestId ? "wait" : "off",
   );
-  const [blueprintScreen, setBlueprintScreen] = useState<"off" | "wait" | "ready">("off");
-  const [blueprintTargetId, setBlueprintTargetId] = useState<string | null>(null);
+  const [blueprintTargetId, setBlueprintTargetId] = useState<string | null>(resumeBlueprint);
+  const [outlineReady, setOutlineReady] = useState(false);
+  const [courseHref, setCourseHref] = useState<string | null>(null);
+  const [folderOpen, setFolderOpen] = useState(false);
   const loadSeq = useRef(0);
 
   useJourneyStep(
@@ -246,6 +278,13 @@ export function ProposalsFeature() {
     if (!requestId) {
       return;
     }
+    if (
+      request?.id === requestId &&
+      request.proposals &&
+      request.state !== "objective_confirmed"
+    ) {
+      return;
+    }
     const seq = ++loadSeq.current;
     void (async () => {
       try {
@@ -253,13 +292,17 @@ export function ProposalsFeature() {
         if (seq !== loadSeq.current) {
           return;
         }
-        rememberRequestId(current.id);
-        if (current.state === "objective_confirmed") {
+        rememberLearningRequest(current);
+        if (
+          current.state === "objective_confirmed" ||
+          current.state === "objective_confirmation"
+        ) {
           setPathScreen("wait");
-          const generated = await loadProposalsForRequest(requestId);
+          const generated = await loadDirectionsForRequest(requestId);
           if (seq !== loadSeq.current) {
             return;
           }
+          rememberLearningRequest(generated);
           setRequest(generated);
           setSelectedId(generated.selected_proposal_id);
           setFailure(null);
@@ -271,7 +314,9 @@ export function ProposalsFeature() {
           setRequest(current);
           setSelectedId(current.selected_proposal_id);
           setBlueprintTargetId(current.blueprint_id);
-          setBlueprintScreen("wait");
+          setOutlineReady(false);
+          setCourseHref(null);
+          setCourseScreen("wait");
           setPathScreen("off");
           setFailure(null);
           setBusy(false);
@@ -292,14 +337,14 @@ export function ProposalsFeature() {
         setBusy(false);
       }
     })();
-  }, [requestId]);
+  }, [request, requestId]);
 
   useEffect(() => {
     loadDirections();
   }, [loadDirections]);
 
   useEffect(() => {
-    if (blueprintScreen !== "wait" || !blueprintTargetId) {
+    if (courseScreen !== "wait" || !blueprintTargetId || outlineReady) {
       return;
     }
     let cancelled = false;
@@ -309,15 +354,28 @@ export function ProposalsFeature() {
           if (cancelled) {
             return;
           }
+          rememberBlueprint(next);
           if (next.state === "failed") {
-            setBlueprintScreen("off");
+            setCourseScreen("off");
             setFailure("blueprint");
             setBusy(false);
             return;
           }
-          if (next.state !== "generating") {
-            setBlueprintScreen("ready");
+          if (!next.course_id) {
+            return;
           }
+          void courses.get(next.course_id).then(
+            (course) => {
+              if (cancelled || !courseOutlineReady(course)) {
+                return;
+              }
+              setCourseHref(`/courses/${course.id}`);
+              setOutlineReady(true);
+            },
+            () => {
+              // A single poll miss should not drop the wait. The next tick retries.
+            },
+          );
         },
         () => {
           // A single poll miss should not drop the wait. The next tick retries.
@@ -330,49 +388,50 @@ export function ProposalsFeature() {
       cancelled = true;
       window.clearInterval(handle);
     };
-  }, [blueprintScreen, blueprintTargetId]);
+  }, [courseScreen, blueprintTargetId, outlineReady]);
 
-  const selectPath = (proposalId: string) => {
-    setSelectedId(proposalId);
+  const togglePath = (proposalId: string) => {
+    setSelectedId((current) => (current === proposalId ? null : proposalId));
   };
 
-  const startBlueprint = async () => {
-    if (!request || !selectedId) {
+  const startBlueprint = async (proposalId?: string) => {
+    const id = proposalId ?? selectedId;
+    if (!request || !id) {
       return;
     }
+    setSelectedId(id);
     setFailure(null);
-    setBlueprintScreen("wait");
+    setOutlineReady(false);
+    setCourseHref(null);
+    setCourseScreen("wait");
     setBusy(true);
     try {
-      if (request.selected_proposal_id !== selectedId) {
-        setRequest(await learningRequests.selectProposal(request.id, selectedId));
+      if (request.selected_proposal_id !== id) {
+        const selected = await learningRequests.selectProposal(request.id, id);
+        rememberLearningRequest(selected);
+        setRequest(selected);
       }
       const supabase = createClient();
       const { data } = await supabase.auth.getClaims();
       if (isAnonymousClaim(data?.claims as Record<string, unknown> | undefined)) {
-        setBlueprintScreen("off");
+        setCourseScreen("off");
         const next = `/proposals?request=${request.id}`;
         router.push(`/login?next=${encodeURIComponent(next)}`);
         setBusy(false);
         return;
       }
       const blueprint = await learningRequests.startBlueprint(request.id);
+      rememberBlueprint(blueprint);
       if (blueprint.state === "failed") {
-        setBlueprintScreen("off");
+        setCourseScreen("off");
         setFailure("blueprint");
         setBusy(false);
         return;
       }
-      if (blueprint.state === "generating") {
-        setBlueprintTargetId(blueprint.id);
-        setBusy(false);
-        return;
-      }
-      setBlueprintScreen("off");
-      router.push(`/blueprints/${blueprint.id}`);
+      setBlueprintTargetId(blueprint.id);
       setBusy(false);
     } catch {
-      setBlueprintScreen("off");
+      setCourseScreen("off");
       setFailure("blueprint");
       setBusy(false);
     }
@@ -383,8 +442,8 @@ export function ProposalsFeature() {
       <StagePreparing
         frameTitle="Your learning path"
         backHref={requestId ? `/onboarding?request=${requestId}` : "/onboarding"}
-        backLabel="Learning objective"
-        backAriaLabel="Back to your learning objective"
+        backLabel="Onboarding"
+        backAriaLabel="Back to onboarding"
         heading="Your learning paths are taking shape"
         readyHeading="Your learning paths are ready"
         phases={PROPOSAL_PHASES}
@@ -394,26 +453,36 @@ export function ProposalsFeature() {
       />
     );
 
-  const blueprintPreparing =
-    blueprintScreen === "off" ? null : (
-      <StagePreparing
-        frameTitle="Blueprint"
-        backHref={requestId ? `/proposals?request=${requestId}` : "/proposals"}
-        backLabel="Learning paths"
-        backAriaLabel="Back to your learning paths"
-        heading="Your Blueprint is taking shape"
-        readyHeading="Your Blueprint is ready"
-        phases={BLUEPRINT_PHASES}
-        approachMs={BLUEPRINT_APPROACH_MS}
-        crawlMs={30000}
-        ready={blueprintScreen === "ready"}
-        onContinue={() => {
-          if (blueprintTargetId) {
-            router.push(`/blueprints/${blueprintTargetId}`);
-          }
-        }}
-      />
-    );
+  const selectedProposal = request?.proposals?.proposals.find(
+    (proposal) => proposal.id === (selectedId ?? request.selected_proposal_id),
+  );
+  const coursePreparing =
+    courseScreen === "off"
+      ? null
+      : createPortal(
+          <div className="preparing-overlay">
+            <CourseSetupFrame
+              title="Generating course"
+              backHref={requestId ? `/proposals?request=${requestId}` : "/proposals"}
+              backLabel="Learning paths"
+              backAriaLabel="Back to your learning paths"
+              onBackClick={() => setCourseScreen("off")}
+              mainClassName="preparing-main"
+              screenClassName="preparing-screen"
+            >
+              <PreparingCourse
+                {...pathPreparingCopy(selectedProposal?.title ?? "Your course")}
+                courseReady={outlineReady}
+                onReady={() => {
+                  if (courseHref) {
+                    router.replace(courseHref);
+                  }
+                }}
+              />
+            </CourseSetupFrame>
+          </div>,
+          document.body,
+        );
 
   if (blockingActiveBuild) {
     return <CheckingGenerationStatus />;
@@ -422,15 +491,19 @@ export function ProposalsFeature() {
   if (missing) {
     return (
       <section className="caminos-h">
-        <CourseStepLabel step={3} label="Your learning path" tight />
+        <CourseStepLabel step={2} label="Learning path" tight />
         <h2>Choose a way in</h2>
-        <p>Start with a question. The learning paths appear after the objective is confirmed.</p>
-        <Link className="btn" href="/onboarding">
+        <p>Start with a question. Learning paths appear once that question is ready.</p>
+        <Link className="btn" href="/onboarding?new=1">
           Create a course
           <span className="ar" aria-hidden="true" />
         </Link>
       </section>
     );
+  }
+
+  if (courseScreen === "wait") {
+    return coursePreparing;
   }
 
   if (pathScreen !== "off") {
@@ -458,11 +531,11 @@ export function ProposalsFeature() {
   if (!request.objective?.confirmed) {
     return (
       <section className="caminos-h">
-        <CourseStepLabel step={3} label="Your learning path" tight />
-        <h2>Confirm your objective first</h2>
-        <p>Learning paths are built from a confirmed objective.</p>
+        <CourseStepLabel step={2} label="Learning path" tight />
+        <h2>Finish your question first</h2>
+        <p>Learning paths are built after your intention is ready.</p>
         <Link className="btn" href={`/onboarding?request=${request.id}`}>
-          Return to the objective
+          Back to onboarding
           <span className="ar" aria-hidden="true" />
         </Link>
       </section>
@@ -474,7 +547,7 @@ export function ProposalsFeature() {
   if (failure === "blueprint") {
     return (
       <StageFailure
-        {...stageFailureCopy.blueprint}
+        {...stageFailureCopy.course}
         busy={busy}
         onRetry={() => {
           void startBlueprint();
@@ -486,23 +559,24 @@ export function ProposalsFeature() {
 
   return (
     <>
-      {blueprintPreparing}
-      <section className="caminos-h">
-        <CourseStepLabel step={3} label="Your learning path" tight />
-        <h2>Choose a way in</h2>
-        <p>One subject. Different ways to understand it.</p>
-        {set?.recommendation_reason ? <p className="reco">{set.recommendation_reason}</p> : null}
-      </section>
+      {coursePreparing}
+      {folderOpen ? null : (
+        <section className="caminos-h">
+          <CourseStepLabel step={2} label="Learning path" tight />
+          <h2>One subject. Different ways to understand it.</h2>
+          {set?.recommendation_reason ? <p className="reco">{set.recommendation_reason}</p> : null}
+        </section>
+      )}
 
       {!set ? null : (
         <Paths
           proposals={set.proposals}
-          recommendedId={set.recommended_proposal_id}
           selectedId={selectedId}
           busy={busy}
-          blueprintId={request.blueprint_id}
-          onSelect={selectPath}
+          courseId={request.course_id}
+          onToggle={togglePath}
           onContinue={startBlueprint}
+          onFolderOpenChange={setFolderOpen}
         />
       )}
     </>
@@ -511,20 +585,20 @@ export function ProposalsFeature() {
 
 function Paths({
   proposals,
-  recommendedId,
   selectedId,
   busy,
-  blueprintId,
-  onSelect,
+  courseId,
+  onToggle,
   onContinue,
+  onFolderOpenChange,
 }: {
   proposals: CourseProposal[];
-  recommendedId: string | null;
   selectedId: string | null;
   busy: boolean;
-  blueprintId: string | null;
-  onSelect: (proposalId: string) => void;
-  onContinue: () => void;
+  courseId: string | null;
+  onToggle: (proposalId: string) => void;
+  onContinue: (proposalId?: string) => void;
+  onFolderOpenChange: (open: boolean) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef<ReturnType<typeof createPathRouteMotion> | null>(null);
@@ -534,7 +608,10 @@ function Paths({
   const [routeClass, setRouteClass] = useState("");
   const turningRef = useRef(false);
   const proposalIds = proposals.map((proposal) => proposal.id).join();
-  proposalsRef.current = proposals;
+
+  useEffect(() => {
+    proposalsRef.current = proposals;
+  }, [proposals]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -545,10 +622,12 @@ function Paths({
       onOpen: (index) => {
         setPaperPage(0);
         setOpenId(proposalsRef.current[index]?.id ?? null);
+        onFolderOpenChange(true);
       },
       onClose: () => {
         setPaperPage(0);
         setOpenId(null);
+        onFolderOpenChange(false);
       },
       onClass: setRouteClass,
     });
@@ -557,7 +636,7 @@ function Paths({
       motion.dispose();
       motionRef.current = null;
     };
-  }, [proposalIds]);
+  }, [onFolderOpenChange, proposalIds]);
 
   const goPaperPage = (next: number) => {
     if (turningRef.current || next === paperPage || next < 0 || next > 1) {
@@ -581,11 +660,17 @@ function Paths({
     <>
       <div className={`ae-routes${routeClass ? ` ${routeClass}` : ""}`} ref={rootRef}>
         <div className="caminos">
-          {proposals.map((proposal, index) => (
+          {proposals.map((proposal, index) => {
+            const tone = folderTone(index);
+            const selected = proposal.id === selectedId;
+            return (
             <article
-              className={`lomo${proposal.id === selectedId ? " is-selected" : ""}`}
+              className={`lomo${tone.dark ? " is-dark" : ""}${selected ? " is-selected" : ""}`}
               key={proposal.id}
-              style={{ ["--ae-card-index" as string]: String(index) }}
+              style={{
+                ["--ae-card-index" as string]: String(index),
+                ["--folder" as string]: tone.color,
+              }}
             >
               <button
                 className="ae-route-open"
@@ -599,46 +684,49 @@ function Paths({
               >
                 <span className="sol folder-tab">
                   <span className="folder-tab-label">
-                    <span className="n">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="tt">{directionLabel(proposal)}</span>
+                    <span className="n">#{index + 1}</span>
                   </span>
                 </span>
                 <span className="caja">
                   <span className="abierto">
                     <b>{proposal.title}</b>
-                    <span className="sint">{proposal.description}</span>
+                    <span className="sint">{firstSentence(proposal.description)}</span>
                     <span className="pie">
                       <span className="ae-route-meta">
                         {estimateLine(proposal)}
                       </span>
                       <span className="ver">Open learning path</span>
-                      <span className="marca-path">
-                        {proposal.id === selectedId
-                          ? "Selected"
-                          : proposal.id === recommendedId
-                            ? "Suggested"
-                            : "Choose this path"}
-                      </span>
                     </span>
                   </span>
                 </span>
               </button>
+              <button
+                className="marca-path"
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onToggle(proposal.id)}
+              >
+                {selected ? "Selected" : "Choose this path"}
+              </button>
             </article>
-          ))}
+            );
+          })}
         </div>
         <div className="ae-route-panels">
-          {proposals.map((proposal, index) => (
+          {proposals.map((proposal, index) => {
+            const tone = folderTone(index);
+            return (
             <article
-              className={`ae-route-folder${openId === proposal.id ? " on" : ""}${proposal.id === selectedId ? " is-selected" : ""}`}
+              className={`ae-route-folder${openId === proposal.id ? " on" : ""}${tone.dark ? " is-dark" : ""}${proposal.id === selectedId ? " is-selected" : ""}`}
               id={`ae-route-detail-${proposal.id}`}
               key={proposal.id}
               inert={openId !== proposal.id}
               aria-labelledby={`ae-route-heading-${proposal.id}`}
+              style={{ ["--folder" as string]: tone.color }}
             >
               <span className="folder-tab">
                 <span className="folder-tab-label">
-                  <span className="n">{String(index + 1).padStart(2, "0")}</span>
-                  <span className="tt">{directionLabel(proposal)}</span>
+                  <span className="n">#{index + 1}</span>
                 </span>
               </span>
               <div className="ae-route-spread">
@@ -664,10 +752,6 @@ function Paths({
                         lessons
                       </div>
                     ) : null}
-                    <div>
-                      <b>{durationLabel(proposal.estimated_duration)}</b>
-                      duration
-                    </div>
                   </div>
                 </div>
                 <RoutePaperStack
@@ -679,16 +763,11 @@ function Paths({
                   <button
                     className="btn ae-route-choose"
                     type="button"
-                    disabled={busy || proposal.id === selectedId}
-                    onClick={() => {
-                      onSelect(proposal.id);
-                      motionRef.current?.close(true);
-                    }}
+                    disabled={busy}
+                    onClick={() => onContinue(proposal.id)}
                   >
-                    {proposal.id === selectedId ? "Selected" : "Choose this path"}
-                    {proposal.id === selectedId ? null : (
-                      <span className="ar" aria-hidden="true" />
-                    )}
+                    Choose &amp; Confirm this path
+                    <span className="ar" aria-hidden="true" />
                   </button>
                   <button
                     className="ae-route-close"
@@ -702,24 +781,25 @@ function Paths({
                 </div>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className="cierre-o">
         <div className="acciones">
-          {blueprintId ? (
-            <Link className="btn" href={`/blueprints/${blueprintId}`}>
-              Open the Blueprint
+          {courseId ? (
+            <Link className="btn" href={`/courses/${courseId}`}>
+              Open your course
               <span className="ar" aria-hidden="true" />
             </Link>
           ) : (
-            <button className="btn" type="button" disabled={busy || !selectedId} onClick={onContinue}>
-              Generate the Blueprint
+            <button className="btn" type="button" disabled={busy || !selectedId} onClick={() => onContinue()}>
+              Generate the course
               <span className="ar" aria-hidden="true" />
             </button>
           )}
           <span className="nota">
-            {selectedId ? "This path will shape the Blueprint." : "Choose a learning path to continue."}
+            {selectedId ? "This path will shape the course." : "Choose a learning path to continue."}
           </span>
         </div>
       </div>

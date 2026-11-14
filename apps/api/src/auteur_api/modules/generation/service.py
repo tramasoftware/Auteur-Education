@@ -9,13 +9,15 @@ from __future__ import annotations
 from auteur_api.ai.tracing import now, summarize
 from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
-from auteur_api.core.store import CourseBuildSnapshot, Store, new_id
+from auteur_api.core.store import CourseBuildSnapshot, CourseStatus, Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
     CourseRecord,
     CourseResponse,
     CourseState,
+    CourseStatusModule,
+    CourseStatusResponse,
     LessonDiagnostics,
     LessonRecord,
     LessonResponse,
@@ -172,6 +174,17 @@ def list_courses_for_user(store: Store, user_id: str):
     return CourseLibraryResponse(courses=courses)
 
 
+def course_status_view(status: CourseStatus) -> CourseStatusResponse:
+    return CourseStatusResponse(
+        state=status.state,
+        current_activity=status.current_activity,
+        modules=[
+            CourseStatusModule(id=module_id, state=state)
+            for module_id, state in status.modules
+        ],
+    )
+
+
 def course_view(course: CourseRecord) -> CourseResponse:
     return CourseResponse(
         id=course.id,
@@ -203,12 +216,20 @@ def course_view(course: CourseRecord) -> CourseResponse:
                     )
                     for lesson in m.lessons
                 ],
-                has_synthesis=bool(m.synthesis and m.synthesis.strip()),
-                source_count=len(_sources(m.lessons)),
+                has_synthesis=(
+                    m.overview_has_synthesis
+                    if m.overview_has_synthesis is not None
+                    else bool(m.synthesis and m.synthesis.strip())
+                ),
+                source_count=_source_count(m.lessons),
                 question_count=(
-                    len(m.knowledge_check.questions)
-                    if m.knowledge_check is not None
-                    else None
+                    m.overview_question_count
+                    if m.overview_has_synthesis is not None
+                    else (
+                        len(m.knowledge_check.questions)
+                        if m.knowledge_check is not None
+                        else None
+                    )
                 ),
             )
             for m in course.modules
@@ -218,6 +239,16 @@ def course_view(course: CourseRecord) -> CourseResponse:
         module_limit=course.module_limit,
         created_at=course.created_at,
     )
+
+
+def _source_count(lessons: list[LessonRecord]) -> int:
+    """Distinct source URLs from evidence, or from an overview URL list."""
+    seen: set[str] = set()
+    for lesson in lessons:
+        urls = [item.url for item in lesson.evidence] or lesson.evidence_urls
+        for url in urls:
+            seen.add(url)
+    return len(seen)
 
 
 def _sources(lessons: list[LessonRecord]) -> list[SourceView]:

@@ -11,9 +11,9 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { BlueprintState, LearningRequest } from "@/types/generator";
+import type { LearningRequest } from "@/types/generator";
 
-export type JourneyStage = "onboarding" | "proposals" | "blueprint";
+export type JourneyStage = "onboarding" | "proposals";
 
 export type JourneyStep = {
   stage: JourneyStage;
@@ -27,58 +27,37 @@ export type JourneyStep = {
 const STAGES: { id: JourneyStage; label: string }[] = [
   { id: "onboarding", label: "Onboarding" },
   { id: "proposals", label: "Proposals" },
-  { id: "blueprint", label: "Blueprint" },
 ];
 
-/** UF-01/UF-02. Precision is omitted when the request never requires it. */
-export function onboardingJourneyStep(request: LearningRequest | null): JourneyStep {
+/** UF-01/UF-02. The objective is not a visible step (DEC-021). */
+export function onboardingJourneyStep(
+  request: LearningRequest | null,
+  showPrecision = false,
+): JourneyStep {
   if (!request) {
     return {
       stage: "onboarding",
       substepIndex: 0,
-      substepCount: 2,
+      substepCount: 1,
       substepLabel: "Initial form",
       hidden: true,
     };
   }
 
-  if (request.state === "draft" || request.state === "incompatible") {
-    return {
-      stage: "onboarding",
-      substepIndex: 0,
-      substepCount: 2,
-      substepLabel: "Initial form",
-    };
-  }
-
-  const includesPrecision =
-    request.state === "precision_required" ||
-    request.precision.needs_precision ||
-    request.selected_precision !== null;
-
-  if (request.state === "precision_required") {
+  if (showPrecision || request.state === "precision_required") {
     return {
       stage: "onboarding",
       substepIndex: 1,
-      substepCount: 3,
+      substepCount: 2,
       substepLabel: "Refine your subject",
-    };
-  }
-
-  if (includesPrecision) {
-    return {
-      stage: "onboarding",
-      substepIndex: 2,
-      substepCount: 3,
-      substepLabel: "Your objective",
     };
   }
 
   return {
     stage: "onboarding",
-    substepIndex: 1,
-    substepCount: 2,
-    substepLabel: "Your objective",
+    substepIndex: 0,
+    substepCount: request.precision.needs_precision ? 2 : 1,
+    substepLabel: "Initial form",
   };
 }
 
@@ -117,37 +96,8 @@ export function proposalsJourneyStep(request: LearningRequest | null): JourneySt
   };
 }
 
-/** Blueprint review. Failed stays on review so the learner can return and try again. */
-export function blueprintJourneyStep(state: BlueprintState | null): JourneyStep {
-  if (state === "approved") {
-    return {
-      stage: "blueprint",
-      substepIndex: 2,
-      substepCount: 3,
-      substepLabel: "Approved",
-    };
-  }
-  if (state === "awaiting_approval" || state === "failed") {
-    return {
-      stage: "blueprint",
-      substepIndex: 1,
-      substepCount: 3,
-      substepLabel: "Review",
-    };
-  }
-  return {
-    stage: "blueprint",
-    substepIndex: 0,
-    substepCount: 3,
-    substepLabel: "Drafting the contract",
-  };
-}
-
 function defaultStep(pathname: string): JourneyStep {
-  if (pathname.startsWith("/blueprints")) {
-    return blueprintJourneyStep(null);
-  }
-  if (pathname.startsWith("/proposals")) {
+  if (pathname.startsWith("/proposals") || pathname.startsWith("/blueprints")) {
     return proposalsJourneyStep(null);
   }
   return onboardingJourneyStep(null);

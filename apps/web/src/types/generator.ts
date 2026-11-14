@@ -321,6 +321,17 @@ export type CourseList = {
   courses: LibraryCourse[];
 };
 
+export type CourseStatusModule = {
+  id: string;
+  state: ModuleState;
+};
+
+export type CourseStatus = {
+  state: CourseState;
+  current_activity: string | null;
+  modules: CourseStatusModule[];
+};
+
 export type Course = {
   id: string;
   request_id: string;

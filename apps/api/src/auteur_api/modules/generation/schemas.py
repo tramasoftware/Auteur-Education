@@ -301,6 +301,8 @@ class LessonRecord(BaseModel):
     attempts: int = 0
     research_rounds: int = 0
     evidence: list[EvidenceItem] = []
+    # URLs only, from the course-overview read. Empty when the lesson body was loaded.
+    evidence_urls: list[str] = []
     research_questions: list[str] = []
     unresolved_claims: list[str] = []
     spec: LessonSpecOutput | None = None
@@ -322,6 +324,9 @@ class ModuleRecord(BaseModel):
     lessons: list[LessonRecord] = []
     synthesis: str | None = None
     knowledge_check: KnowledgeCheckOutput | None = None
+    # Set by the course-overview read, which does not load synthesis or the check.
+    overview_has_synthesis: bool | None = None
+    overview_question_count: int | None = None
     audit: ModuleAuditOutput | None = None
     published_at: datetime | None = None
     failure: str | None = None
@@ -391,6 +396,21 @@ class CourseResponse(BaseModel):
     failure: str | None
     module_limit: int | None
     created_at: datetime
+
+
+class CourseStatusModule(BaseModel):
+    """Module state for the build poll. No lesson text."""
+
+    id: str
+    state: ModuleState
+
+
+class CourseStatusResponse(BaseModel):
+    """What changed while a course is still being written."""
+
+    state: CourseState
+    current_activity: str | None
+    modules: list[CourseStatusModule]
 
 
 class CourseListItem(BaseModel):

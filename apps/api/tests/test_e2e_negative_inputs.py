@@ -14,14 +14,14 @@ Already covered elsewhere (do not duplicate):
   test_learning_requests.test_confirm_requires_exact_version_and_is_idempotent
 - BR-PRP proposals require confirmed objective / unknown proposal id:
   test_proposals
-- BR-BLP Blueprint requires selection / stale approve / failed revision keeps prior:
+- BR-BLP Blueprint requires selection / confirmation starts one build:
   test_blueprints
 """
 
 from __future__ import annotations
 
 from tests.fixtures import REQUEST_BODY, analysis, blueprint, objective
-from tests.test_blueprints import selected_request
+from tests.test_blueprints import script_full_build, selected_request
 from tests.test_learning_requests import create
 
 from auteur_api.core.config import settings
@@ -71,7 +71,6 @@ def test_intent_over_max_length_is_rejected(client, fake_ai) -> None:
 def test_whitespace_prior_knowledge_is_stored_as_absent(client, fake_ai) -> None:
     # BR-ONB-005: blank optional context must not be treated as knowledge.
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     response = client.post(
         "/api/v1/learning-requests",
         json={**REQUEST_BODY, "prior_knowledge": "   "},
@@ -140,6 +139,12 @@ def test_precision_rejects_free_text_when_disallowed(client, fake_ai) -> None:
 
 def test_whitespace_objective_revision_is_rejected(client, fake_ai) -> None:
     body = create(client, fake_ai).json()
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    seeded = client.post(
+        f"/api/v1/learning-requests/{body['id']}/objective/revisions",
+        json={"feedback": "Keep this focus."},
+    )
+    assert seeded.status_code == 200
     response = client.post(
         f"/api/v1/learning-requests/{body['id']}/objective/revisions",
         json={"feedback": "   "},
@@ -150,14 +155,13 @@ def test_whitespace_objective_revision_is_rejected(client, fake_ai) -> None:
     assert fetched["objective"]["confirmed"] is False
 
 
-def test_whitespace_blueprint_revision_is_rejected(client, fake_ai) -> None:
+def test_blueprint_revision_route_is_gone(client, fake_ai) -> None:
+    # DEC-022: learner revision is not part of the journey.
     rid = selected_request(client, fake_ai)
+    script_full_build(fake_ai)
     fake_ai.enqueue(BlueprintOutput, blueprint())
     bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     response = client.post(
         f"/api/v1/blueprints/{bid}/revisions", json={"feedback": "   "}
     )
-    assert response.status_code == 422
-    fetched = client.get(f"/api/v1/blueprints/{bid}").json()
-    assert fetched["state"] == "awaiting_approval"
-    assert fetched["current_version"] == 1
+    assert response.status_code == 404

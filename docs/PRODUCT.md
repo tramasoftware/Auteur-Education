@@ -29,7 +29,7 @@ Este archivo es la fuente canónica de la identidad de Auteur Education. Define 
 
 Auteur Education es una plataforma web B2C de educación teórica personalizada que transforma una intención de aprendizaje en una trayectoria estructurada, investigada y adaptada al punto de partida del usuario.
 
-La persona expresa qué quiere comprender, cuál es su experiencia previa y qué resultado espera alcanzar. Auteur la ayuda a precisar ese objetivo, le presenta posibles direcciones de aprendizaje, construye un Blueprint para el recorrido elegido y, después de su aprobación, genera un curso organizado en módulos y lecciones que puede leerse y escucharse.
+La persona expresa qué quiere comprender, cuál es su experiencia previa y qué resultado espera alcanzar. Auteur la ayuda a precisar ese objetivo, le presenta posibles direcciones de aprendizaje, construye un Blueprint para el recorrido elegido y, al confirmarlo el sistema, genera un curso organizado en módulos y lecciones que puede leerse y escucharse.
 
 El producto no busca simplemente generar contenido. Busca que la persona pueda comprender, distinguir, explicar, comparar, analizar o evaluar algo que antes no podía.
 
@@ -99,14 +99,13 @@ El recorrido principal comienza con una intención, una pregunta o una capacidad
 2. Indica su nivel y sus conocimientos previos.
 3. Define qué resultado espera alcanzar.
 4. Si la solicitud es demasiado amplia, Auteur ayuda a precisar el objeto de aprendizaje.
-5. Auteur formula un objetivo concreto y el usuario lo confirma o corrige.
+5. Auteur formula un objetivo concreto y lo confirma. La persona no lo revisa en una pantalla propia (`DEC-021`).
 6. El sistema presenta exactamente cuatro propuestas de curso realmente diferentes (`DEC-019`).
 7. El usuario elige una dirección.
-8. Auteur genera un Blueprint que explica qué se enseñará, qué quedará fuera, cómo se organizará el recorrido y por qué.
-9. El usuario revisa, modifica o aprueba el Blueprint.
-10. Después de la aprobación, el sistema investiga y construye el curso.
-11. El curso se publica como una trayectoria de módulos y lecciones con texto, audio, fuentes y evaluaciones formativas.
-12. El usuario puede avanzar, abandonar y retomar su progreso desde su biblioteca personal.
+8. Auteur genera el Blueprint y el sistema lo confirma, sin pantalla de revisión (`DEC-022`). La misma carga de “generando curso” cubre esa confirmación y el inicio del curso.
+9. Cuando la animación terminó y ya hay un esquema inicial, se abre la vista del curso con sus estados de generación. El sistema sigue investigando y construyendo.
+10. El curso se publica como una trayectoria de módulos y lecciones con texto, audio, fuentes y evaluaciones formativas.
+11. El usuario puede avanzar, abandonar y retomar su progreso desde su biblioteca personal.
 
 La cantidad de propuestas no debe completarse artificialmente. Si solamente existe una dirección verdaderamente adecuada, el sistema puede presentar una sola.
 
@@ -125,7 +124,7 @@ No es solamente un índice. Debe explicar:
 - las principales preguntas, conceptos y controversias;
 - la justificación de la estructura y del orden elegidos.
 
-El curso no puede comenzar a construirse sin la aprobación explícita del usuario. Si el Blueprint cambia, debe volver a aprobarse.
+El curso no puede comenzar a construirse sin la confirmación del sistema de una versión exacta (`DEC-022`). El usuario no revisa ni modifica el Blueprint en una pantalla.
 
 ## Modelo de aprendizaje
 
@@ -203,7 +202,7 @@ El objetivo, el Blueprint y el curso deben conservar la necesidad real expresada
 
 ### Control del usuario
 
-El usuario confirma el objetivo, elige la propuesta y aprueba el Blueprint antes de que se construya el curso.
+El sistema confirma el objetivo (`DEC-021`). El usuario elige la propuesta. El sistema confirma el Blueprint antes de construir el curso (`DEC-022`).
 
 ### Valor antes de la conversión
 

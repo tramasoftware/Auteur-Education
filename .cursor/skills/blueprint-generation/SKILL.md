@@ -1,7 +1,7 @@
 ---
 
 name: blueprint-generation
-description: Build and revise a coherent learning Blueprint from an approved learning objective and selected learning direction. Use before course generation and whenever the learner reviews or revises the planned learning trajectory.
+description: Build a coherent learning Blueprint from an approved learning objective and selected learning direction. Use before course generation. The learner does not review it (DEC-022).
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Blueprint Generation
@@ -93,11 +93,11 @@ Validate:
 * the trajectory is neither unnecessarily broad nor artificially fragmented;
 * the selected direction remains visible throughout the structure.
 
-### 5. Preserve revisability
+### 5. Keep the contract coherent
 
-The Blueprint must remain understandable enough that the learner can review and modify the intended trajectory before course generation.
+The Blueprint is an internal pedagogical contract (`DEC-022`). The learner does not review or modify it on a screen.
 
-When revisions occur:
+When a future revision exists:
 
 * preserve approved learner intent unless explicitly changed;
 * update dependent structure;

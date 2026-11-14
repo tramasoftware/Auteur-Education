@@ -19,14 +19,14 @@ export const stageFailureCopy = {
     backLabel: "Back to suggested subjects",
   },
   precision: {
-    title: "Your objective isn’t ready yet",
-    body: "Your focus is saved. Try formulating the objective again.",
+    title: "Your focus isn’t ready yet",
+    body: "Your answers are saved. Try choosing a focus again.",
     backLabel: "Back to your focus",
   },
   directions: {
     title: "Your learning directions aren’t ready yet",
-    body: "Your objective is saved. Try preparing them again.",
-    backLabel: "Back to your objective",
+    body: "Your question is saved. Try preparing the paths again.",
+    backLabel: "Back to your question",
   },
   blueprint: {
     title: "Your Blueprint isn’t ready yet",

@@ -6,6 +6,30 @@ const STORAGE_KEY = "auteur-member-display";
 
 /** Bumps when the member saves a name or photo, so a late GET cannot overwrite it. */
 let accountStamp = 0;
+let userEpoch = 0;
+let cachedUserId: string | null = null;
+let userIdRequest: Promise<string | null> | null = null;
+const sessionClears = new Set<() => void>();
+
+/** Drop in-memory reads when this account signs out. */
+export function onMemberSessionClear(clear: () => void): void {
+  sessionClears.add(clear);
+}
+
+/** User id already resolved in this tab, so a screen can read its cache before getClaims. */
+export function peekCurrentUserId(): string | null {
+  return cachedUserId;
+}
+
+/** Drop the tab's user id and in-memory reads. Stored display stays for the next account. */
+export function clearCachedUserId(): void {
+  userEpoch += 1;
+  cachedUserId = null;
+  userIdRequest = null;
+  for (const clear of sessionClears) {
+    clear();
+  }
+}
 
 /** Header and library fields kept while this account stays signed in. */
 export type MemberDisplay = {
@@ -20,13 +44,33 @@ export type MemberDisplay = {
 
 type DisplayPatch = Partial<Omit<MemberDisplay, "userId">>;
 
-export async function currentUserId(): Promise<string | null> {
+async function readClaimUserId(): Promise<string | null> {
   const { data, error } = await createClient().auth.getClaims();
   if (error) {
     return null;
   }
   const sub = (data?.claims as { sub?: unknown } | undefined)?.sub;
   return typeof sub === "string" && sub ? sub : null;
+}
+
+export async function currentUserId(): Promise<string | null> {
+  if (cachedUserId) {
+    return cachedUserId;
+  }
+  const epoch = userEpoch;
+  if (!userIdRequest) {
+    userIdRequest = readClaimUserId().finally(() => {
+      userIdRequest = null;
+    });
+  }
+  const id = await userIdRequest;
+  if (epoch !== userEpoch) {
+    return cachedUserId;
+  }
+  if (id) {
+    cachedUserId = id;
+  }
+  return id;
 }
 
 function isDisplay(value: unknown, userId: string): value is MemberDisplay {
@@ -108,6 +152,7 @@ function writeAccount(userId: string, account: AccountProfile): void {
 }
 
 export function clearMemberDisplay(): void {
+  clearCachedUserId();
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {

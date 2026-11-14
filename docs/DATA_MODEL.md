@@ -41,7 +41,7 @@ Equivalente a `LearningRequestRecord` sin las versiones de objetivo.
 
 ### `objective_versions`
 
-Una fila por versión. UNIQUE `(learning_request_id, version)`. `confirmed` sostiene BR-OBJ-010.
+Una fila por versión. UNIQUE `(learning_request_id, version)`. `confirmed` sostiene `BR-OBJ-010`: el sistema marca la versión al formularla (`DEC-021`). No hay una pantalla de confirmación.
 
 ### `blueprints`
 

@@ -22,7 +22,7 @@ const PLANNING_NAV: Record<
   create: { label: "Create a course", icon: "create" },
   onboarding: { label: "Onboarding", icon: "onboarding" },
   proposals: { label: "Select direction", icon: "proposals" },
-  blueprint: { label: "Draft Blueprint", icon: "blueprint" },
+  blueprint: { label: "Generating course", icon: "generating" },
 };
 
 export function SiteHeader() {
@@ -182,7 +182,7 @@ function SiteNav({
       <Suspense
         fallback={
           <CourseCreationNavLinkPresentation
-            href="/onboarding"
+            href="/onboarding?new=1"
             label={PLANNING_NAV.create.label}
             icon={PLANNING_NAV.create.icon}
             current={false}
@@ -244,7 +244,7 @@ function CourseCreationNavLink({
     );
   }, [onPlanningFlow, pathname, search, target?.mode]);
 
-  const href = target?.href ?? "/onboarding";
+  const href = target?.href ?? "/onboarding?new=1";
 
   const planningStage: CourseFlowStage =
     target?.mode === "planning"

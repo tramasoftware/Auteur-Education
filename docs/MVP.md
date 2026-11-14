@@ -38,7 +38,7 @@ El MVP debe demostrar que el sistema puede:
 
 - comprender y precisar la intención del usuario;
 - proponer recorridos de aprendizaje realmente diferenciados;
-- convertir una propuesta en un Blueprint revisable y aprobable;
+- convertir una propuesta en un Blueprint que el sistema confirma y usa para construir el curso (`DEC-022`);
 - investigar, generar, verificar y publicar un curso completo;
 - cobrar una suscripción y administrar créditos de generación;
 - conservar cursos, progreso y audio;
@@ -47,7 +47,7 @@ El MVP debe demostrar que el sistema puede:
 
 ## Resultado esperado
 
-Al finalizar el MVP, un visitante debe poder comenzar con una intención amplia, recibir una propuesta concreta antes de registrarse, convertirse en cliente, aprobar el mapa de su curso, recibir contenido progresivamente y estudiarlo desde una biblioteca personal.
+Al finalizar el MVP, un visitante debe poder comenzar con una intención amplia, recibir una propuesta concreta antes de registrarse, convertirse en cliente, elegir una dirección y recibir el curso que el sistema construye a partir del Blueprint confirmado, estudiarlo desde una biblioteca personal.
 
 El resultado debe funcionar con integraciones reales de prueba y debe poder validarse de extremo a extremo en un entorno de staging.
 
@@ -55,11 +55,11 @@ El resultado debe funcionar con integraciones reales de prueba y debe poder vali
 
 ### Visitante
 
-Persona sin sesión iniciada. Puede conocer la propuesta de valor, comenzar el onboarding, confirmar un objetivo, recibir propuestas y seleccionar una antes de registrarse.
+Persona sin sesión iniciada. Puede conocer la propuesta de valor, comenzar el onboarding, recibir propuestas y seleccionar una antes de registrarse. El objetivo se formula y se confirma sin una pantalla propia (`DEC-021`).
 
 ### Cliente
 
-Usuario autenticado. Puede suscribirse, solicitar y aprobar Blueprints, generar cursos, leer y escuchar lecciones, completar evaluaciones formativas, administrar su biblioteca y gestionar su cuenta.
+Usuario autenticado. Puede suscribirse, elegir una dirección, generar cursos a partir del Blueprint que el sistema confirma, leer y escuchar lecciones, completar evaluaciones formativas, administrar su biblioteca y gestionar su cuenta.
 
 ### Administrador
 
@@ -93,7 +93,7 @@ El onboarding incluye:
 - resultado esperado;
 - clasificación de compatibilidad con el medio textual y sonoro;
 - precisión condicional cuando la intención sea demasiado amplia o ambigua;
-- formulación y confirmación de un objetivo observable.
+- formulación de un objetivo observable, confirmado por el sistema al formularlo (`DEC-021`).
 
 Los niveles disponibles son:
 
@@ -136,7 +136,7 @@ Auteur formula un objetivo que combina:
 
 El objetivo debe describir una capacidad intelectual alcanzable, como comprender, distinguir, explicar, comparar, analizar o evaluar.
 
-El usuario puede confirmarlo o solicitar una corrección. No se generan propuestas hasta que exista un objetivo confirmado.
+El sistema confirma el objetivo al formularlo. No hay pantalla para revisarlo ni para pedir una corrección (`DEC-021`). No se generan propuestas hasta que exista un objetivo confirmado.
 
 El sistema no debe inventar ensayos, proyectos, portfolios, presentaciones, cargas de archivos ni otros entregables que el usuario no haya solicitado y el MVP no soporte.
 
@@ -223,8 +223,8 @@ Los créditos de generación habilitan la construcción de cursos adicionales.
 
 Reglas incluidas:
 
-- generar o revisar un Blueprint no consume créditos;
-- el beneficio o crédito se reserva al aprobar el Blueprint;
+- generar un Blueprint no consume créditos;
+- el beneficio o crédito se reserva cuando el sistema confirma el Blueprint (`DEC-022`);
 - el consumo se confirma cuando comienza correctamente un build persistido;
 - un fallo técnico definitivo restituye el beneficio o crédito una única vez;
 - el audio forma parte del curso y no consume créditos adicionales;
@@ -233,7 +233,7 @@ Reglas incluidas:
 - las operaciones repetidas no pueden reservar ni consumir dos veces el mismo entitlement;
 - el usuario puede consultar su saldo sin ver tokens ni costes técnicos de IA.
 
-Si el usuario no tiene beneficio ni créditos, puede completar el onboarding y explorar propuestas, pero no puede aprobar un Blueprint para iniciar un nuevo curso.
+Si el usuario no tiene beneficio ni créditos, puede completar el onboarding y explorar propuestas, pero la confirmación del Blueprint no inicia un nuevo curso.
 
 ### 9. Blueprint
 
@@ -275,19 +275,13 @@ La estructura es flexible:
 
 Estas cantidades son referencias, no cuotas. Toda estructura debe justificarse por el objetivo y debe evitar relleno o fragmentación artificial.
 
-El usuario puede:
+El usuario no revisa ni aprueba el Blueprint (`DEC-022`). Al elegir la path, la carga de “generando curso” cubre la generación, la confirmación del sistema y el esquema inicial del curso. La vista se abre sola, con los estados de generación, cuando la animación terminó y ese esquema ya existe.
 
-- aprobar el Blueprint;
-- solicitar cambios en texto libre;
-- corregir supuestos;
-- volver a elegir una propuesta;
-- cancelar antes de construir.
-
-Cada modificación genera una nueva versión completa e invalida la aprobación anterior. Las revisiones no consumen créditos. La construcción nunca comienza sin aprobación explícita de una versión concreta.
+La construcción nunca comienza sin una versión concreta confirmada por el sistema. La revisión en texto libre queda para una versión posterior y no consume créditos si vuelve a existir.
 
 ### 10. Generación del curso
 
-La aprobación del Blueprint inicia un proceso asíncrono y persistente.
+La confirmación del Blueprint inicia un proceso asíncrono y persistente.
 
 El MVP admite un único build activo por usuario. El usuario puede cerrar la pantalla, navegar o cerrar sesión sin detener la generación.
 
@@ -479,7 +473,6 @@ Los mensajes transaccionales se envían en inglés e incluyen, como mínimo:
 - confirmación de suscripción y pago;
 - pago fallido o acción requerida;
 - cancelación programada y efectiva;
-- Blueprint disponible;
 - primer módulo publicado;
 - curso completo;
 - fallo definitivo y restitución del crédito.
@@ -558,7 +551,7 @@ Este documento exige las capacidades, no distribuye responsabilidades entre fron
 
 ### Responsive
 
-Los recorridos críticos deben funcionar en escritorio y móvil: onboarding, propuestas, registro, checkout, Blueprint, biblioteca, lector, audio, Knowledge Checks, cuenta y administración esencial.
+Los recorridos críticos deben funcionar en escritorio y móvil: onboarding, propuestas, registro, checkout, generación del curso, biblioteca, lector, audio, Knowledge Checks, cuenta y administración esencial.
 
 ### Navegadores
 
@@ -658,11 +651,11 @@ El MVP debe superar, como mínimo, los siguientes escenarios:
 2. Una intención específica omite precisión innecesaria.
 3. Una entrada no inglesa solicita reformulación y no genera contenido en otro idioma.
 4. Un objetivo práctico incompatible se reformula honestamente o se rechaza.
-5. Tras confirmar el objetivo, el visitante recibe exactamente cuatro propuestas diferenciadas, sin variantes artificiales.
+5. Tras formular y confirmar el objetivo, el visitante recibe exactamente cuatro propuestas diferenciadas, sin variantes artificiales. La confirmación es del sistema (`DEC-021`).
 6. Registro, login y pago conservan la intención y propuesta seleccionada.
 7. El primer curso utiliza el beneficio de bienvenida sin consumir créditos.
-8. Un Blueprint flexible puede aprobarse sin cumplir cantidades orientativas cuando existe justificación pedagógica.
-9. Una revisión de Blueprint crea una nueva versión y exige nueva aprobación sin consumir créditos.
+8. Un Blueprint flexible se confirma sin cumplir cantidades orientativas cuando existe justificación pedagógica, y sin pantalla de revisión (`DEC-022`).
+9. La revisión de Blueprint por el usuario no forma parte del recorrido. El sistema confirma la versión generada e inicia el curso.
 10. La generación continúa después de cerrar la pantalla y recupera el estado correcto.
 11. Un módulo completo puede publicarse mientras continúan los siguientes.
 12. Una afirmación central sin evidencia suficiente no se publica.

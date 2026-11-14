@@ -1,11 +1,11 @@
 import type { HealthResponse } from "@/types/health";
 import type {
   ApiErrorBody,
-  ApproveBlueprintResponse,
   Blueprint,
   Course,
   CourseDiagnostics,
   CourseList,
+  CourseStatus,
   CourseModule,
   CourseProgress,
   CreateLearningRequest,
@@ -15,6 +15,7 @@ import type {
 } from "@/types/generator";
 
 import { ensureAccessToken } from "@/lib/auth/session";
+import { onMemberSessionClear } from "@/lib/member-display";
 import { apiUrl } from "@/lib/public-url";
 
 export class ApiError extends Error {
@@ -120,13 +121,50 @@ export type AccountProfile = {
   generated_course_count: number;
 };
 
+let accountProfile: AccountProfile | null = null;
 let profileRequest: Promise<AccountProfile> | null = null;
+let profileRevision = 0;
+let courseList: CourseList | null = null;
+let courseListRequest: Promise<CourseList> | null = null;
+
+export function peekAccountProfile(): AccountProfile | null {
+  return accountProfile;
+}
+
+export function peekCourseList(): CourseList | null {
+  return courseList;
+}
+
+function rememberProfile(profile: AccountProfile): AccountProfile {
+  profileRevision += 1;
+  accountProfile = profile;
+  return profile;
+}
+
+function clearReadCaches(): void {
+  profileRevision += 1;
+  accountProfile = null;
+  profileRequest = null;
+  courseList = null;
+  courseListRequest = null;
+}
+
+onMemberSessionClear(clearReadCaches);
 
 export function getAccountProfile(): Promise<AccountProfile> {
   if (!profileRequest) {
-    profileRequest = request<AccountProfile>("/auth/profile").finally(() => {
-      profileRequest = null;
-    });
+    const started = profileRevision;
+    profileRequest = request<AccountProfile>("/auth/profile")
+      .then((profile) => {
+        if (profileRevision !== started) {
+          return accountProfile ?? profile;
+        }
+        accountProfile = profile;
+        return profile;
+      })
+      .finally(() => {
+        profileRequest = null;
+      });
   }
   return profileRequest;
 }
@@ -140,20 +178,20 @@ export function updateAccountProfile(profile: {
   return request<AccountProfile>("/auth/profile", {
     method: "PATCH",
     body: JSON.stringify(profile),
-  });
+  }).then(rememberProfile);
 }
 
 export function updateAccountTextSize(textSize: string): Promise<AccountProfile> {
   return request<AccountProfile>("/auth/profile/text-size", {
     method: "PATCH",
     body: JSON.stringify({ text_size: textSize }),
-  });
+  }).then(rememberProfile);
 }
 
 function sendAccountPhoto(method: "POST" | "PUT", file: File): Promise<AccountProfile> {
   const body = new FormData();
   body.append("file", file);
-  return request<AccountProfile>("/auth/profile/photo", { method, body });
+  return request<AccountProfile>("/auth/profile/photo", { method, body }).then(rememberProfile);
 }
 
 export function createAccountPhoto(file: File): Promise<AccountProfile> {
@@ -165,7 +203,7 @@ export function updateAccountPhoto(file: File): Promise<AccountProfile> {
 }
 
 export function deleteAccountPhoto(): Promise<AccountProfile> {
-  return request<AccountProfile>("/auth/profile/photo", { method: "DELETE" });
+  return request<AccountProfile>("/auth/profile/photo", { method: "DELETE" }).then(rememberProfile);
 }
 
 export async function getHealth(): Promise<HealthResponse> {
@@ -192,6 +230,8 @@ export const learningRequests = {
     }),
   generateProposals: (id: string) =>
     post<LearningRequest>(`/learning-requests/${id}/proposals`),
+  generateDirections: (id: string) =>
+    post<LearningRequest>(`/learning-requests/${id}/directions`),
   selectProposal: (id: string, proposalId: string) =>
     post<LearningRequest>(`/learning-requests/${id}/proposals/select`, {
       proposal_id: proposalId,
@@ -200,14 +240,28 @@ export const learningRequests = {
     post<Blueprint>(`/learning-requests/${id}/blueprint`),
 };
 
+const directionsInflight = new Map<string, { key: string; promise: Promise<LearningRequest> }>();
+
+/** One in-flight directions call per request and precision key (DEC-021). */
+export function generateDirectionsOnce(id: string, key = "current"): Promise<LearningRequest> {
+  const existing = directionsInflight.get(id);
+  if (existing && existing.key === key) {
+    return existing.promise;
+  }
+  const promise = learningRequests.generateDirections(id).finally(() => {
+    const current = directionsInflight.get(id);
+    if (current?.promise === promise) {
+      directionsInflight.delete(id);
+    }
+  });
+  directionsInflight.set(id, { key, promise });
+  return promise;
+}
+
 // --- Blueprints (UF-04) ---
 
 export const blueprints = {
   get: (id: string) => request<Blueprint>(`/blueprints/${id}`),
-  revise: (id: string, feedback: string) =>
-    post<Blueprint>(`/blueprints/${id}/revisions`, { feedback }),
-  approve: (id: string, version: number) =>
-    post<ApproveBlueprintResponse>(`/blueprints/${id}/approve`, { version }),
 };
 
 // --- Courses (UF-06, UF-07) ---
@@ -216,10 +270,34 @@ export type ActiveGeneration = {
   course_id: string | null;
 };
 
+let activeGenerationRequest: Promise<ActiveGeneration> | null = null;
+
 export const courses = {
-  list: () => request<CourseList>("/courses"),
-  activeGeneration: () => request<ActiveGeneration>("/courses/active-generation"),
+  list: () => {
+    if (!courseListRequest) {
+      courseListRequest = request<CourseList>("/courses")
+        .then((body) => {
+          courseList = body;
+          return body;
+        })
+        .finally(() => {
+          courseListRequest = null;
+        });
+    }
+    return courseListRequest;
+  },
+  activeGeneration: () => {
+    if (!activeGenerationRequest) {
+      activeGenerationRequest = request<ActiveGeneration>("/courses/active-generation").finally(
+        () => {
+          activeGenerationRequest = null;
+        },
+      );
+    }
+    return activeGenerationRequest;
+  },
   get: (courseId: string) => request<Course>(`/courses/${courseId}`),
+  status: (courseId: string) => request<CourseStatus>(`/courses/${courseId}/status`),
   getModule: (courseId: string, moduleId: string) =>
     request<CourseModule>(`/courses/${courseId}/modules/${moduleId}`),
   getLesson: (courseId: string, moduleId: string, lessonId: string) =>

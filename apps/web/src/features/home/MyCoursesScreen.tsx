@@ -12,6 +12,7 @@ import {
   readingCardCopy,
   resumeHref,
 } from "@/lib/course-progress";
+import { libraryOnHand } from "@/lib/member-library";
 import {
   currentUserId,
   readMemberDisplay,
@@ -117,10 +118,22 @@ const chosen = [
   },
 ] as const;
 
+function foldersFrom(body: CourseList | null): FolderCourse[] | null {
+  if (!body) {
+    return null;
+  }
+  return byCreation(body.courses).map((item, index) => folderFrom(item, index));
+}
+
 export function MyCoursesScreen() {
-  const [created, setCreated] = useState<FolderCourse[] | null>(null);
-  const [library, setLibrary] = useState<LibraryCourse[]>([]);
-  const [progress, setProgress] = useState<Map<string, CourseProgress>>(new Map());
+  const [created, setCreated] = useState<FolderCourse[] | null>(() => foldersFrom(libraryOnHand()));
+  const [library, setLibrary] = useState<LibraryCourse[]>(
+    () => libraryOnHand()?.courses ?? [],
+  );
+  const [progress, setProgress] = useState<Map<string, CourseProgress>>(() => {
+    const body = libraryOnHand();
+    return new Map(body ? body.courses.map((item) => [item.id, item.progress]) : []);
+  });
   const [failed, setFailed] = useState(false);
   const [readingPage, setReadingPage] = useState(0);
 
@@ -132,13 +145,14 @@ export function MyCoursesScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const painted = libraryOnHand();
     void (async () => {
       const userId = await currentUserId();
       const cached = userId ? readMemberDisplay(userId) : null;
       if (cancelled) {
         return;
       }
-      if (cached?.library) {
+      if (!painted && cached?.library) {
         showLibrary(cached.library);
       }
       try {
@@ -157,7 +171,7 @@ export function MyCoursesScreen() {
           });
         }
       } catch {
-        if (!cancelled && !cached?.library) {
+        if (!cancelled && !painted && !cached?.library) {
           setFailed(true);
         }
       }

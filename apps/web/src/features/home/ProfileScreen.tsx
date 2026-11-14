@@ -7,6 +7,7 @@ import {
   createAccountPhoto,
   deleteAccountPhoto,
   getAccountProfile,
+  peekAccountProfile,
   updateAccountPhoto,
   updateAccountProfile,
   updateAccountTextSize,
@@ -24,6 +25,7 @@ import {
   accountStampNow,
   clearMemberDisplay,
   currentUserId,
+  peekCurrentUserId,
   readMemberDisplay,
   rememberAccount,
   rememberFetchedAccount,
@@ -72,12 +74,14 @@ export function ProfileScreen({
   const [savedSize, setSavedSize] = useState<TextSizeId>(initialTextSize);
   const [savingSize, setSavingSize] = useState(false);
   const [sizeError, setSizeError] = useState("");
-  const [profile, setProfile] = useState<AccountProfile | null>(null);
-  const [cachedName, setCachedName] = useState("");
-  const [cachedPhoto, setCachedPhoto] = useState<string | null>(null);
-  const [hasCache, setHasCache] = useState(false);
+  const [profile, setProfile] = useState<AccountProfile | null>(() => peekAccountProfile());
+  const [cachedName, setCachedName] = useState(() => displayName(displayOnHand()));
+  const [cachedPhoto, setCachedPhoto] = useState<string | null>(() => photoOnHand());
+  const [hasCache, setHasCache] = useState(
+    () => peekAccountProfile() !== null || displayOnHand() !== null,
+  );
   const [email, setEmail] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => peekAccountProfile() !== null);
   const [loadError, setLoadError] = useState("");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -99,16 +103,18 @@ export function ProfileScreen({
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const userId = await currentUserId();
-      const cached = userId ? readMemberDisplay(userId) : null;
-      if (!cancelled && cached) {
+      const knownId = peekCurrentUserId();
+      const early = knownId ? readMemberDisplay(knownId) : null;
+      if (!cancelled && early) {
         setHasCache(true);
-        setCachedName(
-          [cached.firstName, cached.lastName]
-            .map((part) => part?.trim() ?? "")
-            .filter(Boolean)
-            .join(" "),
-        );
+        setCachedName(displayName(early));
+        setCachedPhoto(early.imageUrl ?? early.avatarUrl);
+      }
+      const userId = knownId ?? (await currentUserId());
+      const cached = early ?? (userId ? readMemberDisplay(userId) : null);
+      if (!cancelled && cached && cached !== early) {
+        setHasCache(true);
+        setCachedName(displayName(cached));
         setCachedPhoto(cached.imageUrl ?? cached.avatarUrl);
       }
       const stamp = accountStampNow();
@@ -611,6 +617,29 @@ export function ProfileScreen({
       </main>
     </MemberFrame>
   );
+}
+
+function displayOnHand() {
+  const userId = peekCurrentUserId();
+  return userId ? readMemberDisplay(userId) : null;
+}
+
+function displayName(
+  display: { firstName: string | null; lastName: string | null } | null,
+): string {
+  return [display?.firstName, display?.lastName]
+    .map((part) => part?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+}
+
+function photoOnHand(): string | null {
+  const account = peekAccountProfile();
+  if (account) {
+    return account.image_url ?? account.avatar_url;
+  }
+  const display = displayOnHand();
+  return display ? (display.imageUrl ?? display.avatarUrl) : null;
 }
 
 function accountName(profile: AccountProfile | null): string {

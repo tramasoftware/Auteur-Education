@@ -17,6 +17,7 @@ from auteur_api.modules.onboarding.schemas import (
     CreateLearningRequest,
     LearningRequestResponse,
     PrecisionSelectionRequest,
+    RequestState,
     ReviseObjectiveRequest,
     to_response,
 )
@@ -35,8 +36,10 @@ AI = Annotated[AIClient, Depends(get_ai_client)]
 async def create_learning_request(
     payload: CreateLearningRequest, store: Store, ai: AI, user_id: CurrentUserId
 ) -> LearningRequestResponse:
-    """UF-01/UF-02: create the request, classify compatibility, decide precision
-    and, when no precision is needed, formulate the objective."""
+    """UF-01/UF-02: create the request, classify compatibility, and decide precision.
+
+    The objective is formulated later, with the learning paths (DEC-021).
+    """
     active_id = active_build_course_id(store, user_id)
     if active_id is not None:
         raise invalid_state(
@@ -84,16 +87,15 @@ def get_request_diagnostics(
 
 
 @router.post("/{request_id}/precision", response_model=LearningRequestResponse)
-async def choose_precision(
+def choose_precision(
     request_id: str,
     payload: PrecisionSelectionRequest,
     store: Store,
-    ai: AI,
     user_id: CurrentUserId,
 ) -> LearningRequestResponse:
-    """UF-02 steps 7-9: narrow the learning object, then formulate the objective."""
+    """UF-02: save the learning-object focus. Formulation happens with the paths."""
     store.get_learning_request(request_id, user_id=user_id)
-    record = await onboarding.apply_precision(request_id, payload, ai=ai, store=store)
+    record = onboarding.apply_precision(request_id, payload, store=store)
     return to_response(record)
 
 
@@ -104,7 +106,8 @@ def confirm_objective(
     store: Store,
     user_id: CurrentUserId,
 ) -> LearningRequestResponse:
-    """BR-OBJ-010: explicit confirmation of the exact objective version."""
+    """BR-OBJ-010: confirm an exact objective version. The product path confirms
+    inside POST /directions (DEC-021)."""
     store.get_learning_request(request_id, user_id=user_id)
     record = onboarding.confirm_objective(request_id, payload.version, store=store)
     return to_response(record)
@@ -125,6 +128,18 @@ async def revise_objective(
     record = await onboarding.revise_objective(
         request_id, payload.feedback, ai=ai, store=store
     )
+    return to_response(record)
+
+
+@router.post("/{request_id}/directions", response_model=LearningRequestResponse)
+async def generate_directions(
+    request_id: str, store: Store, ai: AI, user_id: CurrentUserId
+) -> LearningRequestResponse:
+    """DEC-021: formulate the objective, confirm it, and generate learning paths."""
+    store.get_learning_request(request_id, user_id=user_id)
+    record = await onboarding.prepare_directions(request_id, ai=ai, store=store)
+    if record.state == RequestState.OBJECTIVE_CONFIRMED:
+        record = await proposals.generate_proposals(request_id, ai=ai, store=store)
     return to_response(record)
 
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-import { rememberOnboardingDraft } from "@/lib/session";
+import { beginNewIntention, rememberOnboardingDraft } from "@/lib/session";
 
 import { LearningStatusLine } from "./LearningStatusLine";
 import { MemberFrame } from "./MemberFrame";
@@ -83,7 +83,7 @@ export function HomeScreen() {
             <span className="ae-home-kicker">Auteur Education · Your space</span>
             <h1>Your reading desk.</h1>
           </div>
-          <Link className="ae-home-text-link" href="/onboarding">
+          <Link className="ae-home-text-link" href="/onboarding?new=1">
             Create a new course <span className="ae-link-arrow" aria-hidden="true">↗</span>
           </Link>
         </header>
@@ -101,6 +101,9 @@ function NewQuestion({ step }: { step: number }) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    // Clear the previous intention first, then keep this question as the new
+    // draft. `?new=1` would wipe the draft again on arrival.
+    beginNewIntention();
     const text = question.trim();
     if (text) {
       rememberOnboardingDraft({
@@ -236,7 +239,7 @@ function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCours
                 </ol>
               </div>
               <div className="pie-p">
-                <Link className="btn claro" href="/onboarding">
+                <Link className="btn claro" href="/onboarding?new=1">
                   Choose your learning path<span className="ar" />
                 </Link>
                 <button className="cerrar-c" type="button" onClick={() => setOpen(null)}>

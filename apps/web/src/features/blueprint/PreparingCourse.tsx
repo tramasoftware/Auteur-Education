@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
 import "./preparing-course.css";
@@ -21,7 +20,31 @@ const VECTORS: Array<[number, number]> = [
   [-1, 0.35],
 ];
 
+const SHEET_LINES = [
+  [92, 86, 78, 64],
+  [88, 90, 70, 58],
+  [84, 92, 76, 40],
+  [90, 82, 94, 62],
+];
+
 const MONTHS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+
+/** Decorative sheets for the wait that starts before lesson titles exist. */
+export function pathPreparingCopy(title: string) {
+  const label = title.trim() || "Your course";
+  return {
+    title: label,
+    subtitle: "",
+    sheets: SHEET_LINES.map((lines, index) => ({
+      label: `Module ${String(index + 1).padStart(2, "0")}`,
+      title: label,
+      lines,
+    })),
+    coverKicker: "AUTEUR · COURSE",
+    coverLabel: "Course",
+    coverTitle: label,
+  };
+}
 
 export type PreparingSheet = {
   label: string;
@@ -36,9 +59,10 @@ type PreparingCourseProps = {
   coverKicker: string;
   coverLabel: string;
   coverTitle: string;
-  /** True once approve has saved the course for this user. */
+  /** True once the course outline can be shown with its generation states. */
   courseReady: boolean;
-  courseHref: string | null;
+  /** Opens the course once the flight has settled and the outline exists. */
+  onReady?: () => void;
 };
 
 function sealDate(date = new Date()) {
@@ -47,8 +71,8 @@ function sealDate(date = new Date()) {
 
 /**
  * Screen 09. The bar follows the sheet flight from the prototype; the API
- * does not report a generation percent. The button stays inactive until that
- * flight ends and the course row exists.
+ * does not report a generation percent. The course view opens when that
+ * flight ends and the outline can be shown.
  */
 export function PreparingCourse({
   title,
@@ -58,14 +82,19 @@ export function PreparingCourse({
   coverLabel,
   coverTitle,
   courseReady,
-  courseHref,
+  onReady,
 }: PreparingCourseProps) {
   const sealId = useId().replace(/:/g, "");
   const coverRef = useRef<HTMLDivElement>(null);
   const leafRefs = useRef<Array<HTMLDivElement | null>>([]);
   const courseReadyRef = useRef(courseReady);
+  const onReadyRef = useRef(onReady);
   const visualDoneRef = useRef(false);
   const completeRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
   const [heading, setHeading] = useState("Your course is taking shape");
   const [phase, setPhase] = useState(PHASES[0]);
   const [progress, setProgress] = useState(0);
@@ -108,6 +137,7 @@ export function PreparingCourse({
       setProgress(100);
       setHeading("Your course is ready");
       setReady(true);
+      onReadyRef.current?.();
     };
     completeRef.current = complete;
 
@@ -274,8 +304,6 @@ export function PreparingCourse({
     };
   }, []);
 
-  const href = ready && courseHref ? courseHref : "#";
-
   return (
     <section className={ready ? "gen listo" : "gen"} aria-busy={!ready}>
       <div>
@@ -289,21 +317,6 @@ export function PreparingCourse({
             <i style={{ width: `${progress}%` }} />
           </span>
           <span className="pc">{progress}%</span>
-        </div>
-        <div className="acciones">
-          <Link
-            className={ready ? "btn" : "btn espera"}
-            href={href}
-            aria-disabled={!ready}
-            onClick={(event) => {
-              if (!ready || !courseHref) {
-                event.preventDefault();
-              }
-            }}
-          >
-            View my course
-            <span className="ar" aria-hidden="true" />
-          </Link>
         </div>
       </div>
 

@@ -31,7 +31,6 @@ class CourseProposalOutput(BaseModel):
     intellectual_outcome: str
     distinctive_trajectory: str
     organizing_principle: str
-    direction_label: str
     scope: list[str]
     exclusions: list[str]
     level_fit: str
@@ -51,7 +50,7 @@ class PairwiseDifferenceOutput(BaseModel):
 
 
 class ProposalSetOutput(BaseModel):
-    SCHEMA_VERSION: ClassVar[str] = "proposal_set_v2"
+    SCHEMA_VERSION: ClassVar[str] = "proposal_set_v3"
 
     proposals: list[CourseProposalOutput]
     pairwise_differences: list[PairwiseDifferenceOutput]
@@ -64,7 +63,8 @@ class ProposalSetOutput(BaseModel):
 
 class CourseProposal(CourseProposalOutput):
     id: str
-    # Older stored sets predate these fields (proposal_set_v1).
+    # Older stored sets may still carry a tab label. New sets leave it empty;
+    # folders are numbered in the interface and the model no longer names them.
     direction_label: str = ""
     estimated_lessons: int = 0
 

@@ -15,6 +15,8 @@ type CourseSetupFrameProps = {
   backHref?: string;
   backLabel?: string;
   backAriaLabel?: string;
+  /** Runs with the back link, for example to leave a loading overlay. */
+  onBackClick?: () => void;
   mainClassName?: string;
   screenClassName?: string;
   /** Public footer chrome; omitted during onboarding, proposals, and Blueprint. */
@@ -42,6 +44,7 @@ export function CourseSetupFrame({
   backHref = "/",
   backLabel = "Exit",
   backAriaLabel = "Exit course setup",
+  onBackClick,
   mainClassName = "question-main",
   screenClassName,
   showFooter = false,
@@ -56,7 +59,12 @@ export function CourseSetupFrame({
       <JourneyFrame bare>
         <header className="topfix">
           <div className="top">
-            <Link className="back" href={backHref} aria-label={backAriaLabel}>
+            <Link
+              className="back"
+              href={backHref}
+              aria-label={backAriaLabel}
+              onClick={onBackClick}
+            >
               <span className="ar izq" aria-hidden="true" />
               <span className="txt">{backLabel}</span>
             </Link>

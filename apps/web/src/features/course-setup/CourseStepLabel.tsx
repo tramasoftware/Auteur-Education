@@ -1,7 +1,7 @@
 import "./course-step.css";
 
-/** Fixed course-setup steps. Variable screens (subjects, precision) omit the number. */
-export const COURSE_STEP_TOTAL = 4;
+/** Fixed course-setup steps: onboarding, then learning path (DEC-022). */
+export const COURSE_STEP_TOTAL = 2;
 
 type CourseStepLabelProps = {
   /** Omitted on screens whose place in the path depends on the intention. */

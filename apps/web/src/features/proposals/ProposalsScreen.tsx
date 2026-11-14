@@ -15,8 +15,8 @@ export function ProposalsScreen({ children }: { children: ReactNode }) {
     <CourseSetupFrame
       title="Your learning path"
       backHref={backHref}
-      backLabel="Learning objective"
-      backAriaLabel="Back to your learning objective"
+  backLabel="Onboarding"
+  backAriaLabel="Back to onboarding"
       mainClassName="paths-main"
       screenClassName="proposals-screen"
     >

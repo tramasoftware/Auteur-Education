@@ -26,7 +26,7 @@ ORIENTATION block. Organize the subject the learner asked for. Authors, history,
 and a philosophical frame enter only when the intention asks for them or a
 foundation cannot be understood without a short subordinate frame.
 
-VISIBLE part (the learner reviews and approves it):
+VISIBLE part (the pedagogical contract the course is built from, not a screen):
 - title, subtitle; objective_statement and expected_outcome (faithful to the
   confirmed objective; never promise professional mastery or certification);
 - central_problem (the question that organizes the course);
@@ -107,7 +107,6 @@ def generate_blueprint_input(
         f"intellectual_outcome: {proposal.intellectual_outcome}",
         f"distinctive_trajectory: {proposal.distinctive_trajectory}",
         f"organizing_principle: {proposal.organizing_principle}",
-        f"direction_label: {proposal.direction_label}",
         "scope: " + "; ".join(proposal.scope),
         "exclusions: " + "; ".join(proposal.exclusions),
         "guiding_authors_or_traditions: "

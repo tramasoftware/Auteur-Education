@@ -73,8 +73,7 @@ def test_specific_beginner_goes_straight_to_objective(live: TestClient) -> None:
     assert body["compatibility"]["classification"] in case.expected_compatibility
     assert body["precision"]["needs_precision"] is False
     assert body["state"] == "objective_confirmation"
-    assert body["objective"]["version"] == 1
-    assert body["objective"]["statement"]
+    assert body["objective"] is None
     report(live, body["id"], case.key)
 
 
@@ -92,6 +91,7 @@ def test_ambiguous_intent_offers_precision(live: TestClient) -> None:
     )
     assert chosen.status_code == 200, chosen.text
     assert chosen.json()["state"] == "objective_confirmation"
+    assert chosen.json()["objective"] is None
     report(live, body["id"], case.key)
 
 
@@ -139,12 +139,10 @@ def test_one_module_course_end_to_end(live: TestClient) -> None:
             json={"option_id": body["precision"]["options"][0]["id"]},
         ).json()
     assert body["state"] == "objective_confirmation", body["state"]
-    body = live.post(
-        f"/api/v1/learning-requests/{rid}/objective/confirm",
-        json={"version": body["objective"]["version"]},
-    ).json()
+    assert body["objective"] is None
+    body = live.post(f"/api/v1/learning-requests/{rid}/directions").json()
+    assert body["objective"]["confirmed"] is True
 
-    body = live.post(f"/api/v1/learning-requests/{rid}/proposals").json()
     proposals = body["proposals"]["proposals"]
     assert len(proposals) == 4
     assert len({p["title"] for p in proposals}) == len(proposals)  # BR-PRP-002
@@ -155,15 +153,11 @@ def test_one_module_course_end_to_end(live: TestClient) -> None:
     )
 
     bp = live.post(f"/api/v1/learning-requests/{rid}/blueprint").json()
-    bp = live.get(f"/api/v1/blueprints/{bp['id']}").json()
-    assert bp["state"] == "awaiting_approval", bp.get("failure_message")
+    assert bp["state"] == "approved", bp.get("failure_message")
     assert len(bp["blueprint"]["modules"]) >= 3
-    approved = live.post(
-        f"/api/v1/blueprints/{bp['id']}/approve",
-        json={"version": bp["current_version"]},
-    ).json()
+    assert bp["course_id"]
 
-    course = live.get(f"/api/v1/courses/{approved['course_id']}").json()
+    course = live.get(f"/api/v1/courses/{bp['course_id']}").json()
     assert course["state"] in ("partially_available", "complete"), course.get("failure")
     first = course["modules"][0]
     assert first["state"] == "published", course.get("failure")

@@ -8,8 +8,8 @@ Business rules enforced here (server-side, BR-*):
 - BR-OBJ-006/007: precision only when needed, 2-5 options.
 - BR-OBJ-008/009: the objective expresses an intellectual capability and invents no
   deliverables.
-- BR-OBJ-010/011: explicit confirmation; each change creates a new version and
-  invalidates dependent results (proposals, selection).
+- BR-OBJ-010/011: the system confirms the formulated version (DEC-021); each
+  later change creates a new version and invalidates dependent results.
 """
 
 from __future__ import annotations
@@ -61,10 +61,14 @@ CAPABILITY_VERBS = (
     "justify",
 )
 
-# BR-OBJ-009: deliverables the MVP does not support must not appear as outcomes.
+# BR-OBJ-009: same terms the prompts forbid, longer phrases first so "projects"
+# is not cut short by "project".
+_DELIVERABLE_PATTERN = "|".join(
+    re.escape(term)
+    for term in sorted(prompts.UNSUPPORTED_DELIVERABLE_TERMS, key=len, reverse=True)
+)
 UNSUPPORTED_DELIVERABLES = re.compile(
-    r"\b(essay|essays|project|projects|portfolio|presentation|slide deck|upload|"
-    r"submit|assignment|capstone|exam)\b",
+    rf"\b(?:{_DELIVERABLE_PATTERN})\b",
     re.IGNORECASE,
 )
 
@@ -100,6 +104,15 @@ def validate_analysis(result: StructuredResult[RequestAnalysisOutput]) -> list[s
             codes.append("precision_options_duplicated")
     elif precision.options:
         codes.append("precision_options_without_need")
+    if any(
+        _has_unsupported_deliverable(
+            option.title, option.explanation, option.relation_to_intention
+        )
+        for option in precision.options
+    ):
+        codes.append("precision_uses_unsupported_deliverable")  # BR-OBJ-009
+    if _has_unsupported_deliverable(out.compatibility.safe_reframing):
+        codes.append("reframing_uses_unsupported_deliverable")  # BR-OBJ-009
     if (
         out.compatibility.classification == "Allowed with reframing"
         and not out.compatibility.safe_reframing
@@ -137,7 +150,22 @@ def _recovery_alternative_codes(out: RequestAnalysisOutput) -> list[str]:
         for item in alternatives
     ):
         codes.append("recovery_alternatives_incomplete")
+    if any(
+        _has_unsupported_deliverable(
+            item.title,
+            item.explanation,
+            item.suggested_intent,
+            item.suggested_outcome,
+        )
+        for item in alternatives
+    ):
+        codes.append("recovery_alternative_uses_unsupported_deliverable")  # BR-OBJ-009
     return codes
+
+
+def _has_unsupported_deliverable(*parts: str | None) -> bool:
+    text = "\n".join(part for part in parts if part)
+    return UNSUPPORTED_DELIVERABLES.search(text) is not None
 
 
 def validate_objective(result: StructuredResult[LearningObjectiveOutput]) -> list[str]:
@@ -176,7 +204,7 @@ async def create_learning_request(
             scope_id=request_id,
             stage="AI-STG-01/02",
             target=f"learning_request:{request_id}",
-            prompt_version=prompts.ANALYZE_REQUEST_V5,
+            prompt_version=prompts.ANALYZE_REQUEST_V6,
             instructions=prompts.ANALYZE_REQUEST_INSTRUCTIONS,
             input=prompts.analyze_request_input(inputs),
             schema=RequestAnalysisOutput,
@@ -226,17 +254,17 @@ async def create_learning_request(
     elif record.precision.needs_precision:
         record.state = RequestState.PRECISION_REQUIRED
     else:
-        await _formulate_objective(record, ai=ai, store=store, feedback=None)
+        # DEC-021: formulation waits for the learning-paths request.
+        record.state = RequestState.OBJECTIVE_CONFIRMATION
 
     store.save_learning_request(record)
     return record
 
 
-async def apply_precision(
+def apply_precision(
     request_id: str,
     payload: PrecisionSelectionRequest,
     *,
-    ai: AIClient,
     store: Store,
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
@@ -276,11 +304,53 @@ async def apply_precision(
         )
 
     # BR-ONB-008: changing the precision invalidates dependent results.
+    # DEC-021: the objective is formulated with the learning paths, not here.
     record.selected_precision = selection
     record.objective_versions = []
     _invalidate_dependents(record)
-    await _formulate_objective(record, ai=ai, store=store, feedback=None)
+    record.state = RequestState.OBJECTIVE_CONFIRMATION
     store.save_learning_request(record)
+    return record
+
+
+_DIRECTIONS_ALREADY_STARTED = {
+    RequestState.PROPOSALS_READY,
+    RequestState.PROPOSAL_SELECTED,
+    RequestState.BLUEPRINT_GENERATING,
+    RequestState.AWAITING_APPROVAL,
+    RequestState.APPROVED,
+}
+
+
+async def prepare_directions(
+    request_id: str, *, ai: AIClient, store: Store
+) -> LearningRequestRecord:
+    """DEC-021: formulate the objective when it is missing, then confirm it.
+
+    Proposal generation stays in the proposals module. A request that already
+    has paths is returned unchanged.
+    """
+    record = store.get_learning_request(request_id)
+    if record.state in (RequestState.INCOMPATIBLE, RequestState.PRECISION_REQUIRED):
+        raise invalid_state(
+            "Learning paths start after the intention is compatible and any "
+            "precision step is resolved."
+        )
+    if record.state in _DIRECTIONS_ALREADY_STARTED:
+        return record
+    if record.current_objective is None:
+        if record.state != RequestState.OBJECTIVE_CONFIRMATION:
+            raise invalid_state(
+                "Learning paths cannot be generated in the current state."
+            )
+        await _formulate_objective(record, ai=ai, store=store, feedback=None)
+        store.save_learning_request(record)
+        record = store.get_learning_request(request_id)
+    current = record.current_objective
+    if current is None:
+        raise invalid_state("There is no objective to confirm for this request.")
+    if record.state == RequestState.OBJECTIVE_CONFIRMATION:
+        return confirm_objective(request_id, current.version, store=store)
     return record
 
 
@@ -347,7 +417,7 @@ async def _formulate_objective(
             scope_id=record.id,
             stage="AI-STG-03",
             target=f"learning_request:{record.id}",
-            prompt_version=prompts.FORMULATE_OBJECTIVE_V2,
+            prompt_version=prompts.FORMULATE_OBJECTIVE_V3,
             instructions=prompts.FORMULATE_OBJECTIVE_INSTRUCTIONS,
             input=prompts.formulate_objective_input(
                 record.inputs,

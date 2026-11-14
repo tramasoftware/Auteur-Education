@@ -108,7 +108,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
     course = store.get_course(course_id)
     if course.started_at is None:
         course.started_at = now()
-        store.save_course(course)
+        store.save_course_progress(course)
     ctx = _build_context(course, store)
     try:
         for module in course.modules:
@@ -137,7 +137,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
                 _fail_course(course, _learner_failure(course, module, reason), store)
                 return
             course.state = CourseState.PARTIALLY_AVAILABLE  # BR-GEN-005
-            store.save_course(course)
+            store.save_course_progress(course)
 
         skipped = [m for m in course.modules if m.state == ModuleState.NOT_BUILT]
         if skipped:
@@ -146,7 +146,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
                 f"Demo build limit reached: {len(skipped)} planned module(s) were not "
                 "generated."
             )
-            store.save_course(course)
+            store.save_course_progress(course)
             return
 
         await _finish_course(course, ctx, ai=ai, store=store)
@@ -206,7 +206,7 @@ def _set_activity(
     if course.state != CourseState.PARTIALLY_AVAILABLE:
         course.state = stage_state
     course.current_activity = f"Module {module.index}: {text}"
-    store.save_course(course)
+    store.save_course_progress(course)
 
 
 def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
@@ -498,7 +498,7 @@ async def _build_lesson(
             lesson.review = review
             lesson.state = LessonState.APPROVED
             lesson.failure = None
-            store.save_course(course)
+            store.save_course_progress(course, lesson_id=lesson.id)
             return True
 
         lesson.review = review
@@ -507,7 +507,7 @@ async def _build_lesson(
             lesson.failure = "Review blocked the lesson: " + "; ".join(
                 review.issues[:3]
             )
-            store.save_course(course)
+            store.save_course_progress(course, lesson_id=lesson.id)
             return False
         if review.result == "Research again":
             focus = [
@@ -523,7 +523,7 @@ async def _build_lesson(
         f"The lesson did not pass review after {settings.generation_max_attempts} "
         "attempts."
     )
-    store.save_course(course)
+    store.save_course_progress(course, lesson_id=lesson.id)
     return False
 
 
@@ -609,7 +609,7 @@ async def _research(
         lesson.evidence = new_items
     lesson.research_questions = out.research_questions
     lesson.unresolved_claims = out.unresolved_claims
-    store.save_course(course)
+    store.save_course_progress(course, lesson_id=lesson.id)
 
 
 def _mark_qa(
@@ -631,7 +631,7 @@ async def _finish_course(
     course: CourseRecord, ctx: BuildContext, *, ai: AIClient, store: Store
 ) -> None:
     course.current_activity = "Writing final synthesis"
-    store.save_course(course)
+    store.save_course_progress(course)
     synthesis = await run_stage(
         ai=ai,
         store=store,
@@ -648,7 +648,7 @@ async def _finish_course(
         max_attempts=settings.generation_max_attempts,
     )
     course.current_activity = "Auditing course"
-    store.save_course(course)
+    store.save_course_progress(course)
     audit = await run_stage(
         ai=ai,
         store=store,
@@ -667,7 +667,7 @@ async def _finish_course(
         course.current_activity = "Course audit did not pass: " + "; ".join(
             audit.parsed.issues[:3]
         )
-        store.save_course(course)
+        store.save_course_progress(course)
         return
     course.final_synthesis = synthesis.parsed
     course.state = CourseState.COMPLETE  # BR-GEN-006

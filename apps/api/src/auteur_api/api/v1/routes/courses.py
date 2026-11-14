@@ -15,6 +15,7 @@ from auteur_api.modules.generation import service as courses
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
     CourseResponse,
+    CourseStatusResponse,
     LessonResponse,
     ModuleResponse,
 )
@@ -62,6 +63,16 @@ def active_generation(
 def get_course(course_id: str, store: Store, user_id: CurrentUserId) -> CourseResponse:
     """UF-06: real build state and published modules (BR-GEN-007)."""
     return courses.course_view(store.get_course_view(course_id, user_id=user_id))
+
+
+@router.get("/{course_id}/status", response_model=CourseStatusResponse)
+def get_course_status(
+    course_id: str, store: Store, user_id: CurrentUserId
+) -> CourseStatusResponse:
+    """Build poll: course activity and module states, without lesson bodies."""
+    return courses.course_status_view(
+        store.get_course_status(course_id, user_id=user_id)
+    )
 
 
 @router.get("/{course_id}/modules/{module_id}", response_model=ModuleResponse)

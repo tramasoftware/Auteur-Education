@@ -34,7 +34,7 @@ export function PlansPage() {
                   <li key={item}>{item}</li>
                 ))}
               </ul>
-              <Link className="btn" href="/onboarding">
+              <Link className="btn" href="/onboarding?new=1">
                 Create my course
                 <span className="ar" aria-hidden="true" />
               </Link>
@@ -52,7 +52,7 @@ export function PlansPage() {
                   <li key={item}>{item}</li>
                 ))}
               </ul>
-              <Link className="btn" href="/onboarding">
+              <Link className="btn" href="/onboarding?new=1">
                 Create your first course
                 <span className="ar" aria-hidden="true" />
               </Link>

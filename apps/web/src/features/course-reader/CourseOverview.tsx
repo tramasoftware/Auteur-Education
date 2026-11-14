@@ -10,6 +10,7 @@ import { usePolling } from "@/lib/usePolling";
 import type {
   Course,
   CourseProgress,
+  CourseStatus,
   LearningStatus,
   ModuleState,
   ModuleSummary,
@@ -17,7 +18,15 @@ import type {
 
 import { CourseOutlineScreen } from "./CourseOutlineScreen";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
-import { afterReadingWrites, warmCourseReading } from "./module-reading-cache";
+import {
+  afterReadingWrites,
+  loadCourseProgress,
+  peekCourseOutline,
+  peekCourseProgress,
+  rememberCourseOutline,
+  rememberCourseProgress,
+  warmCourseReading,
+} from "./module-reading-cache";
 import { Prose } from "./Prose";
 
 const BUILDING: Course["state"][] = [
@@ -33,6 +42,68 @@ const IN_PROGRESS: ModuleState[] = [
   "writing",
   "reviewing",
 ];
+
+function statusNeedsFullCourse(course: Course, status: CourseStatus): boolean {
+  if (status.modules.length !== course.modules.length) {
+    return true;
+  }
+  if (
+    (status.state === "complete" && course.state !== "complete") ||
+    (status.state === "failed" && course.state !== "failed") ||
+    (status.state === "complete" && !course.final_synthesis)
+  ) {
+    return true;
+  }
+  return status.modules.some((module) => {
+    const current = course.modules.find((item) => item.id === module.id);
+    return !current || (module.state === "published" && current.state !== "published");
+  });
+}
+
+function statusMatches(course: Course, status: CourseStatus): boolean {
+  if (course.state !== status.state || course.current_activity !== status.current_activity) {
+    return false;
+  }
+  return status.modules.every((module) =>
+    course.modules.some((item) => item.id === module.id && item.state === module.state),
+  );
+}
+
+function patchCourseStatus(course: Course, status: CourseStatus): Course {
+  const byId = new Map(status.modules.map((module) => [module.id, module.state]));
+  return {
+    ...course,
+    state: status.state,
+    current_activity: status.current_activity,
+    modules: course.modules.map((module) => {
+      const state = byId.get(module.id);
+      return state && state !== module.state ? { ...module, state } : module;
+    }),
+  };
+}
+
+function outlineKey(course: Course): string {
+  return [
+    course.state,
+    course.current_activity ?? "",
+    course.failure ?? "",
+    course.final_synthesis?.body ?? "",
+    course.modules
+      .map((module) =>
+        [
+          module.id,
+          module.state,
+          module.published_at ?? "",
+          module.lesson_count,
+          module.has_synthesis ? "1" : "0",
+          module.source_count,
+          module.question_count ?? "",
+          module.lessons.map((lesson) => `${lesson.id}:${lesson.word_count}`).join(","),
+        ].join("|"),
+      )
+      .join(";"),
+  ].join("#");
+}
 
 const SKELETON_WIDTHS = [
   [22, 34],
@@ -402,37 +473,49 @@ function ModuleSection({
 
 /** UF-06: real build states, progressive publication, final synthesis. */
 export function CourseOverview({ courseId }: { courseId: string }) {
-  const [course, setCourse] = useState<Course | null>(null);
-  const [progress, setProgress] = useState<CourseProgress | null>(null);
+  const [course, setCourse] = useState<Course | null>(() => peekCourseOutline(courseId));
+  const [progress, setProgress] = useState<CourseProgress | null>(() =>
+    peekCourseProgress(courseId),
+  );
   const [error, setError] = useState<unknown>(null);
+  const [shownId, setShownId] = useState(courseId);
   const retryLock = useRef(false);
+  if (shownId !== courseId) {
+    setShownId(courseId);
+    setCourse(peekCourseOutline(courseId));
+    setProgress(peekCourseProgress(courseId));
+    setError(null);
+  }
 
   const load = useCallback(
     () => {
       if (retryLock.current) {
         return Promise.resolve();
       }
-      return courses.get(courseId).then(
-        async (next) => {
+      const coursePromise = courses.get(courseId).then(
+        (next) => {
           if (retryLock.current) {
             return;
           }
-          try {
-            await afterReadingWrites();
-            const learning = await courses.progress(next.id).catch(() => null);
-            if (retryLock.current) {
-              return;
-            }
-            setCourse(next);
-            setProgress(learning);
-            setError(null);
-            void warmCourseReading(next);
-          } catch (err: unknown) {
-            setError(err);
-          }
+          setCourse((prev) => (prev && outlineKey(prev) === outlineKey(next) ? prev : next));
+          setError(null);
+          void warmCourseReading(next);
         },
         (err: unknown) => setError(err),
       );
+      const progressPromise = afterReadingWrites()
+        .then(() => {
+          if (retryLock.current) {
+            return null;
+          }
+          return loadCourseProgress(courseId).catch(() => null);
+        })
+        .then((learning) => {
+          if (!retryLock.current && learning) {
+            setProgress(learning);
+          }
+        });
+      return Promise.all([coursePromise, progressPromise]).then(() => undefined);
     },
     [courseId],
   );
@@ -441,13 +524,36 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     load();
   }, [load]);
 
+  const poll = useCallback(() => {
+    if (retryLock.current || !course) {
+      return Promise.resolve();
+    }
+    return courses.status(courseId).then(
+      (status) => {
+        if (retryLock.current) {
+          return;
+        }
+        if (statusNeedsFullCourse(course, status)) {
+          return load();
+        }
+        if (statusMatches(course, status)) {
+          return;
+        }
+        const patched = patchCourseStatus(course, status);
+        rememberCourseOutline(patched);
+        setCourse(patched);
+      },
+      (err: unknown) => setError(err),
+    );
+  }, [course, courseId, load]);
+
   const building =
     !!course &&
     (BUILDING.includes(course.state) ||
       (course.state === "partially_available" &&
         course.modules.some((module) => IN_PROGRESS.includes(module.state))));
 
-  usePolling(load, building, 5000);
+  usePolling(poll, building, 5000);
 
   async function retry() {
     const snapshot = course;
@@ -461,7 +567,10 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       const learning = await courses.progress(next.id).catch(() => null);
       retryLock.current = false;
       setCourse(next);
-      setProgress(learning);
+      if (learning) {
+        rememberCourseProgress(next.id, learning);
+        setProgress(learning);
+      }
       void warmCourseReading(next);
     } catch (err: unknown) {
       retryLock.current = false;

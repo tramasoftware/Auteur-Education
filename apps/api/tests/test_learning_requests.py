@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
-from tests.fixtures import REQUEST_BODY, analysis, objective, recovery_alternatives
+from tests.fixtures import (
+    REQUEST_BODY,
+    analysis,
+    objective,
+    proposal_set,
+    recovery_alternatives,
+)
 
-from auteur_api.modules.onboarding.prompts import ANALYZE_REQUEST_INSTRUCTIONS
+from auteur_api.ai.client import StructuredResult
+from auteur_api.ai.tracing import TokenUsage
+from auteur_api.modules.onboarding.prompts import (
+    ANALYZE_REQUEST_INSTRUCTIONS,
+    FORMULATE_OBJECTIVE_INSTRUCTIONS,
+    UNSUPPORTED_DELIVERABLE_TERMS,
+)
 from auteur_api.modules.onboarding.schemas import (
     CompatibilityAssessment,
     Interpretation,
@@ -12,29 +24,25 @@ from auteur_api.modules.onboarding.schemas import (
     RecoveryAlternative,
     RequestAnalysisOutput,
 )
+from auteur_api.modules.onboarding.service import validate_analysis
+from auteur_api.modules.proposals.schemas import ProposalSetOutput
 
 
 def create(client, fake_ai, **kwargs):
     fake_ai.enqueue(RequestAnalysisOutput, analysis(**kwargs))
-    if not kwargs.get("needs_precision") and kwargs.get("classification") != (
-        "Incompatible"
-    ):
-        fake_ai.enqueue(LearningObjectiveOutput, objective())
     response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
     return response
 
 
-def test_specific_intent_skips_precision_and_formulates_objective(
-    client, fake_ai
-) -> None:
-    # BR-OBJ-007: precision omitted when the intention is specific.
+def test_specific_intent_skips_precision_and_waits_for_paths(client, fake_ai) -> None:
+    # BR-OBJ-007 / DEC-021: a specific intention skips precision and does not
+    # formulate the objective until learning paths are requested.
     response = create(client, fake_ai)
     assert response.status_code == 201
     body = response.json()
     assert body["state"] == "objective_confirmation"
     assert body["precision"]["needs_precision"] is False
-    assert body["objective"]["version"] == 1
-    assert body["objective"]["confirmed"] is False
+    assert body["objective"] is None
     assert body["compatibility"]["classification"] == "Allowed"
     assert body["learning_orientation"] == "theoretical"
 
@@ -51,7 +59,6 @@ def test_invalid_level_is_rejected(client) -> None:
 def test_former_basic_level_is_stored_as_beginner(client, fake_ai) -> None:
     # BR-ONB-004: Basic was renamed; older clients still send it.
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     response = client.post(
         "/api/v1/learning-requests",
         json={**REQUEST_BODY, "experience_level": "Basic"},
@@ -110,7 +117,6 @@ def test_allowed_request_with_recovery_alternatives_is_retried(client, fake_ai) 
         analysis(alternatives=recovery_alternatives(1)),
     )
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
     assert response.status_code == 201
     assert response.json()["compatibility"]["recovery_alternatives"] == []
@@ -192,7 +198,6 @@ def test_ambiguous_intent_requires_precision_then_objective(client, fake_ai) -> 
     assert body["objective"] is None
 
     option_id = body["precision"]["options"][1]["id"]
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     chosen = client.post(
         f"/api/v1/learning-requests/{body['id']}/precision",
         json={"option_id": option_id},
@@ -200,8 +205,8 @@ def test_ambiguous_intent_requires_precision_then_objective(client, fake_ai) -> 
     assert chosen.status_code == 200
     chosen_body = chosen.json()
     assert chosen_body["state"] == "objective_confirmation"
+    assert chosen_body["objective"] is None
     assert chosen_body["selected_precision"]["option_id"] == option_id
-    assert "selected_learning_object" in fake_ai.calls[-1]["input"]
 
 
 def test_precision_option_count_is_validated_and_retried(client, fake_ai) -> None:
@@ -215,21 +220,109 @@ def test_precision_option_count_is_validated_and_retried(client, fake_ai) -> Non
     assert "precision_options_count" in fake_ai.calls[1]["input"]
 
 
+def test_precision_option_with_deliverable_word_is_retried(client, fake_ai) -> None:
+    # BR-OBJ-009: a precision title must not plant a word the objective filter rejects.
+    bad = analysis(needs_precision=True, options=3)
+    bad["precision"]["options"][0]["title"] = "Using AI in creative projects"
+    fake_ai.enqueue(RequestAnalysisOutput, bad)
+    fake_ai.enqueue(RequestAnalysisOutput, analysis(needs_precision=True, options=3))
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    assert "projects" not in response.json()["precision"]["options"][0]["title"].lower()
+    assert "precision_uses_unsupported_deliverable" in fake_ai.calls[1]["input"]
+
+
+def test_recovery_alternative_with_deliverable_word_is_retried(client, fake_ai) -> None:
+    # BR-OBJ-009: a suggested intention is resubmitted, so the word cannot travel.
+    alternatives = recovery_alternatives()
+    alternatives[0]["suggested_intent"] = "I want to learn how to scope a project."
+    fake_ai.enqueue(
+        RequestAnalysisOutput,
+        analysis(classification="Incompatible", alternatives=alternatives),
+    )
+    fake_ai.enqueue(RequestAnalysisOutput, analysis(classification="Incompatible"))
+    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert response.status_code == 201
+    assert response.json()["state"] == "incompatible"
+    saved = response.json()["compatibility"]["recovery_alternatives"][0]
+    assert "project" not in saved["suggested_intent"].lower()
+    diagnostic = fake_ai.calls[1]["input"]
+    assert "recovery_alternative_uses_unsupported_deliverable" in diagnostic
+
+
+def test_prompts_share_the_deliverable_word_list() -> None:
+    listed = ", ".join(UNSUPPORTED_DELIVERABLE_TERMS)
+    assert listed in ANALYZE_REQUEST_INSTRUCTIONS
+    assert listed in FORMULATE_OBJECTIVE_INSTRUCTIONS
+    assert "presentations, portfolios, exams" in ANALYZE_REQUEST_INSTRUCTIONS
+    assert "presentations, portfolios, exams" in FORMULATE_OBJECTIVE_INSTRUCTIONS
+
+
+def test_deliverable_word_in_reframing_is_rejected_and_learner_quotes_are_not() -> None:
+    # BR-OBJ-009: reused model fields are checked; the learner's words are not.
+    quoted = analysis()
+    quoted["interpreted_intention"] = "Use AI for my projects."
+    quoted["explicitly_stated"] = ["for my projects"]
+    quoted["compatibility"]["explanation"] = (
+        "Text can teach this. It does not ask the learner to submit a project."
+    )
+    codes = validate_analysis(_analysis_result(quoted))
+    assert "precision_uses_unsupported_deliverable" not in codes
+    assert "reframing_uses_unsupported_deliverable" not in codes
+    assert "recovery_alternative_uses_unsupported_deliverable" not in codes
+
+    reframed = analysis(
+        classification="Allowed with reframing",
+        reframing="Judge a design project without building it.",
+    )
+    assert (
+        "reframing_uses_unsupported_deliverable"
+        in validate_analysis(_analysis_result(reframed))
+    )
+
+
+def _analysis_result(payload: dict) -> StructuredResult[RequestAnalysisOutput]:
+    return StructuredResult(
+        parsed=RequestAnalysisOutput.model_validate(payload),
+        usage=TokenUsage(),
+        model="test",
+        duration_ms=0,
+    )
+
+
 def test_objective_without_capability_verb_is_retried(client, fake_ai) -> None:
-    # BR-OBJ-008
+    # BR-OBJ-008: formulation runs with the learning paths (DEC-021).
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
     bad = objective("Write an essay about the French Revolution.")
     bad["observable_capability"] = "Produce an essay."
     fake_ai.enqueue(LearningObjectiveOutput, bad)
     fake_ai.enqueue(LearningObjectiveOutput, objective())
-    response = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
-    assert response.status_code == 201
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
+    created = client.post("/api/v1/learning-requests", json=REQUEST_BODY)
+    assert created.status_code == 201
+    request_id = created.json()["id"]
+    response = client.post(f"/api/v1/learning-requests/{request_id}/directions")
+    assert response.status_code == 200
+    assert response.json()["objective"]["confirmed"] is True
     assert "objective_invents_deliverable" in fake_ai.calls[2]["input"]
 
 
+def _unconfirmed_objective(client, fake_ai, request_id: str):
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    formulated = client.post(
+        f"/api/v1/learning-requests/{request_id}/objective/revisions",
+        json={"feedback": "Keep this focus."},
+    )
+    assert formulated.status_code == 200
+    assert formulated.json()["objective"]["confirmed"] is False
+    return formulated.json()
+
+
 def test_confirm_requires_exact_version_and_is_idempotent(client, fake_ai) -> None:
-    # BR-OBJ-010
+    # BR-OBJ-010: the confirm endpoint still checks the version. The product
+    # path confirms inside /directions.
     body = create(client, fake_ai).json()
+    _unconfirmed_objective(client, fake_ai, body["id"])
     url = f"/api/v1/learning-requests/{body['id']}/objective/confirm"
     stale = client.post(url, json={"version": 2})
     assert stale.status_code == 409
@@ -249,6 +342,7 @@ def test_revision_creates_new_version_and_invalidates(client, fake_ai) -> None:
     # BR-OBJ-011
     body = create(client, fake_ai).json()
     request_id = body["id"]
+    _unconfirmed_objective(client, fake_ai, request_id)
     client.post(
         f"/api/v1/learning-requests/{request_id}/objective/confirm",
         json={"version": 1},
@@ -270,6 +364,52 @@ def test_revision_creates_new_version_and_invalidates(client, fake_ai) -> None:
         json={"version": 1},
     )
     assert old.status_code == 409
+
+
+def test_directions_confirm_objective_and_generate_paths(client, fake_ai) -> None:
+    # DEC-021
+    body = create(client, fake_ai).json()
+    assert body["objective"] is None
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
+    first = client.post(f"/api/v1/learning-requests/{body['id']}/directions")
+    assert first.status_code == 200
+    ready = first.json()
+    assert ready["state"] == "proposals_ready"
+    assert ready["objective"]["confirmed"] is True
+    assert len(ready["proposals"]["proposals"]) == 4
+    assert "selected_learning_object" not in fake_ai.calls[1]["input"]
+
+    again = client.post(f"/api/v1/learning-requests/{body['id']}/directions")
+    assert again.status_code == 200
+    assert again.json()["proposals"]["id"] == ready["proposals"]["id"]
+    assert len(fake_ai.calls) == 3
+
+
+def test_directions_reject_precision_and_incompatible(client, fake_ai) -> None:
+    broad = create(client, fake_ai, needs_precision=True, options=3).json()
+    blocked = client.post(f"/api/v1/learning-requests/{broad['id']}/directions")
+    assert blocked.status_code == 409
+
+    rejected = create(client, fake_ai, classification="Incompatible").json()
+    blocked = client.post(f"/api/v1/learning-requests/{rejected['id']}/directions")
+    assert blocked.status_code == 409
+
+
+def test_directions_use_the_chosen_precision(client, fake_ai) -> None:
+    body = create(client, fake_ai, needs_precision=True, options=3).json()
+    option = body["precision"]["options"][0]
+    chosen = client.post(
+        f"/api/v1/learning-requests/{body['id']}/precision",
+        json={"option_id": option["id"]},
+    )
+    assert chosen.json()["objective"] is None
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
+    ready = client.post(f"/api/v1/learning-requests/{body['id']}/directions")
+    assert ready.status_code == 200
+    assert ready.json()["objective"]["confirmed"] is True
+    assert option["title"] in fake_ai.calls[-2]["input"]
 
 
 def test_get_returns_persisted_state(client, fake_ai) -> None:

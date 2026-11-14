@@ -95,23 +95,24 @@ def test_published_course_get_does_not_call_ai(client, fake_ai) -> None:
 
 def test_blueprint_get_does_not_call_ai(client, fake_ai) -> None:
     rid = selected_request(client, fake_ai)
+    script_full_build(fake_ai)
     fake_ai.enqueue(BlueprintOutput, blueprint())
     bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     calls_before = len(fake_ai.calls)
     response = client.get(f"/api/v1/blueprints/{bid}")
     assert response.status_code == 200
-    assert response.json()["state"] == "awaiting_approval"
+    assert response.json()["state"] == "approved"
     assert len(fake_ai.calls) == calls_before
 
 
 def test_failed_build_is_readable_from_store(client, fake_ai) -> None:
     rid = selected_request(client, fake_ai)
+    script_full_build(fake_ai)
     fake_ai.enqueue(BlueprintOutput, blueprint())
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     fake_ai.enqueue(ResearchOutput, GenerationError("provider", "timeout"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     stored = store.get_course(course_id)
     assert stored.state == CourseState.FAILED
     fetched = client.get(f"/api/v1/courses/{course_id}")

@@ -115,12 +115,6 @@ def proposal(index: int, *, title: str | None = None) -> dict[str, Any]:
         "intellectual_outcome": f"Outcome {index}",
         "distinctive_trajectory": f"Trajectory {index}",
         "organizing_principle": f"Principle {index}",
-        "direction_label": (
-            "Through history",
-            "By theme",
-            "Through case studies",
-            "Through debate",
-        )[index % 4],
         "scope": ["a", "b"],
         "exclusions": ["c"],
         "level_fit": "Suitable for Beginner level.",

@@ -5,10 +5,11 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { LandingFooter } from "@/features/landing/LandingFooter";
 import "@/features/landing/landing.css";
-import { getAccountProfile } from "@/lib/api";
+import { getAccountProfile, peekAccountProfile } from "@/lib/api";
 import {
   accountStampNow,
   currentUserId,
+  peekCurrentUserId,
   readMemberDisplay,
   rememberFetchedAccount,
 } from "@/lib/member-display";
@@ -30,7 +31,18 @@ export function MemberFrame({
   portraitSrc?: string | null;
   children: ReactNode;
 }) {
-  const [fetchedSrc, setFetchedSrc] = useState<string | null>(null);
+  const [fetchedSrc, setFetchedSrc] = useState<string | null>(() => {
+    if (portraitSrc !== undefined) {
+      return null;
+    }
+    const account = peekAccountProfile();
+    if (account) {
+      return account.image_url ?? account.avatar_url;
+    }
+    const userId = peekCurrentUserId();
+    const cached = userId ? readMemberDisplay(userId) : null;
+    return cached ? (cached.imageUrl ?? cached.avatarUrl) : null;
+  });
 
   useEffect(() => {
     if (portraitSrc !== undefined) {
@@ -38,7 +50,8 @@ export function MemberFrame({
     }
     let cancelled = false;
     void (async () => {
-      const userId = await currentUserId();
+      const knownId = peekCurrentUserId();
+      const userId = knownId ?? (await currentUserId());
       const cached = userId ? readMemberDisplay(userId) : null;
       if (cancelled) {
         return;

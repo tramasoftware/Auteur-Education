@@ -41,6 +41,15 @@ def new_id() -> str:
 
 
 @dataclass(frozen=True)
+class CourseStatus:
+    """Build poll fields. Lesson bodies and drafts stay unread."""
+
+    state: CourseState
+    current_activity: str | None
+    modules: tuple[tuple[str, ModuleState], ...]
+
+
+@dataclass(frozen=True)
 class CourseBuildSnapshot:
     """Fields BR-GEN-002 needs. Module and lesson bodies stay out of this read."""
 
@@ -158,6 +167,18 @@ class Store(Protocol):
     ) -> CourseRecord: ...
 
     def save_course(self, record: CourseRecord) -> None: ...
+
+    def save_course_progress(
+        self,
+        record: CourseRecord,
+        *,
+        module_id: str | None = None,
+        lesson_id: str | None = None,
+    ) -> None: ...
+
+    def get_course_status(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseStatus: ...
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]: ...
 
@@ -299,6 +320,27 @@ class DemoStore:
 
     def save_course(self, record: CourseRecord) -> None:
         self.courses[record.id] = record
+
+    def save_course_progress(
+        self,
+        record: CourseRecord,
+        *,
+        module_id: str | None = None,
+        lesson_id: str | None = None,
+    ) -> None:
+        # One object per course. The partial write is the Postgres path.
+        del module_id, lesson_id
+        self.courses[record.id] = record
+
+    def get_course_status(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseStatus:
+        course = self.get_course(course_id, user_id=user_id)
+        return CourseStatus(
+            state=course.state,
+            current_activity=course.current_activity,
+            modules=tuple((module.id, module.state) for module in course.modules),
+        )
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
         return [entry.item for entry in self.list_library(user_id)]
