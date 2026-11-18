@@ -13,7 +13,7 @@ import {
   moduleClosureLabel,
   resumeHref,
 } from "@/lib/course-progress";
-import { useCourseBuildWatch } from "@/lib/useCourseBuildWatch";
+import { useCourseBuildWatch, type CourseWatchHold } from "@/lib/useCourseBuildWatch";
 import type {
   Course,
   CourseProgress,
@@ -585,6 +585,10 @@ export function CourseOverview({ courseId }: { courseId: string }) {
   const [error, setError] = useState<unknown>(null);
   const [shownId, setShownId] = useState(courseId);
   const retryLock = useRef(false);
+  // Bumped when retry commits so a status read from the failed attempt cannot
+  // end the watch and leave the outline on "Queued".
+  const watchEpoch = useRef(0);
+  const [watchRun, setWatchRun] = useState(0);
   if (shownId !== courseId) {
     setShownId(courseId);
     setCourse(peekCourseOutline(courseId));
@@ -641,10 +645,10 @@ export function CourseOverview({ courseId }: { courseId: string }) {
         course.modules.some((module) => IN_PROGRESS.includes(module.state))));
 
   const applyStatus = useCallback(
-    (status: CourseStatus) => {
+    (status: CourseStatus): void | CourseWatchHold | Promise<void> => {
       const current = courseRef.current;
       if (retryLock.current || !current) {
-        return;
+        return "hold";
       }
       if (statusNeedsFullCourse(current, status)) {
         return load();
@@ -659,7 +663,14 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     [load],
   );
 
-  useCourseBuildWatch(courseId, building, applyStatus, courseStillBuilding);
+  useCourseBuildWatch(
+    courseId,
+    building,
+    applyStatus,
+    courseStillBuilding,
+    watchRun,
+    watchEpoch,
+  );
 
   async function retry() {
     const snapshot = course;
@@ -671,7 +682,9 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     try {
       const next = await courses.retry(courseId);
       const learning = await courses.progress(next.id).catch(() => null);
+      watchEpoch.current += 1;
       retryLock.current = false;
+      setWatchRun(watchEpoch.current);
       setCourse(next);
       if (learning) {
         rememberCourseProgress(next.id, learning);
