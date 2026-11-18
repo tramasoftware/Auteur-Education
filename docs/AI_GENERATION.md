@@ -67,7 +67,7 @@ Este documento comprende:
 - precisión del objeto de aprendizaje;
 - formulación del objetivo;
 - generación y diferenciación de propuestas;
-- generación y revisión del Blueprint;
+- generación del Blueprint, confirmado por el sistema sin pantalla (`DEC-022`);
 - planificación de investigación;
 - búsqueda, selección y trazabilidad de fuentes;
 - especificación y generación de módulos y lecciones;
@@ -122,7 +122,7 @@ Las propuestas deben representar recorridos intelectuales realmente distintos. E
 
 ### AI-PRN-08 Control humano
 
-El usuario confirma el objetivo, selecciona una propuesta y aprueba una versión exacta del Blueprint antes de iniciar el build.
+El sistema confirma el objetivo (`DEC-021`). El usuario selecciona una propuesta. El sistema confirma la versión exacta del Blueprint e inicia el build (`DEC-022`).
 
 ### AI-PRN-09 Calidad antes de publicación
 
@@ -144,9 +144,9 @@ El proceso generativo puede recibir únicamente información pertinente y valida
 | `expected_outcome` | Usuario | Capacidad o comprensión esperada. |
 | `compatibility_assessment` | `AI-STG-01` validada | Determina si puede continuar, reformularse o rechazarse. |
 | `learning_object` | Usuario o `AI-STG-02` confirmada | Recorte específico cuando la intención es amplia. |
-| `confirmed_objective` | `AI-STG-03` y usuario | Objetivo versionado que gobierna etapas posteriores. |
+| `confirmed_objective` | `AI-STG-03`; el sistema confirma la versión (`DEC-021`) | Objetivo versionado que gobierna etapas posteriores. |
 | `selected_proposal` | `AI-STG-04` y usuario | Dirección vigente elegida. |
-| `approved_blueprint` | `AI-STG-05` y usuario | Contrato pedagógico exacto del build. |
+| `approved_blueprint` | `AI-STG-05`; el sistema confirma la versión (`DEC-022`) | Contrato pedagógico exacto del build. |
 | `verified_evidence` | `AI-STG-06`/`07` validada | Evidencia permitida para planificar y redactar. |
 | `published_dependencies` | Sistema | Unidades anteriores válidas que deben conservarse. |
 
@@ -165,9 +165,9 @@ El proceso generativo puede recibir únicamente información pertinente y valida
 | --- | --- | --- | --- | --- |
 | `AI-STG-01` | Clasificar compatibilidad | Intención y resultado esperado | `CompatibilityAssessment` | Clasificación válida y segura. |
 | `AI-STG-02` | Precisar objeto | Intención compatible y contexto | `PrecisionResult` | Objeto seleccionado o precisión innecesaria. |
-| `AI-STG-03` | Formular objetivo | Intención, nivel, contexto, resultado y precisión | `LearningObjective` | Confirmación explícita del usuario. |
+| `AI-STG-03` | Formular objetivo | Intención, nivel, contexto, resultado y precisión | `LearningObjective` | Confirmación automática del sistema (`DEC-021`). |
 | `AI-STG-04` | Generar propuestas | Objetivo confirmado y perfil pedagógico | `ProposalSet` | Una propuesta vigente seleccionada. |
-| `AI-STG-05` | Generar Blueprint | Objetivo, propuesta y contexto | `Blueprint` | Versión exacta aprobada por el usuario. |
+| `AI-STG-05` | Generar Blueprint | Objetivo, propuesta y contexto | `Blueprint` | Versión exacta confirmada por el sistema (`DEC-022`). |
 | `AI-STG-06` | Planificar investigación | Blueprint aprobado y unidad objetivo | `ResearchPlan` | Plan suficiente y coherente. |
 | `AI-STG-07` | Construir evidencia | Plan de investigación y fuentes recuperadas | `EvidenceSet` lógico | Evidencia verificada y suficiente. |
 | `AI-STG-08` | Especificar lección | Blueprint, dependencias y evidencia | `LessonSpec` | Cobertura y función pedagógica válidas. |
@@ -306,7 +306,7 @@ El conjunto contiene exactamente cuatro propuestas (`DEC-019`). Cada `CourseProp
 
 ### Objetivo
 
-Convertir la propuesta seleccionada en un contrato pedagógico justificable y revisable.
+Convertir la propuesta seleccionada en un contrato pedagógico justificable. El learner no lo revisa (`DEC-022`).
 
 ### Salida visible requerida: `Blueprint`
 
@@ -348,11 +348,11 @@ Convertir la propuesta seleccionada en un contrato pedagógico justificable y re
 
 ### Versionado y revisión
 
-- Cada solicitud de cambios produce una nueva versión completa.
-- La versión anterior se conserva para trazabilidad.
-- Solo la versión vigente puede aprobarse.
-- Una revisión invalida cualquier aprobación anterior.
-- La construcción nunca comienza sin aprobación explícita de una versión exacta.
+- La versión generada queda confirmada por el sistema (`DEC-022`).
+- La versión anterior se conservaría para trazabilidad si una revisión futura produjera otra.
+- Solo la versión vigente puede confirmarse.
+- La construcción nunca comienza sin confirmación de una versión exacta.
+- La revisión por el usuario no forma parte del recorrido actual.
 
 ## AI-STG-06 Planificación de investigación
 
@@ -724,7 +724,7 @@ Las salidas deben poder asociarse con las reglas y entradas vigentes que las pro
 | `AI-QA-01` | Compatibilidad | La solicitud es incompatible o insegura. |
 | `AI-QA-02` | Objetivo | No está confirmado, es inalcanzable o inventa entregables. |
 | `AI-QA-03` | Propuestas | No son genuinamente distintas o contradicen el objetivo. |
-| `AI-QA-04` | Blueprint | Está incompleto, injustificado o no fue aprobado. |
+| `AI-QA-04` | Blueprint | Está incompleto, injustificado o no fue confirmado. |
 | `AI-QA-05` | Evidencia | Faltan fuentes verificadas para claims centrales. |
 | `AI-QA-06` | `LessonSpec` | La unidad no tiene función, duplica contenido o rompe dependencias. |
 | `AI-QA-07` | Lección | Es superficial, genérica, incoherente, insegura o no apta para audio. |

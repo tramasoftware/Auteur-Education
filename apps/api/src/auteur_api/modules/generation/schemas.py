@@ -1,8 +1,11 @@
 """Course build contracts (AI-STG-06..16, BR-GEN-*, BR-SRC-*, BR-KCK-*).
 
 Model output schemas are strict (every field required, `| None` for optional).
-Records hold the full build state in memory; API responses only expose published
-content (BR-GEN-004) plus real, persisted build states (BR-GEN-007).
+Records hold the full build state in memory. API responses expose an approved
+lesson as soon as its draft is persisted (DEC-023). Module synthesis, the
+Knowledge Check and aggregated sources stay hidden until the module is
+published (BR-GEN-004). Build states shown to the client are the persisted
+ones (BR-GEN-007).
 """
 
 from __future__ import annotations
@@ -301,10 +304,14 @@ class LessonRecord(BaseModel):
     attempts: int = 0
     research_rounds: int = 0
     evidence: list[EvidenceItem] = []
+    # URLs only, from the course-overview read. Empty when the lesson body was loaded.
+    evidence_urls: list[str] = []
     research_questions: list[str] = []
     unresolved_claims: list[str] = []
     spec: LessonSpecOutput | None = None
     draft: LessonDraftOutput | None = None
+    # Outline reads omit the draft body. This records that one is stored.
+    draft_stored: bool = False
     word_count: int = 0
     review: LessonReviewOutput | None = None
     failure: str | None = None
@@ -322,6 +329,9 @@ class ModuleRecord(BaseModel):
     lessons: list[LessonRecord] = []
     synthesis: str | None = None
     knowledge_check: KnowledgeCheckOutput | None = None
+    # Set by the course-overview read, which does not load synthesis or the check.
+    overview_has_synthesis: bool | None = None
+    overview_question_count: int | None = None
     audit: ModuleAuditOutput | None = None
     published_at: datetime | None = None
     failure: str | None = None
@@ -348,7 +358,7 @@ class CourseRecord(BaseModel):
     completed_at: datetime | None = None
 
 
-# --- API responses (published content only) ---
+# --- API responses (approved lessons; module extras only once published) ---
 
 
 class ModuleLessonOutline(BaseModel):
@@ -358,6 +368,7 @@ class ModuleLessonOutline(BaseModel):
     index: int
     title: str
     word_count: int
+    state: LessonState
 
 
 class ModuleSummary(BaseModel):
@@ -391,6 +402,34 @@ class CourseResponse(BaseModel):
     failure: str | None
     module_limit: int | None
     created_at: datetime
+
+
+class CourseStatusLesson(BaseModel):
+    """Lesson build state for the poll. No lesson text."""
+
+    id: str
+    state: LessonState
+
+
+class CourseStatusModule(BaseModel):
+    """Module state for the build poll. No lesson text."""
+
+    id: str
+    state: ModuleState
+    lessons: list[CourseStatusLesson] = []
+
+
+class CourseStatusResponse(BaseModel):
+    """What changed while a course is still being written.
+
+    `seen` is the token a waiting read sends back. The same token means the
+    build has not persisted a new activity or lesson state.
+    """
+
+    state: CourseState
+    current_activity: str | None
+    seen: str
+    modules: list[CourseStatusModule]
 
 
 class CourseListItem(BaseModel):
@@ -432,6 +471,7 @@ class OutlineLesson(BaseModel):
     index: int
     title: str
     word_count: int
+    state: LessonState
 
 
 class LessonSummary(BaseModel):
@@ -440,6 +480,7 @@ class LessonSummary(BaseModel):
     title: str
     purpose: str
     word_count: int
+    state: LessonState
 
 
 class SourceView(BaseModel):

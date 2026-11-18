@@ -1,10 +1,10 @@
 """Course build orchestration (UF-06, BR-GEN-001..012).
 
-One in-process background task per course. Modules are built in Blueprint order
-and published atomically after research, writing, independent review, synthesis,
-Knowledge Check and module audit. States exposed to the client are the real ones
-recorded here (BR-GEN-007). Failures keep everything already published
-(BR-GEN-010) and record a functional diagnostic.
+One in-process background task per course. Modules are built in Blueprint order.
+A lesson is readable once it is approved (DEC-023). The module is still published
+atomically after synthesis, Knowledge Check and module audit. States exposed to
+the client are the real ones recorded here (BR-GEN-007). Failures keep published
+modules and approved lessons (BR-GEN-010) and record a functional diagnostic.
 """
 
 from __future__ import annotations
@@ -108,7 +108,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
     course = store.get_course(course_id)
     if course.started_at is None:
         course.started_at = now()
-        store.save_course(course)
+        store.save_course_progress(course)
     ctx = _build_context(course, store)
     try:
         for module in course.modules:
@@ -137,7 +137,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
                 _fail_course(course, _learner_failure(course, module, reason), store)
                 return
             course.state = CourseState.PARTIALLY_AVAILABLE  # BR-GEN-005
-            store.save_course(course)
+            store.save_course_progress(course)
 
         skipped = [m for m in course.modules if m.state == ModuleState.NOT_BUILT]
         if skipped:
@@ -146,7 +146,7 @@ async def run_build(course_id: str, *, ai: AIClient, store: Store) -> None:
                 f"Demo build limit reached: {len(skipped)} planned module(s) were not "
                 "generated."
             )
-            store.save_course(course)
+            store.save_course_progress(course)
             return
 
         await _finish_course(course, ctx, ai=ai, store=store)
@@ -196,17 +196,38 @@ def _build_context(course: CourseRecord, store: Store) -> BuildContext:
     )
 
 
+_MODULE_STAGE = {
+    CourseState.RESEARCHING: ModuleState.RESEARCHING,
+    CourseState.WRITING: ModuleState.WRITING,
+    CourseState.REVIEWING: ModuleState.REVIEWING,
+}
+
+
 def _set_activity(
     course: CourseRecord,
     module: ModuleRecord,
     stage_state: CourseState,
     text: str,
     store,
+    lesson: LessonRecord | None = None,
 ) -> None:
     if course.state != CourseState.PARTIALLY_AVAILABLE:
         course.state = stage_state
     course.current_activity = f"Module {module.index}: {text}"
-    store.save_course(course)
+    stage = _MODULE_STAGE.get(stage_state)
+    if stage is not None and module.state not in {
+        ModuleState.PUBLISHED,
+        ModuleState.NOT_BUILT,
+        ModuleState.FAILED,
+    }:
+        module.state = stage
+    store.save_course_progress(course)
+    if module.state == stage:
+        store.save_course_progress(course, module_id=module.id)
+    # Lesson rows stay queued until approval unless this stage is that lesson.
+    # The open module can then tell researching, writing and reviewing apart.
+    if lesson is not None:
+        store.save_course_progress(course, lesson_id=lesson.id)
 
 
 def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
@@ -217,21 +238,40 @@ def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
 
 
 def _preserved_sentence(course: CourseRecord) -> str:
-    """BR-GEN-010: say what remains readable. Unpublished modules stay closed."""
+    """BR-GEN-010: say what remains readable. Approved lessons stay open (DEC-023)."""
     published = [m for m in course.modules if m.state == ModuleState.PUBLISHED]
+    kept = _approved_lessons_in_open_modules(course)
+    extra = (
+        " Lessons that were already finished can still be read." if kept else ""
+    )
     if not published:
-        return "No incomplete module was published."
+        return f"No incomplete module was published.{extra}"
     if len(published) == 1:
         return (
             f"Module {published[0].index} is published and can be read. "
-            "It was not removed."
+            f"It was not removed.{extra}"
         )
     indexes = [str(m.index) for m in published]
     if len(indexes) == 2:
         listed = f"{indexes[0]} and {indexes[1]}"
     else:
         listed = ", ".join(indexes[:-1]) + f", and {indexes[-1]}"
-    return f"Modules {listed} are published and can be read. They were not removed."
+    return (
+        f"Modules {listed} are published and can be read. They were not removed.{extra}"
+    )
+
+
+def _approved_lessons_in_open_modules(course: CourseRecord) -> int:
+    kept = 0
+    for module in course.modules:
+        if module.state in {ModuleState.PUBLISHED, ModuleState.NOT_BUILT}:
+            continue
+        kept += sum(
+            1
+            for lesson in module.lessons
+            if lesson.state == LessonState.APPROVED and lesson.draft is not None
+        )
+    return kept
 
 
 def _learner_failure(
@@ -280,8 +320,22 @@ def _lesson_stop_reason(lesson: LessonRecord) -> str:
     return "the lesson could not be completed."
 
 
+def _reset_lesson(lesson: LessonRecord) -> None:
+    lesson.state = LessonState.QUEUED
+    lesson.attempts = 0
+    lesson.research_rounds = 0
+    lesson.evidence = []
+    lesson.research_questions = []
+    lesson.unresolved_claims = []
+    lesson.spec = None
+    lesson.draft = None
+    lesson.word_count = 0
+    lesson.review = None
+    lesson.failure = None
+
+
 def _reset_unpublished_module(module: ModuleRecord) -> None:
-    """Drop an unfinished module's generation so a retry starts it again."""
+    """Retry an unfinished module without regenerating lessons already approved."""
     module.state = ModuleState.QUEUED
     module.synthesis = None
     module.knowledge_check = None
@@ -289,17 +343,10 @@ def _reset_unpublished_module(module: ModuleRecord) -> None:
     module.published_at = None
     module.failure = None
     for lesson in module.lessons:
-        lesson.state = LessonState.QUEUED
-        lesson.attempts = 0
-        lesson.research_rounds = 0
-        lesson.evidence = []
-        lesson.research_questions = []
-        lesson.unresolved_claims = []
-        lesson.spec = None
-        lesson.draft = None
-        lesson.word_count = 0
-        lesson.review = None
-        lesson.failure = None
+        if lesson.state == LessonState.APPROVED and lesson.draft is not None:
+            lesson.failure = None
+            continue
+        _reset_lesson(lesson)
 
 
 def prepare_retry(course: CourseRecord) -> None:
@@ -428,7 +475,12 @@ async def _build_lesson(
         lesson.attempts = attempt
         lesson.state = LessonState.WRITING
         _set_activity(
-            course, module, CourseState.WRITING, f"writing lesson {lesson.index}", store
+            course,
+            module,
+            CourseState.WRITING,
+            f"writing lesson {lesson.index}",
+            store,
+            lesson=lesson,
         )
         written = await run_stage(
             ai=ai,
@@ -460,6 +512,7 @@ async def _build_lesson(
             CourseState.REVIEWING,
             f"reviewing lesson {lesson.index}",
             store,
+            lesson=lesson,
         )
         reviewed = await run_stage(
             ai=ai,
@@ -498,7 +551,7 @@ async def _build_lesson(
             lesson.review = review
             lesson.state = LessonState.APPROVED
             lesson.failure = None
-            store.save_course(course)
+            store.save_course_progress(course, lesson_id=lesson.id)
             return True
 
         lesson.review = review
@@ -507,7 +560,7 @@ async def _build_lesson(
             lesson.failure = "Review blocked the lesson: " + "; ".join(
                 review.issues[:3]
             )
-            store.save_course(course)
+            store.save_course_progress(course, lesson_id=lesson.id)
             return False
         if review.result == "Research again":
             focus = [
@@ -523,7 +576,7 @@ async def _build_lesson(
         f"The lesson did not pass review after {settings.generation_max_attempts} "
         "attempts."
     )
-    store.save_course(course)
+    store.save_course_progress(course, lesson_id=lesson.id)
     return False
 
 
@@ -545,6 +598,7 @@ async def _research(
         CourseState.RESEARCHING,
         f"researching lesson {lesson.index}",
         store,
+        lesson=lesson,
     )
     result = await run_stage(
         ai=ai,
@@ -609,7 +663,7 @@ async def _research(
         lesson.evidence = new_items
     lesson.research_questions = out.research_questions
     lesson.unresolved_claims = out.unresolved_claims
-    store.save_course(course)
+    store.save_course_progress(course, lesson_id=lesson.id)
 
 
 def _mark_qa(
@@ -631,7 +685,7 @@ async def _finish_course(
     course: CourseRecord, ctx: BuildContext, *, ai: AIClient, store: Store
 ) -> None:
     course.current_activity = "Writing final synthesis"
-    store.save_course(course)
+    store.save_course_progress(course)
     synthesis = await run_stage(
         ai=ai,
         store=store,
@@ -648,7 +702,7 @@ async def _finish_course(
         max_attempts=settings.generation_max_attempts,
     )
     course.current_activity = "Auditing course"
-    store.save_course(course)
+    store.save_course_progress(course)
     audit = await run_stage(
         ai=ai,
         store=store,
@@ -667,7 +721,7 @@ async def _finish_course(
         course.current_activity = "Course audit did not pass: " + "; ".join(
             audit.parsed.issues[:3]
         )
-        store.save_course(course)
+        store.save_course_progress(course)
         return
     course.final_synthesis = synthesis.parsed
     course.state = CourseState.COMPLETE  # BR-GEN-006

@@ -137,6 +137,12 @@ Never:
 
 If important information is genuinely missing, identify it explicitly.
 
+## Confirmation
+
+The system confirms the objective as soon as it is formulated (`DEC-021`, `BR-OBJ-010`).
+
+There is no learner review screen and no request to write prose for that screen. The objective remains an internal contract for learning directions, the Blueprint, and the course.
+
 ## Output quality
 
 A strong objective should act as a stable bridge between the learner's intention and the possible learning directions that Auteur will present next.

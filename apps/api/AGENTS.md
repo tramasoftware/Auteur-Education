@@ -85,9 +85,9 @@ The user expresses:
 * their previous knowledge;
 * the result they want to achieve.
 
-Auteur helps refine that intention, formulates an objective, presents possible learning directions, and generates a reviewable Blueprint.
+Auteur helps refine that intention, formulates an objective, and presents possible learning directions.
 
-After the Blueprint is approved, the system researches and generates a structured course containing modules and lessons.
+After the learner chooses a direction, the system generates and confirms a Blueprint without a review screen (`DEC-022`), then researches and generates a structured course containing modules and lessons.
 
 Generated content can:
 
@@ -395,16 +395,15 @@ Prioritize:
 3. Formulate objective.
 4. Generate differentiated proposals.
 5. Accept proposal selection.
-6. Construct Blueprint.
-7. Accept Blueprint approval.
-8. Generate course content.
-9. Return course structure.
-10. Return module.
-11. Return lessons.
-12. Return synthesis.
-13. Return Knowledge Check.
-14. Return source information.
-15. Provide enough information to observe quality, time, and cost.
+6. Construct Blueprint and confirm it without a learner approval request (`DEC-022`).
+7. Generate course content.
+8. Return course structure.
+9. Return module.
+10. Return lessons.
+11. Return synthesis.
+12. Return Knowledge Check.
+13. Return source information.
+14. Provide enough information to observe quality, time, and cost.
 
 Do not implement:
 
@@ -609,6 +608,8 @@ Course
 ```
 
 unless the approved documentation explicitly permits it.
+
+`DEC-022` confirms the Blueprint and starts the build in the same background task. That keeps the Blueprint artifact. It does not skip from a proposal to a course with no contract.
 
 If state persistence is not yet approved, use temporary in-memory or request-scoped representations only when appropriate for the demonstration.
 

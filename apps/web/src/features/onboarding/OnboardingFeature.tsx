@@ -4,14 +4,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
   type FormEvent,
-  type ReactNode,
 } from "react";
 
-import { onboardingJourneyStep, useJourneyStep } from "@/components/layout";
+import { onboardingJourneyStep, proposalsJourneyStep, useJourneyStep } from "@/components/layout";
 import {
   CheckingGenerationStatus,
   DefinitionList,
@@ -27,16 +27,15 @@ import {
 import { CourseStepLabel } from "@/features/course-setup/CourseStepLabel";
 import { StageFailure, stageFailureCopy } from "@/features/course-setup/StageFailure";
 import { useRedirectIfActiveBuild } from "@/hooks/useRedirectIfActiveBuild";
-import { ApiError, learningRequests } from "@/lib/api";
+import { ApiError, generateDirectionsOnce, learningRequests } from "@/lib/api";
 import { requestStateLabel } from "@/lib/labels";
 import {
-  forgetCourseFlowPath,
+  beginNewIntention,
   forgetOnboardingDraft,
-  forgetRequestId,
+  peekLearningRequest,
   recallOnboardingDraft,
-  recallRequestId,
+  rememberLearningRequest,
   rememberOnboardingDraft,
-  rememberRequestId,
   subscribeOnboardingDraft,
   type OnboardingDraft,
 } from "@/lib/session";
@@ -62,17 +61,29 @@ function isIntentionFieldError(err: unknown): boolean {
 
 /**
  * UF-01/UF-02 in a single screen (DEC-006): intention form, compatibility,
- * learning-object precision when needed, and objective confirmation.
+ * and learning-object precision when needed. The objective is formulated
+ * during the learning-paths wait (DEC-021).
  */
 export function OnboardingFeature() {
+  const params = useSearchParams();
+  const sessionKey =
+    params.get("new") === "1" ? "new" : (params.get("request") ?? "blank");
+  return <OnboardingSession key={sessionKey} />;
+}
+
+function OnboardingSession() {
   const router = useRouter();
   const params = useSearchParams();
-  const blockingActiveBuild = useRedirectIfActiveBuild();
-  const [request, setRequest] = useState<LearningRequest | null>(null);
-  const [resumeMiss, setResumeMiss] = useState(false);
   const paramRequestId = params.get("request");
+  const startingFresh = params.get("new") === "1";
+  const blockingActiveBuild = useRedirectIfActiveBuild();
+  const [request, setRequest] = useState<LearningRequest | null>(() =>
+    startingFresh || !paramRequestId ? null : peekLearningRequest(paramRequestId),
+  );
+  const [resumeMiss, setResumeMiss] = useState(false);
   const [loading, setLoading] = useState(false);
   const [preparingDirections, setPreparingDirections] = useState(false);
+  const [leftWait, setLeftWait] = useState(() => params.get("hold") === "1");
   const [directionsReady, setDirectionsReady] = useState(false);
   const [directionsHref, setDirectionsHref] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -80,24 +91,56 @@ export function OnboardingFeature() {
     null,
   );
   const retryRef = useRef<() => void>(() => {});
+  const holdDirections = params.get("hold") === "1";
+  const holdRef = useRef(holdDirections);
+  const revisingPrecision =
+    params.get("revise") === "precision" &&
+    (request?.state === "proposals_ready" || request?.state === "proposal_selected");
+  const showPrecision =
+    request?.state === "precision_required" ||
+    (leftWait && Boolean(request?.precision.needs_precision)) ||
+    (revisingPrecision && Boolean(request?.precision.needs_precision));
+  const awaitingDirections = Boolean(
+    request &&
+      !request.proposals &&
+      (request.state === "objective_confirmation" ||
+        request.state === "objective_confirmed"),
+  );
+  const showDirectionsOverlay =
+    !failure &&
+    !leftWait &&
+    (preparingDirections || awaitingDirections || directionsReady);
 
-  useJourneyStep(onboardingJourneyStep(request));
+  useJourneyStep(
+    showDirectionsOverlay
+      ? proposalsJourneyStep(request)
+      : onboardingJourneyStep(request, showPrecision),
+  );
+
+  useLayoutEffect(() => {
+    if (!startingFresh) {
+      return;
+    }
+    beginNewIntention();
+    router.replace("/onboarding");
+  }, [router, startingFresh]);
 
   useEffect(() => {
-    const id = paramRequestId ?? recallRequestId();
-    if (!id || request) {
+    // A new intention does not resume a stored request. Back navigation uses ?request=.
+    if (startingFresh || !paramRequestId || request) {
       return;
     }
     let cancelled = false;
-    learningRequests.get(id).then(
+    learningRequests.get(paramRequestId).then(
       (next) => {
         if (!cancelled) {
+          rememberLearningRequest(next);
           setRequest(next);
         }
       },
       () => {
         if (!cancelled) {
-          forgetRequestId();
+          beginNewIntention();
           setResumeMiss(true);
         }
       },
@@ -105,7 +148,7 @@ export function OnboardingFeature() {
     return () => {
       cancelled = true;
     };
-  }, [paramRequestId, request]);
+  }, [paramRequestId, request, startingFresh]);
 
   const run = async (
     action: () => Promise<LearningRequest>,
@@ -118,7 +161,7 @@ export function OnboardingFeature() {
       const next = await action();
       setFailure(null);
       forgetOnboardingDraft();
-      rememberRequestId(next.id);
+      rememberLearningRequest(next);
       setRequest(next);
       router.replace(`/onboarding?request=${next.id}`);
     } catch (err) {
@@ -137,79 +180,115 @@ export function OnboardingFeature() {
     }
   };
 
-  const continueToLearningDirections = async () => {
-    if (!request?.objective) {
+  const requestId = request?.id ?? null;
+  const requestState = request?.state ?? null;
+  const hasProposals = Boolean(request?.proposals);
+  const precisionKey = request?.selected_precision
+    ? `${request.selected_precision.option_id ?? ""}:${request.selected_precision.free_text ?? ""}`
+    : "";
+
+  useEffect(() => {
+    if (!requestId || holdDirections) {
       return;
     }
-    if (request.proposals) {
-      setLoading(true);
-      setError(null);
-      try {
-        const confirmed = await learningRequests.confirmObjective(
-          request.id,
-          request.objective.version,
-        );
-        rememberRequestId(confirmed.id);
+    if (hasProposals && requestState !== "objective_confirmed" && !revisingPrecision) {
+      router.push(`/proposals?request=${requestId}`);
+      return;
+    }
+    if (
+      requestState !== "objective_confirmation" &&
+      requestState !== "objective_confirmed"
+    ) {
+      return;
+    }
+    const key = `${requestState}:${precisionKey}`;
+    let cancelled = false;
+    holdRef.current = holdDirections;
+    void generateDirectionsOnce(requestId, key).then(
+      (next) => {
+        if (cancelled) {
+          return;
+        }
+        rememberLearningRequest(next);
+        setRequest(next);
+        if (holdRef.current) {
+          setPreparingDirections(false);
+          return;
+        }
         setFailure(null);
-        router.push(`/proposals?request=${confirmed.id}`);
-      } catch {
+        setDirectionsHref(`/proposals?request=${next.id}`);
+        setDirectionsReady(true);
+      },
+      () => {
+        if (cancelled) {
+          return;
+        }
         retryRef.current = () => {
-          void continueToLearningDirections();
+          setPreparingDirections(true);
+          setFailure(null);
+          void generateDirectionsOnce(requestId, `${key}:retry-${Date.now()}`).then(
+            (next) => {
+              rememberLearningRequest(next);
+              setRequest(next);
+              if (holdRef.current) {
+                setPreparingDirections(false);
+                return;
+              }
+              setDirectionsHref(`/proposals?request=${next.id}`);
+              setDirectionsReady(true);
+            },
+            () => {
+              setPreparingDirections(false);
+              setDirectionsReady(false);
+              setFailure(stageFailureCopy.directions);
+            },
+          );
         };
+        setPreparingDirections(false);
+        setDirectionsReady(false);
         setFailure(stageFailureCopy.directions);
         setError(null);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [hasProposals, holdDirections, precisionKey, requestId, requestState, revisingPrecision, router]);
 
-    setLoading(true);
-    setError(null);
-    setDirectionsReady(false);
-    setPreparingDirections(true);
-    try {
-      const confirmed = await learningRequests.confirmObjective(
-        request.id,
-        request.objective.version,
-      );
-      rememberRequestId(confirmed.id);
-      const next = await learningRequests.generateProposals(confirmed.id);
-      rememberRequestId(next.id);
-      setDirectionsHref(`/proposals?request=${next.id}`);
-      setFailure(null);
-      setDirectionsReady(true);
-    } catch {
-      retryRef.current = () => {
-        void continueToLearningDirections();
-      };
-      setPreparingDirections(false);
-      setDirectionsReady(false);
-      setFailure(stageFailureCopy.directions);
-      setError(null);
-      setLoading(false);
-    }
-  };
-
-  const confirmObjectiveWithChanges = async (feedback: string) => {
+  const chooseFocus = async (payload: { option_id?: string; free_text?: string }) => {
     if (!request) {
       return;
     }
-    setLoading(true);
+    const selected = request.selected_precision;
+    const sameFocus =
+      Boolean(request.proposals) &&
+      Boolean(selected) &&
+      ((Boolean(payload.option_id) && payload.option_id === selected?.option_id) ||
+        (Boolean(payload.free_text?.trim()) &&
+          payload.free_text?.trim() === (selected?.free_text ?? "").trim()));
+    if (params.get("revise") === "precision" && sameFocus) {
+      router.push(`/proposals?request=${request.id}`);
+      return;
+    }
     setError(null);
+    setFailure(null);
+    setDirectionsReady(false);
+    holdRef.current = false;
+    setLeftWait(false);
+    setPreparingDirections(true);
     try {
-      const revised = await learningRequests.reviseObjective(request.id, feedback);
-      const next = await learningRequests.confirmObjective(
-        revised.id,
-        revised.objective!.version,
-      );
-      rememberRequestId(next.id);
-      setRequest(next);
-      router.replace(`/onboarding?request=${next.id}`);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
+      const chosen = await learningRequests.choosePrecision(request.id, payload);
+      forgetOnboardingDraft();
+      rememberLearningRequest(chosen);
+      setRequest(chosen);
+      router.replace(`/onboarding?request=${chosen.id}`);
+    } catch {
+      retryRef.current = () => {
+        void chooseFocus(payload);
+      };
+      setPreparingDirections(false);
+      setFailure(stageFailureCopy.precision);
+      setError(null);
     }
   };
 
@@ -232,9 +311,7 @@ export function OnboardingFeature() {
   };
 
   const resetFromScratch = () => {
-    forgetOnboardingDraft();
-    forgetRequestId();
-    forgetCourseFlowPath();
+    beginNewIntention();
     // Full navigation resets client state; client routing alone left stale onboarding UI.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional demo reset
     window.location.assign("/onboarding");
@@ -244,7 +321,7 @@ export function OnboardingFeature() {
     return <CheckingGenerationStatus />;
   }
 
-  if (paramRequestId && !request && !resumeMiss) {
+  if (!startingFresh && paramRequestId && !request && !resumeMiss) {
     return (
       <div className="ae-status-check">
         <GenerationStatus
@@ -255,17 +332,28 @@ export function OnboardingFeature() {
     );
   }
 
-  const directionsScreen = preparingDirections ? (
+  const directionsScreen = showDirectionsOverlay ? (
     <StagePreparing
       frameTitle="Your learning path"
-      backHref={request ? `/onboarding?request=${request.id}` : "/onboarding"}
-      backLabel="Learning objective"
-      backAriaLabel="Back to your learning objective"
+      backHref={
+        request ? `/onboarding?request=${request.id}&hold=1` : "/onboarding"
+      }
+      backLabel={request?.precision.needs_precision ? "Refine your subject" : "Onboarding"}
+      backAriaLabel={
+        request?.precision.needs_precision
+          ? "Back to your focus"
+          : "Back to onboarding"
+      }
       heading="Your learning paths are taking shape"
       readyHeading="Your learning paths are ready"
       phases={PROPOSAL_PHASES}
       approachMs={PROPOSAL_APPROACH_MS}
       ready={directionsReady}
+      onBackClick={() => {
+        holdRef.current = true;
+        setLeftWait(true);
+        setPreparingDirections(false);
+      }}
       onContinue={() => {
         if (directionsHref) {
           router.push(directionsHref);
@@ -288,7 +376,7 @@ export function OnboardingFeature() {
       <>
       {directionsScreen}
       <article className="lect" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
-        <CourseStepLabel step={1} label="Your question" />
+        <CourseStepLabel step={1} label="Onboarding" />
         <IntentForm
           busy={loading}
           error={error}
@@ -306,9 +394,7 @@ export function OnboardingFeature() {
     <>
     {directionsScreen}
     <div className="flex flex-col gap-8" hidden={failure ? true : undefined} inert={failure ? true : undefined}>
-      {request.state === "precision_required" ||
-      request.state === "incompatible" ||
-      request.objective ? null : (
+      {request.state === "incompatible" || showPrecision || showDirectionsOverlay ? null : (
         <YourIntentionSection request={request} onResetFromScratch={resetFromScratch} />
       )}
 
@@ -323,27 +409,14 @@ export function OnboardingFeature() {
         />
       ) : null}
 
-      {request.state === "precision_required" ? (
+      {showPrecision ? (
         <PrecisionPanel
           request={request}
-          busy={loading}
+          busy={preparingDirections}
           onReset={resetFromScratch}
-          onChoose={(payload) =>
-            run(() => learningRequests.choosePrecision(request.id, payload), stageFailureCopy.precision)
-          }
-        />
-      ) : null}
-
-      {request.objective ? (
-        <ObjectivePanel
-          request={request}
-          busy={loading}
-          onReset={resetFromScratch}
-          onContinueToDirections={continueToLearningDirections}
-          onConfirmWithChanges={confirmObjectiveWithChanges}
-          onRevise={(feedback) =>
-            run(() => learningRequests.reviseObjective(request.id, feedback))
-          }
+          onChoose={(payload) => {
+            void chooseFocus(payload);
+          }}
         />
       ) : null}
 
@@ -419,6 +492,9 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (busy) {
+      return;
+    }
     onSubmit({
       initial_intent: intentValue.trim(),
       experience_level: levelValue,
@@ -556,27 +632,28 @@ function IntentForm({ busy, error, onSubmit }: IntentFormProps) {
         </details>
       </div>
 
-      <div className="acciones pie-l">
-        <span className="nota">Your first lesson is free with an account. No card needed.</span>
-        <button
-          className="btn"
-          type="submit"
-          disabled={busy || !intentValue.trim() || !outcomeValue.trim()}
-          aria-busy={busy || undefined}
-        >
-          {busy ? "Working…" : "Analyze my intention"}
-          {busy ? null : <span className="ar" aria-hidden="true" />}
-        </button>
-      </div>
-      {formNotice || busy ? (
+      {busy ? (
+        <div className="pie-espera">
+          <GenerationStatus
+            title="Reading your intention"
+            description="Checking what you want to learn and whether text and audio can teach it."
+          />
+        </div>
+      ) : (
+        <div className="acciones pie-l">
+          <button
+            className="btn"
+            type="submit"
+            disabled={!intentValue.trim() || !outcomeValue.trim()}
+          >
+            Analyze my intention
+            <span className="ar" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {formNotice ? (
         <div className="form-avisos">
-          {formNotice ? <ErrorNotice error={error} /> : null}
-          {busy ? (
-            <GenerationStatus
-              title="Reading your intention"
-              description="Checking what you want to learn and whether text and audio can teach it."
-            />
-          ) : null}
+          <ErrorNotice error={error} />
         </div>
       ) : null}
     </form>
@@ -854,38 +931,36 @@ function IncompatibleIntention({
         </div>
       ) : null}
       <div className="cierre-o">
-        <div className="acciones">
-          {alternatives.length > 0 ? (
-            <button
-              className="btn"
-              type="button"
-              disabled={busy || !canContinue}
-              aria-busy={busy || undefined}
-              onClick={() => {
-                if (selected !== null) {
-                  choose(selected);
-                }
-              }}
-            >
-              {busy ? "Working…" : "Review your goal"}
-              {busy ? null : <span className="ar" aria-hidden="true" />}
-            </button>
-          ) : null}
-          <ReformulateIntention busy={busy} onReset={onStartOver} />
-          <span className="nota">
-            {selected === null
-              ? "Choose a folder to continue, or return to your question."
-              : "This becomes a new intention. It is not the same result."}
-          </span>
-        </div>
         {busy ? (
-          <div className="form-avisos">
-            <GenerationStatus
-              title="Reading your intention"
-              description="Checking what you want to learn and whether text and audio can teach it."
-            />
+          <GenerationStatus
+            title="Reading your intention"
+            description="Checking what you want to learn and whether text and audio can teach it."
+          />
+        ) : (
+          <div className="acciones">
+            {alternatives.length > 0 ? (
+              <button
+                className="btn"
+                type="button"
+                disabled={!canContinue}
+                onClick={() => {
+                  if (selected !== null) {
+                    choose(selected);
+                  }
+                }}
+              >
+                Review your goal
+                <span className="ar" aria-hidden="true" />
+              </button>
+            ) : null}
+            <ReformulateIntention busy={busy} onReset={onStartOver} />
+            <span className="nota">
+              {selected === null
+                ? "Choose a folder to continue, or return to your question."
+                : "This becomes a new intention. It is not the same result."}
+            </span>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -1039,8 +1114,12 @@ type PrecisionPanelProps = {
 };
 
 function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProps) {
-  const [optionId, setOptionId] = useState<string>("");
-  const [freeText, setFreeText] = useState("");
+  const [optionId, setOptionId] = useState(
+    () => request.selected_precision?.option_id ?? "",
+  );
+  const [freeText, setFreeText] = useState(
+    () => request.selected_precision?.free_text ?? "",
+  );
   const p = request.precision;
   const wrote = request.inputs.initial_intent.trim();
 
@@ -1110,253 +1189,16 @@ function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProp
             className="btn"
             type="button"
             disabled={busy || (!optionId && !freeText.trim())}
-            aria-busy={busy || undefined}
             onClick={() =>
               onChoose(optionId ? { option_id: optionId } : { free_text: freeText.trim() })
             }
           >
-            {busy ? "Working…" : "Formulate my objective"}
-            {busy ? null : <span className="ar" aria-hidden="true" />}
+            See learning paths
+            <span className="ar" aria-hidden="true" />
           </button>
           <ReformulateIntention busy={busy} onReset={onReset} />
         </div>
       </div>
-      {busy ? (
-        <div className="form-avisos">
-          <GenerationStatus
-            title="Formulating your objective"
-            description="Turning the learning object you chose into an objective you can review."
-          />
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function ObjectiveItems({ items }: { items: string[] }) {
-  if (items.length === 0) {
-    return <p>None named.</p>;
-  }
-  return (
-    <ul>
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ul>
-  );
-}
-
-function objectiveDetailBlocks(objective: NonNullable<LearningRequest["objective"]>): {
-  title: string;
-  achieve?: boolean;
-  body: ReactNode;
-}[] {
-  const blocks: { title: string; achieve?: boolean; body: ReactNode }[] = [
-    {
-      title: "Starting point",
-      body: <p>{objective.assumed_level_and_knowledge}</p>,
-    },
-    {
-      title: "Scope & boundaries",
-      body: (
-        <div className="obj-scope">
-          <section>
-            <h3>Included</h3>
-            <ObjectiveItems items={objective.scope} />
-          </section>
-          <section>
-            <h3>Not included</h3>
-            <ObjectiveItems items={objective.exclusions} />
-          </section>
-        </div>
-      ),
-    },
-    {
-      title: "Signs of achievement",
-      achieve: true,
-      body: <ObjectiveItems items={objective.achievement_criteria} />,
-    },
-  ];
-
-  if (objective.medium_limitations.length > 0) {
-    blocks.push({
-      title: "Limits of text and audio",
-      body: <ObjectiveItems items={objective.medium_limitations} />,
-    });
-  }
-  return blocks;
-}
-
-type ObjectivePanelProps = {
-  request: LearningRequest;
-  busy: boolean;
-  onReset: () => void;
-  onContinueToDirections: () => void;
-  onConfirmWithChanges: (feedback: string) => void;
-  onRevise: (feedback: string) => void;
-};
-
-function ObjectivePanel({
-  request,
-  busy,
-  onReset,
-  onContinueToDirections,
-  onConfirmWithChanges,
-  onRevise,
-}: ObjectivePanelProps) {
-  const [feedback, setFeedback] = useState("");
-  const [activity, setActivity] = useState<{ title: string; description: string } | null>(null);
-  const o = request.objective!;
-  const locked = request.state !== "objective_confirmation" && !o.confirmed;
-  const hasFeedback = feedback.trim().length > 0;
-  const canRevise =
-    o.confirmed && request.state !== "approved" && !request.blueprint_id;
-
-  const grow = (field: HTMLTextAreaElement) => {
-    field.style.height = "auto";
-    field.style.height = `${field.scrollHeight}px`;
-  };
-
-  const primaryLabel = hasFeedback
-    ? o.confirmed
-      ? "Reformulate objective"
-      : "Confirm these changes"
-    : "Confirm & see learning paths";
-
-  return (
-    <article className="lect obj-confirm">
-      <div className="obj-head">
-        <CourseStepLabel step={2} label="Confirm your learning objective" tight />
-        <h1>Confirm what you want to achieve</h1>
-      </div>
-
-      <section className="obj-intro" aria-label="Learning objective">
-        <p className="obj-statement">{o.statement}</p>
-        <div className="obj-meta">
-          <span>{request.inputs.experience_level}</span>
-          <span>Text + audio</span>
-        </div>
-      </section>
-
-      <details className="obj-fold">
-        <summary>Review the details</summary>
-        <div className="obj-fold-body">
-          {objectiveDetailBlocks(o).map((block, index) => (
-            <section
-              className={block.achieve ? "obj-block is-achieve" : "obj-block"}
-              key={block.title}
-            >
-              <span className="obj-index">{String(index + 1).padStart(2, "0")}</span>
-              <h2>{block.title}</h2>
-              {block.body}
-            </section>
-          ))}
-        </div>
-      </details>
-
-      {!o.confirmed && !locked ? (
-        <div className="preg">
-          <details
-            className="extra"
-            onToggle={(e) => {
-              if (!e.currentTarget.open) return;
-              e.currentTarget.querySelectorAll("textarea").forEach((field) => {
-                field.style.height = "auto";
-                field.style.height = `${field.scrollHeight}px`;
-              });
-            }}
-          >
-            <summary>
-              <span className="mas" aria-hidden="true" />
-              <span className="txt" id="objective-feedback-label">
-                What should we change?
-                <small>Leave empty to accept this objective and continue.</small>
-              </span>
-            </summary>
-            <label className="plano">
-              <span className="sr-only">What should we change?</span>
-              <textarea
-                id="objective-feedback"
-                rows={1}
-                maxLength={MAX_FREE_TEXT_CHARS}
-                value={feedback}
-                placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
-                onChange={(e) => {
-                  setFeedback(e.target.value);
-                  grow(e.currentTarget);
-                }}
-                aria-labelledby="objective-feedback-label"
-              />
-            </label>
-          </details>
-        </div>
-      ) : null}
-
-      {canRevise ? (
-        <details className="extra">
-          <summary>
-            <span className="mas" aria-hidden="true" />
-            <span className="txt">Change the objective (this discards current proposals)</span>
-          </summary>
-          <label className="plano">
-            <span className="sr-only">What should change?</span>
-            <textarea
-              className="alto"
-              rows={2}
-              maxLength={MAX_FREE_TEXT_CHARS}
-              value={feedback}
-              placeholder="For example: keep the comparative focus, but start from household structure rather than migration."
-              onChange={(e) => {
-                setFeedback(e.target.value);
-                grow(e.currentTarget);
-              }}
-            />
-          </label>
-        </details>
-      ) : null}
-
-      <div className="acciones pie-l">
-        <span className="nota">This objective will shape the learning paths.</span>
-        <div className="pie-go">
-          <ReformulateIntention busy={busy} onReset={onReset} />
-          <button
-            className="btn"
-            type="button"
-            disabled={busy || locked}
-            aria-busy={busy || undefined}
-            onClick={() => {
-              if (hasFeedback && o.confirmed) {
-                setActivity({
-                  title: "Rewriting your objective",
-                  description: "Applying this change so the objective stays precise.",
-                });
-                onRevise(feedback.trim());
-                setFeedback("");
-                return;
-              }
-              if (hasFeedback) {
-                setActivity({
-                  title: "Updating your objective",
-                  description: "Saving this change, then confirming the objective.",
-                });
-                onConfirmWithChanges(feedback.trim());
-                setFeedback("");
-                return;
-              }
-              void onContinueToDirections();
-              setActivity(null);
-            }}
-          >
-            {busy ? "Working…" : primaryLabel}
-            {busy ? null : <span className="ar" aria-hidden="true" />}
-          </button>
-        </div>
-      </div>
-      {busy && activity ? (
-        <div className="form-avisos">
-          <GenerationStatus title={activity.title} description={activity.description} />
-        </div>
-      ) : null}
     </article>
   );
 }

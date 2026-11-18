@@ -1,8 +1,8 @@
-"""Blueprint behavior (UF-04, BR-BLP-*, DEC-003, DEC-004).
+"""Blueprint behavior (UF-04, BR-BLP-*, DEC-003, DEC-004, DEC-022).
 
-Generation runs in the background; the client polls GET. Revisions create a new
-complete version and keep the previous ones (BR-BLP-009). Approval requires the
-exact current version (BR-BLP-010) and is idempotent (BR-GEN-012).
+Generation runs in the background; the client polls GET. A valid version is
+confirmed by the system and starts one build (BR-BLP-010, BR-GEN-012). Learner
+revision is not part of the current journey.
 """
 
 from __future__ import annotations
@@ -90,6 +90,14 @@ async def start_blueprint(
     record = store.get_learning_request(request_id)
     if record.blueprint_id:
         existing = store.get_blueprint(record.blueprint_id)
+        if (
+            existing.state == BlueprintState.AWAITING_APPROVAL
+            and existing.current is not None
+        ):
+            # A version saved before DEC-022, or a confirm that did not finish.
+            # Generating the course confirms it. There is no review route.
+            await _confirm_and_start(existing, ai=ai, store=store, runner=runner)
+            return store.get_blueprint(existing.id)
         if existing.state != BlueprintState.FAILED:
             return existing  # idempotent: one Blueprint per request
         # Retry after a definitive failure without duplicating records.
@@ -98,7 +106,9 @@ async def start_blueprint(
         store.save_blueprint(existing)
         record.state = RequestState.BLUEPRINT_GENERATING
         store.save_learning_request(record)
-        await runner.schedule(_generate_version(existing.id, ai=ai, store=store))
+        await runner.schedule(
+            _generate_version(existing.id, ai=ai, store=store, runner=runner)
+        )
         return existing
     if (
         record.state != RequestState.PROPOSAL_SELECTED
@@ -127,7 +137,9 @@ async def start_blueprint(
     record.blueprint_id = blueprint.id
     record.state = RequestState.BLUEPRINT_GENERATING
     store.save_learning_request(record)
-    await runner.schedule(_generate_version(blueprint.id, ai=ai, store=store))
+    await runner.schedule(
+        _generate_version(blueprint.id, ai=ai, store=store, runner=runner)
+    )
     return blueprint
 
 
@@ -151,7 +163,9 @@ async def revise_blueprint(
     request = store.get_learning_request(blueprint.request_id)
     request.state = RequestState.BLUEPRINT_GENERATING
     store.save_learning_request(request)
-    await runner.schedule(_generate_version(blueprint.id, ai=ai, store=store))
+    await runner.schedule(
+        _generate_version(blueprint.id, ai=ai, store=store, runner=runner)
+    )
     return blueprint
 
 
@@ -201,8 +215,35 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
     return course.id
 
 
+async def _confirm_and_start(
+    blueprint: BlueprintRecord, *, ai: AIClient, store: Store, runner: TaskRunner
+) -> None:
+    """DEC-022: confirm the version just saved and start its build."""
+    current = blueprint.current
+    if current is None:
+        return
+    from auteur_api.modules.generation import build
+
+    try:
+        course_id = approve_blueprint(blueprint.id, current.version, store=store)
+    except ApiError:
+        logger.exception("blueprint_confirm_failed id=%s", blueprint.id)
+        blueprint.state = BlueprintState.FAILED
+        blueprint.failure_message = (
+            "We could not start the course from this Blueprint. Your objective and "
+            "selected proposal were kept; please try again."
+        )
+        store.save_blueprint(blueprint)
+        request = store.get_learning_request(blueprint.request_id)
+        if request.course_id is None:
+            request.state = RequestState.PROPOSAL_SELECTED
+            store.save_learning_request(request)
+        return
+    await build.ensure_started(course_id, ai=ai, store=store, runner=runner)
+
+
 async def _generate_version(
-    blueprint_id: str, *, ai: AIClient, store: Store
+    blueprint_id: str, *, ai: AIClient, store: Store, runner: TaskRunner
 ) -> None:
     blueprint = store.get_blueprint(blueprint_id)
     request = store.get_learning_request(blueprint.request_id)
@@ -275,3 +316,4 @@ async def _generate_version(
     store.save_blueprint(blueprint)
     request.state = RequestState.AWAITING_APPROVAL
     store.save_learning_request(request)
+    await _confirm_and_start(blueprint, ai=ai, store=store, runner=runner)

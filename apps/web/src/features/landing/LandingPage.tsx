@@ -143,7 +143,7 @@ export function LandingPage() {
               First lesson free. Then US$11.99 per course or US$25.99/month. VAT included.
             </p>
           </div>
-          <Link className="btn" href="/onboarding">
+          <Link className="btn" href="/onboarding?new=1">
             Create my course
             <span className="ar" aria-hidden="true" />
           </Link>
@@ -155,7 +155,7 @@ export function LandingPage() {
 
 function CreateCourseLink() {
   return (
-    <Link className="btn ae-create-course" href="/onboarding">
+    <Link className="btn ae-create-course" href="/onboarding?new=1">
       <span className="ae-create-label">Create my course</span>
       <span className="ae-create-arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none">

@@ -15,11 +15,15 @@ from supabase import Client, create_client
 
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
+from auteur_api.core.course_wait import notify_course
 from auteur_api.core.errors import ApiError, invalid_state, not_found
 from auteur_api.core.store import (
     CourseBuildSnapshot,
+    CourseStatus,
     LibraryEntry,
     ProfileRecord,
+    StatusLesson,
+    StatusModule,
     assert_owner,
     course_structure_counts,
     normalize_text_size,
@@ -85,12 +89,114 @@ _VIEW_MODULE = (
     "id,course_id,index,title,function,guiding_questions,outcome,state,"
     "synthesis,knowledge_check,published_at"
 )
-_OUTLINE_LESSON = "id,course_id,module_id,index,title,word_count,state"
+# Course overview paints counts, not the synthesis text, the check, or evidence bodies.
+_OVERVIEW_MODULE = (
+    "id,course_id,index,title,function,guiding_questions,outcome,state,"
+    "has_synthesis,question_count,published_at"
+)
+_OUTLINE_LESSON = (
+    "id,course_id,module_id,index,title,word_count,state,has_draft"
+)
 _MODULE_LESSON = (
     "id,course_id,module_id,index,title,purpose,state,word_count,evidence"
 )
 _LESSON_BODY = f"{_MODULE_LESSON},draft"
-_VIEW_LESSON = "id,course_id,module_id,index,title,word_count,state,evidence"
+_OVERVIEW_LESSON = (
+    "id,course_id,module_id,index,title,word_count,state,evidence_urls"
+)
+
+
+def _course_payload(record: CourseRecord) -> dict[str, Any]:
+    module_count, lesson_count = course_structure_counts(record)
+    return {
+        "id": record.id,
+        "user_id": record.user_id,
+        "request_id": record.request_id,
+        "blueprint_id": record.blueprint_id,
+        "blueprint_version": record.blueprint_version,
+        "title": record.title,
+        "subtitle": record.subtitle,
+        "objective_statement": record.objective_statement,
+        "state": record.state.value,
+        "module_count": module_count,
+        "lesson_count": lesson_count,
+        "current_activity": record.current_activity,
+        "final_synthesis": _dump(record.final_synthesis),
+        "course_audit": _dump(record.course_audit),
+        "failure": record.failure,
+        "module_limit": record.module_limit,
+        "started_at": (
+            record.started_at.isoformat() if record.started_at else None
+        ),
+        "completed_at": (
+            record.completed_at.isoformat() if record.completed_at else None
+        ),
+        "created_at": record.created_at.isoformat(),
+    }
+
+
+def _module_payload(record: CourseRecord, module: ModuleRecord) -> dict[str, Any]:
+    return {
+        "id": module.id,
+        "user_id": record.user_id,
+        "course_id": record.id,
+        "index": module.index,
+        "title": module.title,
+        "function": module.function,
+        "guiding_questions": module.guiding_questions,
+        "outcome": module.outcome,
+        "qa_criteria": module.qa_criteria,
+        "state": module.state.value,
+        "synthesis": module.synthesis,
+        "knowledge_check": _dump(module.knowledge_check),
+        "audit": _dump(module.audit),
+        "published_at": (
+            module.published_at.isoformat() if module.published_at else None
+        ),
+        "failure": module.failure,
+    }
+
+
+def _lesson_payload(
+    record: CourseRecord, module: ModuleRecord, lesson: LessonRecord
+) -> dict[str, Any]:
+    return {
+        "id": lesson.id,
+        "user_id": record.user_id,
+        "course_id": record.id,
+        "module_id": module.id,
+        "index": lesson.index,
+        "title": lesson.title,
+        "purpose": lesson.purpose,
+        "state": lesson.state.value,
+        "attempts": lesson.attempts,
+        "research_rounds": lesson.research_rounds,
+        "evidence": [_dump(item) for item in lesson.evidence],
+        "research_questions": lesson.research_questions,
+        "unresolved_claims": lesson.unresolved_claims,
+        "spec": _dump(lesson.spec),
+        "draft": _dump(lesson.draft),
+        "review": _dump(lesson.review),
+        "word_count": lesson.word_count,
+        "failure": lesson.failure,
+    }
+
+
+def _module_in(record: CourseRecord, module_id: str) -> ModuleRecord:
+    for module in record.modules:
+        if module.id == module_id:
+            return module
+    raise not_found("Module")
+
+
+def _lesson_in(
+    record: CourseRecord, lesson_id: str
+) -> tuple[ModuleRecord, LessonRecord]:
+    for module in record.modules:
+        for lesson in module.lessons:
+            if lesson.id == lesson_id:
+                return module, lesson
+    raise not_found("Lesson")
 
 
 def _group(rows: list[dict[str, Any]], key: str) -> dict[str, list[dict[str, Any]]]:
@@ -114,6 +220,13 @@ def _list_item_from_row(row: dict[str, Any]) -> CourseListItem:
     )
 
 
+def _evidence_urls(row: dict[str, Any]) -> list[str]:
+    raw = row.get("evidence_urls") or []
+    if not isinstance(raw, list):
+        return []
+    return [url for url in raw if isinstance(url, str)]
+
+
 def _lesson_outline(row: dict[str, Any]) -> LessonRecord:
     evidence = [
         EvidenceItem.model_validate(item) for item in (row.get("evidence") or [])
@@ -128,7 +241,9 @@ def _lesson_outline(row: dict[str, Any]) -> LessonRecord:
         purpose=row.get("purpose") or "",
         state=LessonState(row["state"]) if row.get("state") else LessonState.QUEUED,
         evidence=evidence,
+        evidence_urls=_evidence_urls(row),
         draft=draft,
+        draft_stored=bool(row.get("has_draft")) or draft is not None,
         word_count=row.get("word_count") or 0,
     )
 
@@ -138,6 +253,8 @@ def _module_outline(
 ) -> ModuleRecord:
     lessons.sort(key=lambda lesson: lesson.index)
     knowledge = row.get("knowledge_check")
+    has_synthesis = row.get("has_synthesis")
+    question_count = row.get("question_count")
     return ModuleRecord(
         id=row["id"],
         index=row["index"],
@@ -151,6 +268,14 @@ def _module_outline(
         synthesis=row.get("synthesis"),
         knowledge_check=(
             KnowledgeCheckOutput.model_validate(knowledge) if knowledge else None
+        ),
+        overview_has_synthesis=(
+            has_synthesis if isinstance(has_synthesis, bool) else None
+        ),
+        overview_question_count=(
+            question_count
+            if "question_count" in row and isinstance(question_count, int)
+            else None
         ),
         published_at=_dt(row["published_at"]) if row.get("published_at") else None,
     )
@@ -511,79 +636,65 @@ class PostgresStore:
         )
 
     def save_course(self, record: CourseRecord) -> None:
-        module_count, lesson_count = course_structure_counts(record)
-        self._table("courses").upsert(
-            {
-                "id": record.id,
-                "user_id": record.user_id,
-                "request_id": record.request_id,
-                "blueprint_id": record.blueprint_id,
-                "blueprint_version": record.blueprint_version,
-                "title": record.title,
-                "subtitle": record.subtitle,
-                "objective_statement": record.objective_statement,
-                "state": record.state.value,
-                "module_count": module_count,
-                "lesson_count": lesson_count,
-                "current_activity": record.current_activity,
-                "final_synthesis": _dump(record.final_synthesis),
-                "course_audit": _dump(record.course_audit),
-                "failure": record.failure,
-                "module_limit": record.module_limit,
-                "started_at": (
-                    record.started_at.isoformat() if record.started_at else None
-                ),
-                "completed_at": (
-                    record.completed_at.isoformat() if record.completed_at else None
-                ),
-                "created_at": record.created_at.isoformat(),
-            }
-        ).execute()
+        self._table("courses").upsert(_course_payload(record)).execute()
         for module in record.modules:
-            self._table("modules").upsert(
-                {
-                    "id": module.id,
-                    "user_id": record.user_id,
-                    "course_id": record.id,
-                    "index": module.index,
-                    "title": module.title,
-                    "function": module.function,
-                    "guiding_questions": module.guiding_questions,
-                    "outcome": module.outcome,
-                    "qa_criteria": module.qa_criteria,
-                    "state": module.state.value,
-                    "synthesis": module.synthesis,
-                    "knowledge_check": _dump(module.knowledge_check),
-                    "audit": _dump(module.audit),
-                    "published_at": (
-                        module.published_at.isoformat() if module.published_at else None
-                    ),
-                    "failure": module.failure,
-                }
-            ).execute()
+            self._table("modules").upsert(_module_payload(record, module)).execute()
             for lesson in module.lessons:
                 self._table("lessons").upsert(
-                    {
-                        "id": lesson.id,
-                        "user_id": record.user_id,
-                        "course_id": record.id,
-                        "module_id": module.id,
-                        "index": lesson.index,
-                        "title": lesson.title,
-                        "purpose": lesson.purpose,
-                        "state": lesson.state.value,
-                        "attempts": lesson.attempts,
-                        "research_rounds": lesson.research_rounds,
-                        "evidence": [_dump(item) for item in lesson.evidence],
-                        "research_questions": lesson.research_questions,
-                        "unresolved_claims": lesson.unresolved_claims,
-                        "spec": _dump(lesson.spec),
-                        "draft": _dump(lesson.draft),
-                        "review": _dump(lesson.review),
-                        "word_count": lesson.word_count,
-                        "failure": lesson.failure,
-                    }
+                    _lesson_payload(record, module, lesson)
                 ).execute()
+        notify_course(record.id)
+
+    def save_course_progress(
+        self,
+        record: CourseRecord,
+        *,
+        module_id: str | None = None,
+        lesson_id: str | None = None,
+    ) -> None:
+        """Write only the row that changed. Publish and close use save_course."""
+        if lesson_id is not None:
+            module, lesson = _lesson_in(record, lesson_id)
+            self._table("lessons").upsert(
+                _lesson_payload(record, module, lesson)
+            ).execute()
+            notify_course(record.id)
+            return
+        if module_id is not None:
+            module = _module_in(record, module_id)
+            self._table("modules").upsert(_module_payload(record, module)).execute()
+            notify_course(record.id)
+            return
+        self._table("courses").upsert(_course_payload(record)).execute()
+        notify_course(record.id)
+
+    def get_course_status(
+        self, course_id: str, *, user_id: str | None = None
+    ) -> CourseStatus:
+        """One read of course activity, module states, and lesson states."""
+        row = self._course_row(
+            course_id,
+            "id,user_id,state,current_activity,modules(id,state,lessons(id,state))",
+        )
+        assert_owner(row["user_id"], user_id)
+        return CourseStatus(
+            state=CourseState(row["state"]),
+            current_activity=row.get("current_activity"),
+            modules=tuple(
+                StatusModule(
+                    id=module["id"],
+                    state=ModuleState(module["state"]),
+                    lessons=tuple(
+                        StatusLesson(
+                            id=lesson["id"],
+                            state=LessonState(lesson["state"]),
+                        )
+                        for lesson in (module.get("lessons") or [])
+                    ),
+                )
+                for module in (row.get("modules") or [])
+            ),
+        )
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:
         return [entry.item for entry in self.list_library(user_id)]
@@ -666,8 +777,8 @@ class PostgresStore:
             course_id,
             user_id=user_id,
             course_columns=_VIEW_COURSE,
-            module_columns=_VIEW_MODULE,
-            lesson_columns=_VIEW_LESSON,
+            module_columns=_OVERVIEW_MODULE,
+            lesson_columns=_OVERVIEW_LESSON,
         )
 
     def get_module_course(

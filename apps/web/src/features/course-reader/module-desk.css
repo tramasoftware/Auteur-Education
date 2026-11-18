@@ -269,6 +269,60 @@
   width: 56px;
 }
 
+.landing.module-desk .stab.is-locked,
+.landing.module-desk .stab.is-wait,
+.landing.module-desk .stab.is-failed {
+  color: var(--m-2);
+  cursor: default;
+}
+
+.landing.module-desk .stab.is-wait {
+  flex-direction: column;
+}
+
+.landing.module-desk .stab .spin {
+  width: 10px;
+  height: 10px;
+  margin: 0 0 8px;
+  border: 1.5px solid rgba(37, 42, 64, 0.18);
+  border-top-color: var(--borgona);
+  border-radius: 50%;
+  animation: module-desk-spin 0.8s linear infinite;
+}
+
+@keyframes module-desk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.landing.module-desk .cover .lecciones .fila {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(37, 42, 64, 0.16);
+  color: var(--t-3);
+  font-family: var(--font-ui);
+  font-size: calc(15px * var(--ft, 1));
+}
+
+.landing.module-desk .side-comps .locked {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(242, 240, 239, 0.16);
+  color: rgba(242, 240, 239, 0.45);
+  cursor: default;
+}
+
+.landing.module-desk .side-comps .locked .note {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(11px * var(--ft, 1));
+}
+
 .landing.module-desk .stab {
   --c: var(--desk-tab-idle);
   --sh: var(--folder-tab-shoulder);

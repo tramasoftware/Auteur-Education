@@ -60,7 +60,7 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** TEMPORAL
 - **Necesidad:** `UF-01/UF-02` describen pasos secuenciales; la demo prioriza recorrer el flujo con mínima interfaz.
-- **Decisión:** un único formulario con los campos en el orden aprobado (intención, nivel, conocimientos previos opcionales, resultado esperado). El error de idioma se asocia al campo de intención. La clasificación, la precisión y el objetivo se muestran a continuación como pasos de revisión.
+- **Decisión:** un único formulario con los campos en el orden aprobado (intención, nivel, conocimientos previos opcionales, resultado esperado). El error de idioma se asocia al campo de intención. La clasificación y la precisión se muestran a continuación como pasos de revisión. El objetivo no se muestra: se formula y se confirma durante la carga de learning paths (`DEC-021`).
 
 ### DEC-007 — Límite de módulos construidos en la demo
 
@@ -147,7 +147,7 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 
 - **Estatus:** APROBADA (pedido del cliente, octubre 2026)
 - **Necesidad:** la pantalla «Your learning path» compara direcciones en una grilla 2×2; un número variable (1–5) dejaba filas incompletas y obligaba a excepciones en prompt y validación.
-- **Decisión:** tras confirmar el objetivo, `AI-STG-04` devuelve **exactamente cuatro** propuestas de curso genuinamente diferentes. Ni más ni menos. Si el modelo no alcanza cuatro direcciones sustantivas, la etapa reintenta; no se rellena con variantes cosméticas ni se acepta un conjunto incompleto. Se elimina la excepción de «una sola propuesta cuando no hay alternativas». La recomendación opcional (`BR-PRP-004`, `DEC-009`) sigue vigente cuando una opción es claramente superior.
+- **Decisión:** tras la confirmación automática del objetivo (`DEC-021`), `AI-STG-04` devuelve **exactamente cuatro** propuestas de curso genuinamente diferentes. Ni más ni menos. Si el modelo no alcanza cuatro direcciones sustantivas, la etapa reintenta; no se rellena con variantes cosméticas ni se acepta un conjunto incompleto. Se elimina la excepción de «una sola propuesta cuando no hay alternativas». La recomendación opcional (`BR-PRP-004`, `DEC-009`) sigue vigente cuando una opción es claramente superior.
 - **Impacto:** `BR-PRP-001`, `AI-STG-04`, `UF-04`, `MVP.md` §5, prompts y validación en `modules/proposals`, pantalla de propuestas (`apps/web`).
 - **Límite:** no cambia la diferenciación mínima entre pares (`BR-PRP-002`) ni confunde propuestas con alternativas de intención incompatible (`DEC-016` / `AI-STG-01`).
 
@@ -158,6 +158,30 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Decisión:** el aprendizaje se guarda aparte del build. `lesson_reads` es la marca por usuario y lección. `course_learning_progress` guarda la última lección, la actividad, la primera finalización, la finalización vigente y si ya se presentó sola la síntesis final. El porcentaje y los estados `not_started`, `in_progress` y `completed` se calculan. `courses.completed_at` sigue siendo el fin de la generación. El total del curso incluye las lecciones previstas todavía no publicadas. Un curso se completa solo con build `complete`, todos los módulos `published` y todas las lecciones leídas. La presentación automática de la síntesis final ocurre una sola vez.
 - **Impacto:** migración `lesson_reads` y `course_learning_progress`, `modules/learning_progress`, `GET/PUT/POST` bajo `/courses/{id}`. Home, Mis cursos, el esquema del curso y la lección muestran ese progreso. La lección publicada se marca a mano y registrar la visita no ocurre en el prefetch.
 - **Límite:** no incluye posición de audio ni resultado de Knowledge Check. `BR-PRG-004` sigue pidiendo esos dos datos para una tarea posterior. No se rediseñan las sugerencias editoriales de Home ni de Mis cursos. Con `DEC-007`, los módulos `not_built` entran en el total y el curso no puede completarse mientras existan.
+
+### DEC-021 — El objetivo se confirma sin pantalla
+
+- **Estatus:** APROBADA (pedido del cliente, noviembre 2026)
+- **Necesidad:** la pantalla de confirmación del objetivo frenaba el recorrido. En la mayoría de los casos la persona confirmaba sin leer ni corregir.
+- **Decisión:** no hay pantalla ni corrección en texto libre del objetivo. Tras el análisis de la intención, y tras la precisión o las sugerencias cuando corresponden, la carga de learning paths formula el objetivo (`AI-STG-03`), lo marca confirmado y genera las cuatro paths (`AI-STG-04`). Las dos llamadas de modelo siguen separadas. El prompt y los campos del objetivo no cambian: alimentan paths, Blueprint y curso. `BR-OBJ-010` pasa a ser confirmación del sistema. `BR-OBJ-011` se conserva para una versión posterior, sin pantalla que la dispare.
+- **Impacto:** `BR-OBJ-010`, `UF-02`, `UF-03` variante C, `UF-04`, `MVP.md` §4, `AI-STG-03`, `PRODUCT.md`, `DEC-006`, `DEC-019`, `POST /learning-requests/{id}/directions`, onboarding y propuestas en `apps/web`.
+- **Límite:** no fusiona los prompts. No quita campos del objetivo ni el endpoint de revisión. No agrega un estado nuevo de base de datos.
+
+### DEC-022 — El Blueprint se confirma sin pantalla
+
+- **Estatus:** APROBADA (pedido del cliente, noviembre 2026)
+- **Necesidad:** la pantalla de revisión del Blueprint frenaba la generación. En la mayoría de los casos la persona confirmaba sin leer ni cambiar el plan.
+- **Decisión:** no hay pantalla de revisión, cambios ni aprobación. Tras elegir una learning path, la carga de “generando curso” ejecuta `AI-STG-05`, confirma esa versión y arranca el build. Si ya hay una versión guardada sin confirmar, el mismo inicio la confirma y arranca el build, sin generar otra. La vista del curso se abre sola cuando terminó la animación y ya existe el esquema inicial (título, módulos, lecciones y estados de generación). No se espera a que las lecciones estén escritas. “Aprobado” es confirmación del sistema. Las llamadas de modelo siguen separadas. El prompt conserva los mismos campos: disciplinan el plan aunque algunos no se copien al curso. Solo cambia la frase que presentaba la parte visible como texto para que el learner lo apruebe. `BR-BLP-010` pasa a ser confirmación del sistema. `BR-BLP-011` y la revisión en texto libre quedan para una versión posterior, sin pantalla ni rutas que las disparen.
+- **Impacto:** `BR-BLP-010`, `BR-BLP-011`, `BR-GEN-001`, `UF-09` a `UF-11`, `UF-13`, `UF-15`, `AI-PRN-08`, `AI-STG-05`, `MVP.md` §9, `PRODUCT.md`, `POST /learning-requests/{id}/blueprint`, propuestas y la carga del curso en `apps/web`. Se eliminan `POST /blueprints/{id}/approve` y `POST /blueprints/{id}/revisions`.
+- **Límite:** no fusiona `AI-STG-05` con el build. No quita campos del Blueprint ni sus tablas. No cambia créditos, suscripción ni la vista de lectura. La numeración visible del armado pasa de tres pasos a dos (Onboarding, Learning path).
+
+### DEC-023 — Una lección aprobada se puede leer antes de publicar el módulo
+
+- **Estatus:** APROBADA (pedido de implementación, noviembre 2026)
+- **Necesidad:** el build ya persiste cada lección al aprobarla, pero el lector esperaba a la publicación del módulo entero. La primera lección quedaba lista y no se podía estudiar.
+- **Decisión:** una lección con `lessons.state = approved` y borrador persistido se puede leer aunque el módulo siga generándose. La síntesis del módulo, el Knowledge Check, la publicación del módulo y el inicio del módulo siguiente no cambian: siguen después de todas las lecciones y del audit `AI-STG-14`. `courses.state = partially_available` sigue significando que al menos un módulo está publicado. La primera lección puede leerse antes de ese estado. No se agregan estados nuevos: `queued`, `researching`, `writing`, `reviewing`, `approved` y `failed` siguen siendo los de la lección. Las fuentes siguen en `lessons.evidence`. Una búsqueda vacía sigue pudiendo aprobar la lección (`DEC-002`).
+- **Impacto:** `BR-GEN-004`, `BR-GEN-005`, `BR-PRG-002`, `UF-13`, `MVP.md` §10, `DATA_MODEL.md`, la compuerta de `GET` de lección y de módulo, el poll `GET /courses/{id}/status`, el progreso de lectura y la pantalla del módulo.
+- **Límite:** no adelanta `BR-NOT-001`. La notificación sigue siendo el primer módulo disponible, no la primera lección. No parte la síntesis ni el Knowledge Check en lecturas separadas. No agrega cola, worker ni WebSocket (`DEC-004`).
 
 ## Pendientes sin decisión
 

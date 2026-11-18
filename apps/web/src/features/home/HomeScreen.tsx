@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-import { rememberOnboardingDraft } from "@/lib/session";
+import { beginNewIntention, rememberOnboardingDraft } from "@/lib/session";
 
 import { LearningStatusLine } from "./LearningStatusLine";
 import { MemberFrame } from "./MemberFrame";
@@ -12,6 +12,7 @@ import { ReadingDesk } from "./ReadingDesk";
 
 const topics = ["Photography", "Music", "Everyday economics"] as const;
 
+/* Temporarily hidden: "From your current course" on home.
 const ideas = [
   {
     tab: "People and places",
@@ -58,6 +59,7 @@ const ideas = [
     modules: ["From the bean to the port", "Roast, grind, sell", "Price isn’t cost", "The cost of serving"],
   },
 ] as const;
+*/
 
 function pad(step: number): string {
   return String(step).padStart(2, "0");
@@ -83,13 +85,15 @@ export function HomeScreen() {
             <span className="ae-home-kicker">Auteur Education · Your space</span>
             <h1>Your reading desk.</h1>
           </div>
-          <Link className="ae-home-text-link" href="/onboarding">
+          <Link className="ae-home-text-link" href="/onboarding?new=1">
             Create a new course <span className="ae-link-arrow" aria-hidden="true">↗</span>
           </Link>
         </header>
         <ReadingDesk onInProgress={setInProgress} />
+        {/* Temporarily hidden: From your current course.
         <Curiosity step={2} fromCurrentCourse />
-        <NewQuestion step={3} />
+        */}
+        <NewQuestion step={2} />
       </main>
     </MemberFrame>
   );
@@ -101,6 +105,9 @@ function NewQuestion({ step }: { step: number }) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    // Clear the previous intention first, then keep this question as the new
+    // draft. `?new=1` would wipe the draft again on arrival.
+    beginNewIntention();
     const text = question.trim();
     if (text) {
       rememberOnboardingDraft({
@@ -148,6 +155,7 @@ function NewQuestion({ step }: { step: number }) {
   );
 }
 
+/* Temporarily hidden with the "From your current course" section.
 function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCourse: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const idea = open === null ? null : ideas[open];
@@ -236,7 +244,7 @@ function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCours
                 </ol>
               </div>
               <div className="pie-p">
-                <Link className="btn claro" href="/onboarding">
+                <Link className="btn claro" href="/onboarding?new=1">
                   Choose your learning path<span className="ar" />
                 </Link>
                 <button className="cerrar-c" type="button" onClick={() => setOpen(null)}>
@@ -250,3 +258,4 @@ function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCours
     </section>
   );
 }
+*/

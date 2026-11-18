@@ -533,13 +533,23 @@
   line-height: 1.5;
 }
 
+.landing.onboarding-screen .pie-l:not(:has(.nota)) {
+  justify-content: flex-end;
+}
+
+.landing.onboarding-screen .pie-espera {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(37, 42, 64, 0.18);
+}
+
 .landing.onboarding-screen .pie-go {
   display: flex;
   align-items: center;
   gap: 22px;
 }
 
-.landing.onboarding-screen .reform-link {
+.landing.course-setup .reform-link {
   margin: 0;
   padding: 0;
   border: 0;
@@ -554,17 +564,17 @@
   cursor: pointer;
 }
 
-.landing.onboarding-screen .reform-link:hover:not(:disabled) {
+.landing.course-setup .reform-link:hover:not(:disabled) {
   color: var(--m-1);
   text-decoration-color: var(--borgona);
 }
 
-.landing.onboarding-screen .reform-link:disabled {
+.landing.course-setup .reform-link:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.landing.onboarding-screen .reform-modal {
+.landing.course-setup .reform-modal {
   position: fixed;
   z-index: 80;
   inset: 0;
@@ -573,7 +583,7 @@
   padding: 24px;
 }
 
-.landing.onboarding-screen .reform-backdrop {
+.landing.course-setup .reform-backdrop {
   position: absolute;
   inset: 0;
   border: 0;
@@ -581,7 +591,7 @@
   cursor: pointer;
 }
 
-.landing.onboarding-screen .reform-sheet {
+.landing.course-setup .reform-sheet {
   position: relative;
   z-index: 1;
   width: min(520px, 100%);
@@ -591,7 +601,7 @@
   color: var(--m-1);
 }
 
-.landing.onboarding-screen .reform-sheet h2 {
+.landing.course-setup .reform-sheet h2 {
   max-width: 16ch;
   margin: 0 0 12px;
   color: var(--m-1);
@@ -602,7 +612,7 @@
   letter-spacing: -0.02em;
 }
 
-.landing.onboarding-screen .reform-sheet p {
+.landing.course-setup .reform-sheet p {
   max-width: 42ch;
   margin: 0 0 28px;
   color: var(--m-2);
@@ -611,21 +621,21 @@
   line-height: 1.6;
 }
 
-.landing.onboarding-screen .reform-sheet .acciones {
+.landing.course-setup .reform-sheet .acciones {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
 }
 
-.landing.onboarding-screen .reform-sheet .btn.fantasma {
+.landing.course-setup .reform-sheet .btn.fantasma {
   background: none;
   color: var(--tinta);
   outline: 1px solid rgba(37, 42, 64, 0.3);
   outline-offset: -1px;
 }
 
-.landing.onboarding-screen .reform-sheet .btn.fantasma:hover:not(:disabled) {
+.landing.course-setup .reform-sheet .btn.fantasma:hover:not(:disabled) {
   background: rgba(37, 42, 64, 0.05);
   outline-color: var(--tinta);
 }

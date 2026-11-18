@@ -5,19 +5,47 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorNotice } from "@/components/ui";
 import { courses } from "@/lib/api";
-import { continueLabel, resumeHref } from "@/lib/course-progress";
-import { usePolling } from "@/lib/usePolling";
+import {
+  continueLabel,
+  learnerActivity,
+  lessonStatusLabel,
+  lessonStepLabel,
+  moduleClosureLabel,
+  resumeHref,
+} from "@/lib/course-progress";
+import { useCourseBuildWatch } from "@/lib/useCourseBuildWatch";
 import type {
   Course,
   CourseProgress,
+  CourseStatus,
   LearningStatus,
   ModuleState,
   ModuleSummary,
 } from "@/types/generator";
 
+function courseStillBuilding(status: CourseStatus): boolean {
+  if (status.state === "complete" || status.state === "failed") {
+    return false;
+  }
+  return status.modules.some(
+    (module) =>
+      module.state !== "published" &&
+      module.state !== "not_built" &&
+      module.state !== "failed",
+  );
+}
+
 import { CourseOutlineScreen } from "./CourseOutlineScreen";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
-import { afterReadingWrites, warmCourseReading } from "./module-reading-cache";
+import {
+  afterReadingWrites,
+  loadCourseProgress,
+  peekCourseOutline,
+  peekCourseProgress,
+  rememberCourseOutline,
+  rememberCourseProgress,
+  warmCourseReading,
+} from "./module-reading-cache";
 import { Prose } from "./Prose";
 
 const BUILDING: Course["state"][] = [
@@ -33,6 +61,90 @@ const IN_PROGRESS: ModuleState[] = [
   "writing",
   "reviewing",
 ];
+
+function statusNeedsFullCourse(course: Course, status: CourseStatus): boolean {
+  if (status.modules.length !== course.modules.length) {
+    return true;
+  }
+  if (
+    (status.state === "complete" && course.state !== "complete") ||
+    (status.state === "failed" && course.state !== "failed") ||
+    (status.state === "complete" && !course.final_synthesis)
+  ) {
+    return true;
+  }
+  return status.modules.some((module) => {
+    const current = course.modules.find((item) => item.id === module.id);
+    if (!current || (module.state === "published" && current.state !== "published")) {
+      return true;
+    }
+    return module.lessons.some((lesson) => {
+      const known = current.lessons.find((item) => item.id === lesson.id);
+      return lesson.state === "approved" && known?.state !== "approved";
+    });
+  });
+}
+
+function statusMatches(course: Course, status: CourseStatus): boolean {
+  if (course.state !== status.state || course.current_activity !== status.current_activity) {
+    return false;
+  }
+  return status.modules.every((module) => {
+    const current = course.modules.find((item) => item.id === module.id);
+    if (!current || current.state !== module.state) {
+      return false;
+    }
+    return module.lessons.every((lesson) => {
+      const known = current.lessons.find((item) => item.id === lesson.id);
+      return known?.state === lesson.state;
+    });
+  });
+}
+
+function patchCourseStatus(course: Course, status: CourseStatus): Course {
+  return {
+    ...course,
+    state: status.state,
+    current_activity: status.current_activity,
+    modules: course.modules.map((module) => {
+      const next = status.modules.find((item) => item.id === module.id);
+      if (!next) {
+        return module;
+      }
+      return {
+        ...module,
+        state: next.state,
+        lessons: module.lessons.map((lesson) => {
+          const row = next.lessons.find((item) => item.id === lesson.id);
+          return row && row.state !== lesson.state ? { ...lesson, state: row.state } : lesson;
+        }),
+      };
+    }),
+  };
+}
+
+function outlineKey(course: Course): string {
+  return [
+    course.state,
+    course.current_activity ?? "",
+    course.failure ?? "",
+    course.final_synthesis?.body ?? "",
+    course.modules
+      .map((module) =>
+        [
+          module.id,
+          module.state,
+          module.published_at ?? "",
+          module.lesson_count,
+          module.has_synthesis ? "1" : "0",
+          module.source_count,
+          module.question_count ?? "",
+          module.lessons.map((lesson) => `${lesson.id}:${lesson.state}:${lesson.word_count}`).join(","),
+        ].join("|"),
+      )
+      .join(";"),
+  ].join("#");
+}
 
 const SKELETON_WIDTHS = [
   [22, 34],
@@ -100,9 +212,12 @@ function courseHeaderStatus(course: Course | null): string {
     IN_PROGRESS.includes(module.state),
   );
   if (inProgress) {
-    return inProgress.state === "writing"
-      ? `Writing module ${pad(inProgress.index)}`
-      : `Preparing module ${pad(inProgress.index)}`;
+    return (
+      learnerActivity(course.current_activity) ??
+      (inProgress.state === "writing"
+        ? `Writing module ${pad(inProgress.index)}`
+        : `Preparing module ${pad(inProgress.index)}`)
+    );
   }
   if (course.current_activity === "Writing final synthesis") {
     return "Writing final synthesis";
@@ -128,7 +243,15 @@ function asQueuedRetry(current: Course): Course {
     failure: null,
     current_activity: null,
     modules: current.modules.map((module) =>
-      module.state === "failed" ? { ...module, state: "queued" } : module,
+      module.state === "failed"
+        ? {
+            ...module,
+            state: "queued",
+            lessons: module.lessons.map((lesson) =>
+              lesson.state === "approved" ? lesson : { ...lesson, state: "queued" },
+            ),
+          }
+        : module,
     ),
   };
 }
@@ -172,6 +295,12 @@ function cifraLine(course: Course, progress: CourseProgress | null): string {
 }
 
 function pieNote(course: Course, building: boolean): string | null {
+  if (building) {
+    const step = learnerActivity(course.current_activity);
+    if (step) {
+      return step;
+    }
+  }
   const readable = course.modules.find((module) => module.state === "published");
   const writing = course.modules.find((module) =>
     ["writing", "researching", "reviewing"].includes(module.state),
@@ -184,7 +313,10 @@ function pieNote(course: Course, building: boolean): string | null {
     return `Read module ${pad(readable.index)} while ${pad(writing.index)} is being written.${next}`;
   }
   if (building) {
-    return "Modules are published one at a time once they pass review. You can read a published module while the rest is generated.";
+    return (
+      learnerActivity(course.current_activity) ??
+      "Each finished lesson can be read while the rest of its module is still being written. The next module starts when this one is published."
+    );
   }
   if (course.state === "complete") {
     return "Continue at your own pace.";
@@ -276,19 +408,29 @@ function OutlineExtraLink({
   );
 }
 
-function PendingExtras() {
+function PendingExtras({
+  synthesis = "Not available yet",
+  quiz = "Not available yet",
+}: {
+  synthesis?: string;
+  quiz?: string;
+}) {
+  const rows = [
+    ["Module synthesis", synthesis],
+    ["Sources used in this module", "Not available yet"],
+    ["Knowledge Check", quiz],
+  ] as const;
   return (
     <>
-      {["Module synthesis", "Sources used in this module", "Knowledge Check"].map(
-        (title) => (
-          <li className="comp nog" key={title}>
-            <span className="fila">
-              <span className="k">—</span>
-              <span className="t">{title}</span>
-            </span>
-          </li>
-        ),
-      )}
+      {rows.map(([title, note]) => (
+        <li className="comp nog" key={title}>
+          <span className="fila">
+            <span className="k">—</span>
+            <span className="t">{title}</span>
+            <span className="d">{note}</span>
+          </span>
+        </li>
+      ))}
     </>
   );
 }
@@ -298,11 +440,13 @@ function ModuleSection({
   module,
   readIds,
   learningStatus,
+  activity,
 }: {
   courseId: string;
   module: ModuleSummary;
   readIds: ReadonlySet<string>;
   learningStatus: LearningStatus | null;
+  activity: string | null;
 }) {
   const live = ["writing", "researching", "reviewing"].includes(module.state);
   const loading = live || module.state === "queued" || module.state === "not_built";
@@ -314,7 +458,10 @@ function ModuleSection({
         <p className="mod-build">
           <span className="spin" aria-hidden="true" />
           <span>
-            Assembling module {pad(module.index)} · {moduleStatusLabel(module.state, null)}
+            Assembling module {pad(module.index)} ·{" "}
+            {(activity?.startsWith(`Module ${module.index}:`)
+              ? learnerActivity(activity)
+              : null) ?? moduleStatusLabel(module.state, null)}
           </span>
         </p>
       ) : null}
@@ -343,43 +490,72 @@ function ModuleSection({
           text={module.function}
         />
         <ol className="ren">
-          {ready ? (
+          {module.lessons.length > 0 ? (
             <>
-              {module.lessons.map((lesson) => (
-                <li key={lesson.id}>
-                  <Link
-                    href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
-                  >
-                    <span className="k">{pad(lesson.index)}</span>
-                    <span className="t">{lesson.title}</span>
-                    <span className="d">
-                      {readIds.has(lesson.id) ? "Read" : `${readingMinutes(lesson.word_count)} min`}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-              {module.has_synthesis ? (
-                <OutlineExtraLink
-                  href={`/courses/${courseId}/modules/${module.id}/synthesis`}
-                  title="Module synthesis"
+              {module.lessons.map((lesson) => {
+                const readable = lesson.state === "approved";
+                const label =
+                  lessonStepLabel(activity, lesson.index) ??
+                  (readable
+                    ? readIds.has(lesson.id)
+                      ? "Read"
+                      : lesson.word_count > 0
+                        ? `${readingMinutes(lesson.word_count)} min`
+                        : "Ready"
+                    : lessonStatusLabel(lesson.state));
+                const generating = ["researching", "writing", "reviewing"].includes(lesson.state);
+                return (
+                  <li key={lesson.id} className={readable ? undefined : "nog"}>
+                    {readable ? (
+                      <Link
+                        href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
+                      >
+                        <span className="k">{pad(lesson.index)}</span>
+                        <span className="t">{lesson.title}</span>
+                        <span className="d">{label}</span>
+                      </Link>
+                    ) : (
+                      <span className="fila">
+                        {generating ? <span className="spin" aria-hidden="true" /> : null}
+                        <span className="k">{pad(lesson.index)}</span>
+                        <span className="t">{lesson.title}</span>
+                        <span className="d">{label}</span>
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+              {ready ? (
+                <>
+                  {module.has_synthesis ? (
+                    <OutlineExtraLink
+                      href={`/courses/${courseId}/modules/${module.id}/synthesis`}
+                      title="Module synthesis"
+                    />
+                  ) : null}
+                  <OutlineExtraLink
+                    href={`/courses/${courseId}/modules/${module.id}/sources`}
+                    meta={
+                      module.source_count === 1
+                        ? "1 source"
+                        : `${module.source_count} sources`
+                    }
+                    title="Sources used in this module"
+                  />
+                  {module.question_count !== null ? (
+                    <OutlineExtraLink
+                      href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}
+                      meta={`${module.question_count} questions`}
+                      title="Knowledge Check"
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <PendingExtras
+                  synthesis={moduleClosureLabel(module, activity, "synthesis")}
+                  quiz={moduleClosureLabel(module, activity, "quiz")}
                 />
-              ) : null}
-              <OutlineExtraLink
-                href={`/courses/${courseId}/modules/${module.id}/sources`}
-                meta={
-                  module.source_count === 1
-                    ? "1 source"
-                    : `${module.source_count} sources`
-                }
-                title="Sources used in this module"
-              />
-              {module.question_count !== null ? (
-                <OutlineExtraLink
-                  href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}
-                  meta={`${module.question_count} questions`}
-                  title="Knowledge Check"
-                />
-              ) : null}
+              )}
             </>
           ) : loading ? (
             <>
@@ -402,37 +578,49 @@ function ModuleSection({
 
 /** UF-06: real build states, progressive publication, final synthesis. */
 export function CourseOverview({ courseId }: { courseId: string }) {
-  const [course, setCourse] = useState<Course | null>(null);
-  const [progress, setProgress] = useState<CourseProgress | null>(null);
+  const [course, setCourse] = useState<Course | null>(() => peekCourseOutline(courseId));
+  const [progress, setProgress] = useState<CourseProgress | null>(() =>
+    peekCourseProgress(courseId),
+  );
   const [error, setError] = useState<unknown>(null);
+  const [shownId, setShownId] = useState(courseId);
   const retryLock = useRef(false);
+  if (shownId !== courseId) {
+    setShownId(courseId);
+    setCourse(peekCourseOutline(courseId));
+    setProgress(peekCourseProgress(courseId));
+    setError(null);
+  }
 
   const load = useCallback(
     () => {
       if (retryLock.current) {
         return Promise.resolve();
       }
-      return courses.get(courseId).then(
-        async (next) => {
+      const coursePromise = courses.get(courseId).then(
+        (next) => {
           if (retryLock.current) {
             return;
           }
-          try {
-            await afterReadingWrites();
-            const learning = await courses.progress(next.id).catch(() => null);
-            if (retryLock.current) {
-              return;
-            }
-            setCourse(next);
-            setProgress(learning);
-            setError(null);
-            void warmCourseReading(next);
-          } catch (err: unknown) {
-            setError(err);
-          }
+          setCourse((prev) => (prev && outlineKey(prev) === outlineKey(next) ? prev : next));
+          setError(null);
+          void warmCourseReading(next);
         },
         (err: unknown) => setError(err),
       );
+      const progressPromise = afterReadingWrites()
+        .then(() => {
+          if (retryLock.current) {
+            return null;
+          }
+          return loadCourseProgress(courseId).catch(() => null);
+        })
+        .then((learning) => {
+          if (!retryLock.current && learning) {
+            setProgress(learning);
+          }
+        });
+      return Promise.all([coursePromise, progressPromise]).then(() => undefined);
     },
     [courseId],
   );
@@ -441,13 +629,37 @@ export function CourseOverview({ courseId }: { courseId: string }) {
     load();
   }, [load]);
 
+  const courseRef = useRef(course);
+  useEffect(() => {
+    courseRef.current = course;
+  });
+
   const building =
     !!course &&
     (BUILDING.includes(course.state) ||
       (course.state === "partially_available" &&
         course.modules.some((module) => IN_PROGRESS.includes(module.state))));
 
-  usePolling(load, building, 5000);
+  const applyStatus = useCallback(
+    (status: CourseStatus) => {
+      const current = courseRef.current;
+      if (retryLock.current || !current) {
+        return;
+      }
+      if (statusNeedsFullCourse(current, status)) {
+        return load();
+      }
+      if (statusMatches(current, status)) {
+        return;
+      }
+      const patched = patchCourseStatus(current, status);
+      rememberCourseOutline(patched);
+      setCourse(patched);
+    },
+    [load],
+  );
+
+  useCourseBuildWatch(courseId, building, applyStatus, courseStillBuilding);
 
   async function retry() {
     const snapshot = course;
@@ -461,7 +673,10 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       const learning = await courses.progress(next.id).catch(() => null);
       retryLock.current = false;
       setCourse(next);
-      setProgress(learning);
+      if (learning) {
+        rememberCourseProgress(next.id, learning);
+        setProgress(learning);
+      }
       void warmCourseReading(next);
     } catch (err: unknown) {
       retryLock.current = false;
@@ -481,21 +696,29 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       ),
     [progress],
   );
-  const startModule = useMemo(
-    () => course?.modules.find((module) => module.state === "published") ?? null,
-    [course],
-  );
-  const startLesson = startModule?.lessons[0] ?? null;
-  const startHref = startLesson
-    ? `/courses/${courseId}/modules/${startModule?.id}/lessons/${startLesson.id}`
-    : startModule
-      ? `/courses/${courseId}/modules/${startModule.id}`
-      : null;
-  const actionHref = course && progress ? resumeHref(course.id, progress) : startHref;
+  const startTarget = (() => {
+    if (!course) {
+      return null;
+    }
+    for (const section of course.modules) {
+      const lesson = section.lessons.find((item) => item.state === "approved");
+      if (lesson) {
+        return { module: section, lesson };
+      }
+    }
+    return null;
+  })();
+  const startHref = startTarget
+    ? `/courses/${courseId}/modules/${startTarget.module.id}/lessons/${startTarget.lesson.id}`
+    : null;
+  const actionHref =
+    progress && (progress.synthesis_auto_open_pending || progress.resume_lesson_id)
+      ? resumeHref(courseId, progress)
+      : startHref;
   const actionLabel = progress
     ? continueLabel(progress)
-    : startModule
-      ? `Start module ${pad(startModule.index)}`
+    : startTarget
+      ? "Start reading"
       : null;
   const note = course ? pieNote(course, building) : null;
   const courseFailed = course?.state === "failed";
@@ -571,6 +794,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
                   ?.learning_status ?? null
               }
               module={module}
+              activity={course.current_activity}
               readIds={readIds}
             />
           ))}
@@ -595,7 +819,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
           {(actionHref && actionLabel) || note ? (
             <div className="pie-c">
               {actionHref && actionLabel ? (
-                courseFailed || !startModule ? (
+                courseFailed || !actionHref ? (
                   <button className="btn" disabled type="button">
                     {actionLabel}
                     <span className="ar" aria-hidden="true" />

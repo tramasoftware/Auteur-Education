@@ -103,9 +103,9 @@ The user expresses:
 * their previous knowledge;
 * the result they want to achieve.
 
-Auteur helps refine that intention, formulates an objective, presents possible learning directions, and generates a reviewable Blueprint.
+Auteur helps refine that intention, formulates an objective, and presents possible learning directions.
 
-After the Blueprint is approved, the system researches and generates a structured course containing modules and lessons.
+After the learner chooses a direction, the system generates and confirms a Blueprint without a review screen (`DEC-022`), then researches and generates a structured course containing modules and lessons.
 
 The generated content can be:
 
@@ -403,15 +403,13 @@ Prioritize:
 3. Objective.
 4. Learning proposals.
 5. Proposal selection.
-6. Blueprint review.
-7. Blueprint approval.
-8. Course generation state.
-9. Generated course structure.
-10. Module.
-11. Lessons.
-12. Lesson synthesis.
-13. Knowledge Check.
-14. Verifiable sources.
+6. Course generation state, including the internal Blueprint.
+7. Generated course structure.
+8. Module.
+9. Lessons.
+10. Lesson synthesis.
+11. Knowledge Check.
+12. Verifiable sources.
 
 Do not build:
 
@@ -450,11 +448,7 @@ then:
 
 then:
 
-> "This is the Blueprint Auteur proposes."
-
-then:
-
-> "This is the course generated from that Blueprint."
+> "This is the course generated from the direction I chose."
 
 The interface should communicate progression and intentionality.
 
@@ -802,14 +796,13 @@ Do not claim that a source was verified if the backend does not provide that inf
 
 # 24. Blueprint
 
-The Blueprint is a central reviewable artifact.
+The Blueprint remains the pedagogical contract used to generate the course. It is not a review screen (`DEC-022`).
 
 The interface should make it easy for the user to understand:
 
-* what they are going to learn;
-* why that direction was selected;
-* the structure of the proposed learning trajectory;
-* what can be reviewed before generation.
+* what they are going to learn, through the course once its outline exists;
+* why that direction was selected, on the learning-path screen;
+* that generation continues after the course view opens.
 
 The user should be able to clearly distinguish:
 
@@ -822,10 +815,10 @@ Proposals
         ↓
 Selected direction
         ↓
-Blueprint
-        ↓
 Generated course
 ```
+
+The Blueprint is produced during the course-generation wait. Do not add a screen for it.
 
 Do not add Blueprint fields that are not supported by the approved product documentation.
 
@@ -928,8 +921,7 @@ When testing frontend behavior, prioritize:
 * form validation;
 * loading states;
 * error states;
-* Blueprint review;
-* generation states;
+* course generation states;
 * content rendering;
 * Knowledge Checks.
 
@@ -970,7 +962,6 @@ Examples:
 LearningIntentForm
 ObjectiveCard
 ProposalList
-BlueprintReview
 CourseModule
 LessonContent
 KnowledgeCheck

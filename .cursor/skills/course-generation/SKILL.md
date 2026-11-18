@@ -1,7 +1,7 @@
 ---
 
 name: course-generation
-description: Generate a complete learning course from an approved Blueprint, including structured lessons, verifiable sources, formative learning checks, synthesis, and applicable editorial and pedagogical controls. Use only after Blueprint approval.
+description: Generate a complete learning course from a system-confirmed Blueprint, including structured lessons, verifiable sources, formative learning checks, synthesis, and applicable editorial and pedagogical controls. Use only after that confirmation (DEC-022).
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Course Generation
@@ -215,7 +215,7 @@ Do not hide generation failures by silently changing the Blueprint.
 
 Never:
 
-* generate before Blueprint approval;
+* generate before the system confirms the Blueprint (`DEC-022`);
 * invent sources;
 * invent citations;
 * fabricate factual claims;

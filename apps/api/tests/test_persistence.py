@@ -95,23 +95,24 @@ def test_published_course_get_does_not_call_ai(client, fake_ai) -> None:
 
 def test_blueprint_get_does_not_call_ai(client, fake_ai) -> None:
     rid = selected_request(client, fake_ai)
+    script_full_build(fake_ai)
     fake_ai.enqueue(BlueprintOutput, blueprint())
     bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     calls_before = len(fake_ai.calls)
     response = client.get(f"/api/v1/blueprints/{bid}")
     assert response.status_code == 200
-    assert response.json()["state"] == "awaiting_approval"
+    assert response.json()["state"] == "approved"
     assert len(fake_ai.calls) == calls_before
 
 
 def test_failed_build_is_readable_from_store(client, fake_ai) -> None:
     rid = selected_request(client, fake_ai)
+    script_full_build(fake_ai)
     fake_ai.enqueue(BlueprintOutput, blueprint())
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     fake_ai.enqueue(ResearchOutput, GenerationError("provider", "timeout"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     stored = store.get_course(course_id)
     assert stored.state == CourseState.FAILED
     fetched = client.get(f"/api/v1/courses/{course_id}")
@@ -457,10 +458,29 @@ def test_library_read_skips_lesson_bodies() -> None:
     assert entries[0].course.modules[0].title == "Streets"
     assert entries[0].course.modules[0].lessons[0].title == "The corner"
     assert entries[0].course.modules[0].lessons[0].draft is None
-    assert "draft" not in selected["lessons"]
+    lesson_columns = selected["lessons"].split(",")
+    assert "draft" not in lesson_columns
+    assert "has_draft" in lesson_columns
     assert "evidence" not in selected["lessons"]
     assert "synthesis" not in selected["modules"]
     assert "knowledge_check" not in selected["modules"]
+
+
+def test_outline_row_records_a_stored_draft_without_loading_it() -> None:
+    from auteur_api.core.postgres_store import _lesson_outline
+
+    lesson = _lesson_outline(
+        {
+            "id": "l1",
+            "index": 1,
+            "title": "The corner",
+            "state": "approved",
+            "word_count": 900,
+            "has_draft": True,
+        }
+    )
+    assert lesson.draft is None
+    assert lesson.draft_stored is True
 
 
 def test_read_retries_when_the_connection_drops() -> None:

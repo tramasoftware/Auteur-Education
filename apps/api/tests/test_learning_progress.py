@@ -20,7 +20,11 @@ from auteur_api.modules.generation.schemas import (
     ModuleRecord,
     ModuleState,
 )
-from auteur_api.modules.learning_progress.logic import ProgressWrite
+from auteur_api.modules.learning_progress.logic import (
+    ProgressWrite,
+    apply_read_mark,
+    build_snapshot,
+)
 from auteur_api.modules.learning_progress.service import reconcile_after_build
 
 OTHER_USER_ID = "20000000-0000-4000-8000-000000000002"
@@ -41,6 +45,21 @@ def make_course(
                 title=f"M{index} lesson {lesson_index}",
                 purpose="Explain the next step.",
                 state=LessonState.APPROVED if published else LessonState.QUEUED,
+                draft=(
+                    LessonDraftOutput(
+                        title=f"M{index} lesson {lesson_index}",
+                        sections=[
+                            LessonSectionOutput(
+                                kind="prose",
+                                heading="Idea",
+                                body="The argument.",
+                            )
+                        ],
+                        sources_used_refs=[],
+                    )
+                    if published
+                    else None
+                ),
             )
             for lesson_index in range(1, lesson_count + 1)
         ]
@@ -625,10 +644,40 @@ def test_resume_falls_back_when_the_last_module_is_not_published(
     opened = visit(client, course.id, second.id, 0)
     assert opened.json()["resume_lesson_id"] == second.id
     course.modules[1].state = ModuleState.QUEUED
+    course.modules[1].lessons[0].state = LessonState.QUEUED
+    course.modules[1].lessons[0].draft = None
     store.save_course(course)
     resumed = progress(client, course.id)
     assert resumed["last_lesson_id"] == second.id
     assert resumed["resume_lesson_id"] == first.id
+
+
+def test_approved_lesson_stays_readable_before_the_module_is_published(
+    client: TestClient,
+) -> None:
+    """DEC-023 / BR-PRG-002: an approved lesson can be opened and marked early."""
+    course = save(make_course((ModuleState.QUEUED, 2)))
+    lesson = course.modules[0].lessons[0]
+    lesson.state = LessonState.APPROVED
+    lesson.draft = LessonDraftOutput(
+        title=lesson.title,
+        sections=[
+            LessonSectionOutput(kind="prose", heading="Idea", body="The argument.")
+        ],
+        sources_used_refs=[],
+    )
+    store.save_course(course)
+    opened = visit(client, course.id, lesson.id, 0)
+    assert opened.status_code == 200
+    assert opened.json()["resume_lesson_id"] == lesson.id
+    assert opened.json()["modules"][0]["learning_status"] is None
+    marked = put_read(client, course.id, lesson.id, read=True, updated_at=None)
+    assert marked.status_code == 200
+    body = marked.json()
+    assert lesson_view(body, lesson.id)["read"] is True
+    assert body["learning_status"] == "in_progress"
+    assert body["modules"][0]["learning_status"] is None
+    assert body["current_completed_at"] is None
 
 
 def test_forced_complete_with_a_queued_module_stays_in_progress(
@@ -656,6 +705,45 @@ def test_build_reconcile_failure_does_not_propagate(
 
     monkeypatch.setattr(store, "reconcile_learning_progress", explode)
     reconcile_after_build(store, course)
+
+
+def test_outline_read_mark_counts_without_the_draft_body() -> None:
+    """Progress loads no draft JSON. A stored approved lesson still keeps its mark."""
+    course = make_course((ModuleState.PUBLISHED, 1), state=CourseState.COMPLETE)
+    lesson = course.modules[0].lessons[0]
+    lesson.draft = None
+    lesson.draft_stored = True
+    written = apply_read_mark(
+        course,
+        {},
+        None,
+        user_id=course.user_id,
+        lesson_id=lesson.id,
+        read=True,
+        expected_updated_at=None,
+        now=datetime.now(UTC),
+    )
+    assert written.outcome is ProgressWrite.APPLIED
+    body = build_snapshot(course, written.reads, written.progress)
+    assert body.lessons[0].read is True
+    assert body.lessons_read == 1
+
+
+def test_approved_lesson_without_a_stored_draft_cannot_be_marked() -> None:
+    course = make_course((ModuleState.QUEUED, 1))
+    lesson = course.modules[0].lessons[0]
+    lesson.state = LessonState.APPROVED
+    written = apply_read_mark(
+        course,
+        {},
+        None,
+        user_id=course.user_id,
+        lesson_id=lesson.id,
+        read=True,
+        expected_updated_at=None,
+        now=datetime.now(UTC),
+    )
+    assert written.outcome is ProgressWrite.NOT_ACCESSIBLE
 
 
 def test_no_quiz_or_audio_route_writes_progress(client: TestClient) -> None:

@@ -43,11 +43,8 @@ def approved_course(client, fake_ai, *, modules: int = 2, lessons: int = 2) -> s
         BlueprintOutput,
         blueprint(modules=modules, lessons=lessons, deviation_reason="demo"),
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
-    return client.post(f"/api/v1/blueprints/{bid}/approve", json={"version": 1}).json()[
-        "course_id"
-    ]
+    return client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["course_id"]
 
 
 @pytest.fixture
@@ -78,6 +75,13 @@ def test_full_build_completes_with_synthesis(
     assert all(m["state"] == "published" for m in course["modules"])
     assert course["final_synthesis"]["body"]
     assert course["final_synthesis"]["new_questions"]
+    status = client.get(f"/api/v1/courses/{course_id}/status").json()
+    assert status["state"] == course["state"]
+    assert status["current_activity"] == course["current_activity"]
+    assert [(m["id"], m["state"]) for m in status["modules"]] == [
+        (m["id"], m["state"]) for m in course["modules"]
+    ]
+    assert "final_synthesis" not in status
     stages = [c["schema"] for c in fake_ai.calls]
     assert "CourseSynthesisOutput" in stages and "CourseAuditOutput" in stages
 
@@ -112,10 +116,20 @@ def test_published_module_exposes_lessons_synthesis_check_and_sources(
     assert lesson["next_lesson_id"] == module["lessons"][1]["id"]
     assert lesson["previous_lesson_id"] is None
 
-    # BR-GEN-004: unpublished modules are not readable.
-    not_built = course["modules"][1]["id"]
-    blocked = client.get(f"/api/v1/courses/{course_id}/modules/{not_built}")
-    assert blocked.status_code == 409
+    # DEC-023: the outline of an unbuilt module is visible. Its lessons are not.
+    not_built = course["modules"][1]
+    blocked = client.get(f"/api/v1/courses/{course_id}/modules/{not_built['id']}")
+    assert blocked.status_code == 200
+    body = blocked.json()
+    assert body["state"] == "not_built"
+    assert body["synthesis"] is None
+    assert body["knowledge_check"] is None
+    assert body["sources"] == []
+    refused = client.get(
+        f"/api/v1/courses/{course_id}/modules/{not_built['id']}/lessons/"
+        f"{not_built['lessons'][0]['id']}"
+    )
+    assert refused.status_code == 409
 
 
 @pytest.mark.skip(
@@ -130,7 +144,6 @@ def test_unverified_sources_do_not_count_as_evidence(client, fake_ai) -> None:
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.citations = [Citation(url="https://example.org/a", title="A")]
     fake_ai.enqueue(
@@ -142,9 +155,9 @@ def test_unverified_sources_do_not_count_as_evidence(client, fake_ai) -> None:
     fake_ai.enqueue(
         ResearchOutput, research(["https://example.org/a", "https://fake.invalid/x"])
     )
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "failed"
     assert "incomplete module was published" in course["failure"].lower()
@@ -159,12 +172,11 @@ def test_revise_triggers_focused_repair_then_pass(client, fake_ai) -> None:
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(LessonReviewOutput, review("Revise", claim_status="Needs revision"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     writes = [c for c in fake_ai.calls if c["schema"] == "LessonWriteOutput"]
     assert "REVIEW FEEDBACK" in writes[1]["input"]
     assert "Qualify claim A." in writes[1]["input"]
@@ -180,10 +192,9 @@ def test_inconsistent_pass_review_is_rejected(client, fake_ai) -> None:
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(LessonReviewOutput, review("Pass", claim_status="Needs revision"))
-    client.post(f"/api/v1/blueprints/{bid}/approve", json={"version": 1})
+    client.post(f"/api/v1/learning-requests/{rid}/blueprint")
     reviews = [c for c in fake_ai.calls if c["schema"] == "LessonReviewOutput"]
     assert "review_inconsistent_pass" in reviews[1]["input"]
 
@@ -193,12 +204,11 @@ def test_block_fails_module_and_keeps_nothing_unpublished(client, fake_ai) -> No
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(LessonReviewOutput, review("Block"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "failed"
     assert course["modules"][0]["state"] == "failed"
@@ -208,6 +218,80 @@ def test_block_fails_module_and_keeps_nothing_unpublished(client, fake_ai) -> No
     assert "No incomplete module was published." in failure
     assert "AI-STG" not in failure
     assert course["modules"][0]["id"] not in failure
+
+
+def test_approved_lesson_is_readable_before_publication(client, fake_ai) -> None:
+    """DEC-023: an approved lesson opens before its module is published."""
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(
+        BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
+    )
+    script_full_build(fake_ai)
+    fake_ai.enqueue(LessonReviewOutput, review("Pass"))
+    fake_ai.enqueue(LessonReviewOutput, review("Block"))
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
+    course = client.get(f"/api/v1/courses/{course_id}").json()
+    module = course["modules"][0]
+    assert module["state"] == "failed"
+    assert [lesson["state"] for lesson in module["lessons"]] == ["approved", "failed"]
+    detail = client.get(f"/api/v1/courses/{course_id}/modules/{module['id']}").json()
+    assert detail["synthesis"] is None
+    assert detail["knowledge_check"] is None
+    assert detail["sources"] == []
+    first = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module['id']}/lessons/{module['lessons'][0]['id']}"
+    )
+    assert first.status_code == 200
+    assert first.json()["sections"]
+    second = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module['id']}/lessons/{module['lessons'][1]['id']}"
+    )
+    assert second.status_code == 409
+    status = client.get(f"/api/v1/courses/{course_id}/status").json()
+    assert [lesson["state"] for lesson in status["modules"][0]["lessons"]] == [
+        "approved",
+        "failed",
+    ]
+    assert "sections" not in status["modules"][0]["lessons"][0]
+
+
+def test_retry_does_not_regenerate_an_approved_lesson(client, fake_ai) -> None:
+    """BR-GEN-012: a finished lesson survives a retry of the lesson that failed."""
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(
+        BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
+    )
+    script_full_build(fake_ai)
+    fake_ai.enqueue(LessonReviewOutput, review("Pass"))
+    fake_ai.enqueue(LessonReviewOutput, review("Block"))
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
+    course = client.get(f"/api/v1/courses/{course_id}").json()
+    module_id = course["modules"][0]["id"]
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    before = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/{lesson_id}"
+    ).json()
+    writes_before = [
+        call for call in fake_ai.calls if call["schema"] == "LessonWriteOutput"
+    ]
+    retried = client.post(f"/api/v1/courses/{course_id}/retry")
+    assert retried.status_code == 202
+    body = retried.json()
+    assert body["id"] == course_id
+    assert body["state"] == "partially_available"
+    assert body["modules"][0]["state"] == "published"
+    after = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/{lesson_id}"
+    ).json()
+    assert after["sections"] == before["sections"]
+    writes_after = [
+        call for call in fake_ai.calls if call["schema"] == "LessonWriteOutput"
+    ]
+    assert len(writes_after) == len(writes_before) + 1
 
 
 def test_knowledge_check_shuffle_spreads_correct_answer() -> None:
@@ -247,12 +331,11 @@ def test_knowledge_check_structure_is_enforced(client, fake_ai) -> None:
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(KnowledgeCheckOutput, knowledge_check(questions=4))
     fake_ai.enqueue(KnowledgeCheckOutput, knowledge_check(options=3))
     fake_ai.enqueue(KnowledgeCheckOutput, knowledge_check(correct=2))
-    client.post(f"/api/v1/blueprints/{bid}/approve", json={"version": 1})
+    client.post(f"/api/v1/learning-requests/{rid}/blueprint")
     kc_calls = [c for c in fake_ai.calls if c["schema"] == "KnowledgeCheckOutput"]
     assert len(kc_calls) >= 2
     assert "knowledge_check_question_count" in kc_calls[1]["input"]
@@ -266,17 +349,26 @@ def test_module_audit_failure_prevents_publication(client, fake_ai) -> None:
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(ModuleAuditOutput, audit("Revise"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "failed"
     assert course["modules"][0]["state"] == "failed"
     assert "did not pass review" in course["failure"].lower()
     assert "AI-STG" not in course["failure"]
+    module_id = course["modules"][0]["id"]
+    module = client.get(f"/api/v1/courses/{course_id}/modules/{module_id}").json()
+    assert module["synthesis"] is None
+    assert module["knowledge_check"] is None
+    lesson = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/"
+        f"{course['modules'][0]['lessons'][0]['id']}"
+    )
+    assert lesson.status_code == 200
+    assert lesson.json()["sections"]
 
 
 def test_invented_source_ref_is_dropped_and_research_sources_are_shown(
@@ -286,12 +378,11 @@ def test_invented_source_ref_is_dropped_and_research_sources_are_shown(
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(LessonWriteOutput, lesson_write(refs=["S1", "S9"]))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     module_id = course["modules"][0]["id"]
     module = client.get(f"/api/v1/courses/{course_id}/modules/{module_id}").json()
@@ -309,12 +400,11 @@ def test_course_audit_failure_keeps_modules_but_not_complete(
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(CourseAuditOutput, audit("Revise"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "partially_available"
     assert all(m["state"] == "published" for m in course["modules"])
@@ -329,14 +419,13 @@ def test_retry_restarts_unpublished_module_and_keeps_published(
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     fake_ai.enqueue(LessonReviewOutput, review("Pass"))
     fake_ai.enqueue(LessonReviewOutput, review("Pass"))
     fake_ai.enqueue(LessonReviewOutput, review("Block"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "failed"
     assert [m["state"] for m in course["modules"]] == ["published", "failed"]
@@ -397,7 +486,6 @@ def _publish_with_research(
         BlueprintOutput,
         blueprint(modules=2, lessons=2, deviation_reason="demo"),
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     if write_output is not None:
         fake_ai.default(LessonWriteOutput, write_output)
@@ -405,9 +493,9 @@ def _publish_with_research(
         fake_ai.default(LessonWriteOutput, lesson_write(write_refs))
     fake_ai.citations = citations
     fake_ai.default(ResearchOutput, payload)
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     module_id = course["modules"][0]["id"]
     module = client.get(f"/api/v1/courses/{course_id}/modules/{module_id}").json()
@@ -741,7 +829,6 @@ def test_second_research_again_still_publishes_the_module(client, fake_ai) -> No
     fake_ai.enqueue(
         BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
     )
-    bid = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()["id"]
     script_full_build(fake_ai)
     empty = research([])
     empty["evidence"] = []
@@ -750,9 +837,9 @@ def test_second_research_again_still_publishes_the_module(client, fake_ai) -> No
     fake_ai.default(LessonWriteOutput, _write_without_source_lists())
     fake_ai.enqueue(LessonReviewOutput, review("Research again"))
     fake_ai.enqueue(LessonReviewOutput, review("Research again"))
-    course_id = client.post(
-        f"/api/v1/blueprints/{bid}/approve", json={"version": 1}
-    ).json()["course_id"]
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
     course = client.get(f"/api/v1/courses/{course_id}").json()
     assert course["state"] == "partially_available"
     module_id = course["modules"][0]["id"]

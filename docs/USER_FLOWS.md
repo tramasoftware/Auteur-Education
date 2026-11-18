@@ -47,7 +47,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 3. Recibe y selecciona una propuesta de curso.
 4. Se registra o inicia sesión sin perder el contexto.
 5. Se suscribe mediante Stripe.
-6. Recibe, revisa y aprueba un Blueprint.
+6. El sistema genera y confirma un Blueprint, y construye el curso, sin pantalla de revisión (`DEC-022`).
 7. Auteur construye y publica el curso por módulos.
 8. El cliente lee, escucha y comprueba su comprensión.
 9. Retoma su progreso desde la biblioteca.
@@ -59,16 +59,16 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 | ID | Flujo | Actor principal |
 | --- | --- | --- |
 | `UF-01` | Iniciar una intención desde el sitio público | Visitante |
-| `UF-02` | Completar el onboarding y confirmar el objetivo | Visitante |
+| `UF-02` | Completar el onboarding | Visitante |
 | `UF-03` | Tratar una solicitud ambigua, práctica o incompatible | Visitante |
 | `UF-04` | Recibir, comparar y seleccionar propuestas | Visitante |
 | `UF-05` | Reanudar o perder una sesión anónima | Visitante |
 | `UF-06` | Registrarse o iniciar sesión conservando el contexto | Visitante |
 | `UF-07` | Suscribirse y completar el checkout | Cliente |
 | `UF-08` | Recuperarse de un pago fallido | Cliente |
-| `UF-09` | Generar y revisar el Blueprint inicial | Cliente |
-| `UF-10` | Solicitar cambios en el Blueprint | Cliente |
-| `UF-11` | Aprobar el Blueprint e iniciar el build | Cliente |
+| `UF-09` | Generar y confirmar el Blueprint, e iniciar el curso | Cliente |
+| `UF-10` | Solicitar cambios en el Blueprint | Fuera del recorrido (`DEC-022`) |
+| `UF-11` | Abrir la vista del curso mientras se genera | Cliente |
 | `UF-12` | Intentar generar sin beneficio o créditos | Cliente |
 | `UF-13` | Seguir la generación y comenzar con contenido parcial | Cliente |
 | `UF-14` | Recuperarse de un fallo de generación | Cliente y administrador |
@@ -118,7 +118,7 @@ Las acciones y estados escritos entre backticks representan conceptos funcionale
 
 Existe una solicitud persistida en la cuenta iniciada, con la intención inicial.
 
-### UF-02 Completar el onboarding y confirmar el objetivo
+### UF-02 Completar el onboarding
 
 **Actor:** Visitante.
 
@@ -136,18 +136,16 @@ Existe una solicitud persistida en la cuenta iniciada, con la intención inicial
 6. El sistema clasifica la compatibilidad de la solicitud.
 7. Si la intención necesita precisión, el sistema presenta entre dos y cinco recortes relevantes y una opción de texto libre cuando corresponda.
 8. El visitante selecciona o escribe el objeto de aprendizaje específico.
-9. Auteur formula un objetivo alcanzable utilizando la intención, el nivel, el contexto, el resultado esperado y la precisión.
-10. El visitante revisa el objetivo.
-11. Confirma que representa lo que busca.
-12. El objetivo confirmado queda versionado y comienza `UF-04`.
+9. Si la solicitud es compatible y la precisión ya está resuelta, o no hacía falta, el sistema muestra la carga de learning paths.
+10. Durante esa carga, Auteur formula un objetivo alcanzable con la intención, el nivel, el contexto, el resultado esperado y la precisión. El sistema confirma esa versión (`DEC-021`).
+11. El objetivo confirmado queda versionado y comienza `UF-04`.
 
 #### Variantes y errores
 
 - Si la intención ya es suficientemente específica, se omite el paso de precisión.
 - El visitante puede volver a un paso anterior sin perder datos posteriores que sigan siendo compatibles.
 - Si modifica información que invalida la precisión o el objetivo, el sistema advierte qué resultados se reemplazarán y recalcula las etapas dependientes.
-- Si el objetivo no representa lo que busca, el visitante solicita una corrección en texto libre y vuelve a revisarlo.
-- El ritmo o esfuerzo semanal no se solicita en el MVP.
+- El ritmo o esfuerzo semanal no se solicita en el MVP. No hay pantalla para corregir el objetivo (`DEC-021`).
 
 #### Resultado
 
@@ -179,8 +177,8 @@ La solicitud contiene intención, nivel, contexto opcional, resultado esperado, 
 
 1. El sistema clasifica la solicitud como `Allowed with reframing`.
 2. Explica qué parte no puede enseñarse honestamente mediante texto y audio.
-3. Propone un objetivo teórico, histórico, crítico, conceptual o metodológico relacionado con la intención original.
-4. El visitante confirma la reformulación o vuelve a editar su intención.
+3. Formula, dentro del objetivo, un resultado teórico, histórico, crítico, conceptual o metodológico relacionado con la intención original.
+4. El sistema confirma ese objetivo y continúa hacia las learning paths. No hay una pantalla para aceptar la reformulación (`DEC-021`). El visitante puede volver a editar su intención antes de ese punto.
 
 #### Variante D: solicitud incompatible
 
@@ -199,7 +197,7 @@ La solicitud incompatible no continúa. Una intención nueva puede entrar en un 
 
 **Actor:** Visitante.
 
-**Disparador:** Confirma un objetivo.
+**Disparador:** El sistema confirma el objetivo durante la carga de learning paths (`DEC-021`).
 
 **Precondiciones:** Objetivo vigente y solicitud compatible.
 
@@ -352,103 +350,70 @@ El pago se recupera sin duplicaciones o la cuenta conserva acceso de lectura con
 
 ## Flujos de Blueprint y generación
 
-### UF-09 Generar y revisar el Blueprint inicial
+### UF-09 Generar y confirmar el Blueprint, e iniciar el curso
 
 **Actor:** Cliente.
 
-**Disparador:** Continúa desde una propuesta seleccionada con suscripción activa.
+**Disparador:** Elige una learning path con suscripción activa.
 
 **Precondiciones:** Usuario autenticado, suscripción `Active`, objetivo confirmado y propuesta vigente.
 
 #### Recorrido principal
 
-1. El cliente solicita continuar con la propuesta elegida.
-2. El sistema valida todas las precondiciones.
-3. La solicitud pasa a `Blueprint generating`.
-4. Auteur realiza la investigación de orientación necesaria.
-5. Genera una versión completa del Blueprint.
-6. La solicitud pasa a `Awaiting approval`.
-7. El cliente recibe una notificación de Blueprint disponible.
-8. Abre el Blueprint y revisa objetivo, alcance, exclusiones, supuestos, estructura, progresión, estimaciones y justificación.
-9. El sistema informa qué beneficio o crédito se utilizará al aprobar.
+1. El cliente confirma la path elegida.
+2. Ve una sola pantalla de carga, “generando curso”, con su animación.
+3. El sistema valida las precondiciones y genera el Blueprint (`AI-STG-05`).
+4. Al terminar, confirma esa versión e inicia el build. No hay revisión ni botón de aprobación (`DEC-022`).
+5. La carga sigue hasta que el curso tiene un esquema inicial: título, al menos un módulo con sus lecciones y el estado de generación de cada módulo.
+6. Cuando esa animación terminó y el esquema ya se puede mostrar, se abre sola la vista del curso.
+7. La vista muestra los estados reales (`Queued`, `Preparing`, `Writing` y los demás). Las lecciones siguen generándose ahí. Comienza `UF-13`.
 
 #### Variantes y errores
 
 - Si falta una precondición, el sistema bloquea el proceso y explica cómo resolverla.
-- Un timeout o cierre de pantalla no elimina el proceso; al volver se muestra el estado real.
-- Generar el Blueprint no reserva ni consume créditos.
-- La información interna de generación no se presenta como JSON, razonamiento privado ni instrucciones del sistema.
+- Si el Blueprint falla, la carga termina en error y el cliente vuelve a las paths. La propuesta seleccionada se conserva.
+- Un cierre de pantalla no elimina el proceso. Al volver, si el curso ya existe, se abre la vista; si todavía se genera el Blueprint, vuelve la misma carga.
+- Generar el Blueprint no reserva ni consume créditos. La reserva ocurre en la confirmación del sistema.
+- No se muestra el Blueprint ni su texto interno.
+- No hay botón de “ver el curso”. La vista se abre sola.
 
 #### Resultado
 
-Existe una versión vigente del Blueprint pendiente de decisión del cliente.
+Existe un Blueprint confirmado, un único build asociado y la vista del curso abierta con su esquema y sus estados de generación.
 
 ### UF-10 Solicitar cambios en el Blueprint
 
-**Actor:** Cliente.
+Fuera del recorrido actual (`DEC-022`). No hay pantalla ni ruta para pedir cambios, elegir otra propuesta después de confirmar o cancelar antes de construir. `BR-BLP-011` queda para una versión posterior.
 
-**Disparador:** El Blueprint vigente no representa adecuadamente el recorrido esperado.
-
-**Precondiciones:** Blueprint en estado `Awaiting approval`.
-
-#### Recorrido principal
-
-1. El cliente selecciona solicitar cambios.
-2. Describe el ajuste en texto libre o corrige un supuesto permitido.
-3. El sistema conserva la versión anterior para trazabilidad.
-4. Genera una nueva versión completa del Blueprint.
-5. Invalida cualquier aprobación anterior.
-6. Presenta la nueva versión como vigente.
-7. El cliente vuelve a revisar y puede aprobar, pedir otra revisión, elegir otra propuesta o cancelar.
-
-#### Variantes y errores
-
-- La revisión nunca produce lecciones completas.
-- Las revisiones previas a la aprobación no consumen créditos.
-- Si el cliente vuelve a elegir una propuesta, el Blueprint actual deja de ser aprobable y comienza `UF-09` con la selección nueva.
-- Cancelar antes de aprobar conserva suscripción, beneficio y créditos.
-
-#### Resultado
-
-Existe una nueva versión pendiente de aprobación o la solicitud queda cancelada sin consumo.
-
-### UF-11 Aprobar el Blueprint e iniciar el build
+### UF-11 Abrir la vista del curso mientras se genera
 
 **Actor:** Cliente.
 
-**Disparador:** Decide construir la versión visible del Blueprint.
+**Disparador:** La carga de `UF-09` ya tiene animación terminada y esquema inicial.
 
-**Precondiciones:** Blueprint vigente, suscripción activa y beneficio de bienvenida o crédito disponible.
+**Precondiciones:** Blueprint confirmado por el sistema, curso persistido con módulos y lecciones, y suscripción activa.
 
 #### Recorrido principal
 
-1. El cliente selecciona aprobar.
-2. El sistema confirma que la versión aprobada es la versión visible.
-3. Confirma que no existe otro build activo para el usuario.
-4. Reserva el beneficio de bienvenida o un crédito.
-5. Crea un build persistido asociado al Blueprint y a una única operación comercial.
-6. Cuando el build comienza correctamente, confirma el consumo del entitlement.
-7. El build pasa a `Queued` y luego a `Researching`.
-8. El cliente ve la pantalla de generación con su estado real.
-9. Comienza `UF-13`.
+1. El sistema abre `/courses/{id}` sin un paso intermedio.
+2. El cliente ve el título, los módulos, las lecciones previstas y el estado de cada módulo.
+3. Puede seguir esa vista mientras el build continúa (`UF-13`).
 
 #### Variantes y errores
 
-- Dos clics o solicitudes equivalentes producen un único build y un único consumo.
-- Si el Blueprint cambió, se rechaza la aprobación y se solicita revisar la versión nueva.
-- Si existe otro build activo, el sistema no crea uno nuevo y dirige al cliente al proceso existente.
-- Si la creación del build falla antes del trabajo persistido, libera la reserva.
-- El cliente no puede cancelar directamente un build ya iniciado.
+- Si la animación termina antes del esquema, la carga sigue sin botón hasta que el esquema existe.
+- Si el esquema existe antes de que termine la animación, la vista espera a la animación.
+- Dos inicios equivalentes producen un único build.
 
 #### Resultado
 
-Existe un único build activo y un único entitlement correctamente reservado o consumido.
+La persona está en la vista del curso, con generación en curso o con módulos ya publicados.
 
 ### UF-12 Intentar generar sin beneficio o créditos
 
 **Actor:** Cliente.
 
-**Disparador:** Intenta aprobar un Blueprint sin entitlement disponible.
+**Disparador:** El sistema va a confirmar un Blueprint sin entitlement disponible.
 
 **Precondiciones:** Cuenta autenticada y Blueprint vigente.
 
@@ -462,7 +427,7 @@ Existe un único build activo y un único entitlement correctamente reservado o 
 
 #### Resultado
 
-El Blueprint permanece disponible y sin aprobación efectiva hasta que exista un entitlement.
+El curso no comienza hasta que exista un entitlement. No hay una pantalla de Blueprint en espera.
 
 ### UF-13 Seguir la generación y comenzar con contenido parcial
 
@@ -474,22 +439,23 @@ El Blueprint permanece disponible y sin aprobación efectiva hasta que exista un
 
 #### Recorrido principal
 
-1. El sistema muestra la etapa real del build sin porcentajes o tiempos inventados.
+1. La vista del curso, abierta al terminar la carga de `UF-09`, muestra la etapa real del build sin porcentajes o tiempos inventados.
 2. Investiga y construye los módulos en el orden aprobado.
-3. Cada módulo atraviesa `Queued`, `Researching`, `Writing` y `QA`.
-4. Un módulo se publica únicamente cuando todas sus lecciones, fuentes, síntesis y Knowledge Check están completos.
-5. Al publicarse el primer módulo, el curso pasa a `Partially available`.
-6. El cliente recibe una única notificación de que puede comenzar.
-7. Puede abrir el módulo publicado mientras los siguientes continúan en construcción.
-8. El sistema distingue claramente contenido disponible de contenido futuro.
-9. Al publicarse todas las unidades y la síntesis final, el build pasa a `Complete`.
-10. El cliente recibe una única notificación de curso completo.
+3. Cada módulo atraviesa `Queued`, `Researching`, `Writing` y `QA`. Dentro del módulo, cada lección hace lo mismo y queda `approved` al pasar su revisión.
+4. Una lección se puede leer cuando está `approved` y su borrador está persistido, aunque el módulo siga generándose (`DEC-023`).
+5. Un módulo se publica únicamente cuando todas sus lecciones, fuentes, síntesis y Knowledge Check están completos y pasaron el audit. Hasta entonces la síntesis y el Knowledge Check siguen cerrados.
+6. Al publicarse el primer módulo, el curso pasa a `Partially available`. Eso no es lo mismo que la primera lección legible: la lección puede abrirse antes.
+7. El cliente recibe una única notificación cuando el primer módulo está disponible (`BR-NOT-001`). No hay una notificación por lección.
+8. Puede abrir cada lección `approved` mientras las siguientes del mismo módulo, y los módulos posteriores, continúan en construcción. El módulo siguiente no empieza hasta que el actual está publicado.
+9. El sistema distingue el contenido ya legible del que todavía está generándose o en espera.
+10. Al publicarse todas las unidades y la síntesis final, el build pasa a `Complete`.
+11. El cliente recibe una única notificación de curso completo.
 
 #### Variantes y errores
 
 - Cerrar la pantalla, navegar o cerrar sesión no detiene el proceso.
 - Al regresar, el cliente ve el mismo estado o uno posterior válido.
-- No se muestran placeholders, borradores ni lecciones parcialmente escritas.
+- No se muestran placeholders, borradores ni lecciones parcialmente escritas. Una lección `approved` no es un borrador.
 - Una corrección posterior crea una nueva versión sin perder la identidad del curso ni el progreso compatible.
 
 #### Resultado
@@ -542,8 +508,7 @@ El build continúa de forma consistente o queda fallido con diagnóstico, conten
 3. El cliente selecciona un curso.
 4. El sistema dirige según su estado:
    - a la última lección si está disponible;
-   - al Blueprint si espera aprobación;
-   - al estado de construcción si sigue generándose;
+   - a la vista del curso si sigue generándose;
    - al diagnóstico si falló.
 5. Restaura última lección, completitud, posición de audio y último resultado de los Checks.
 
@@ -910,7 +875,6 @@ Los valores comerciales permitidos quedan actualizados y auditados.
 - pago fallido o acción requerida;
 - cancelación programada;
 - cancelación efectiva;
-- Blueprint disponible;
 - primer módulo publicado;
 - curso completo;
 - fallo definitivo de generación;
@@ -985,18 +949,18 @@ Todo error visible debe explicar:
 | --- | --- | --- |
 | Solicitud | `Draft` | Continuar onboarding |
 | Solicitud | `Precision required` | Elegir o escribir precisión |
-| Solicitud | `Objective confirmation` | Confirmar o corregir objetivo |
+| Solicitud | `Objective confirmation` | Carga de learning paths. El sistema formula y confirma el objetivo; no es una pantalla (`DEC-021`). |
 | Solicitud | `Proposals ready` | Comparar propuestas |
 | Solicitud | `Awaiting account` | Registrarse o iniciar sesión |
 | Solicitud | `Awaiting subscription` | Completar checkout |
-| Solicitud | `Blueprint generating` | Ver estado real y esperar |
-| Solicitud | `Awaiting approval` | Revisar Blueprint |
+| Solicitud | `Blueprint generating` | Pantalla de “generando curso” |
+| Solicitud | `Awaiting approval` | No es un destino del recorrido. La confirmación es del sistema (`DEC-022`). |
 | Solicitud | `Canceled` | Volver a biblioteca o iniciar otra intención |
 | Build | `Queued` | Ver estado de generación |
 | Build | `Researching` | Ver estado de generación |
 | Build | `Generating` | Ver módulo actual |
 | Build | `Reviewing` | Ver estado de control de calidad |
-| Build | `Partially available` | Comenzar módulo publicado o seguir esperando |
+| Build | `Partially available` | Seguir en una lección `approved` o abrir un módulo publicado (`DEC-023`) |
 | Build | `Complete` | Abrir o retomar curso |
 | Build | `Failed` | Consultar diagnóstico o intervención |
 | Build | `Canceled` | Consultar resultado y biblioteca |
@@ -1018,8 +982,8 @@ La implementación de estos flujos debe permitir comprobar que:
 - un visitante obtiene valor antes de registrarse y pagar;
 - una intención amplia, específica, no inglesa, práctica e incompatible sigue el camino correcto;
 - registro, login y checkout no pierden el contexto;
-- el Blueprint exige revisión y aprobación explícita;
-- las revisiones no consumen créditos;
+- el Blueprint se confirma sin pantalla y la vista del curso se abre sola cuando hay esquema inicial (`DEC-022`);
+- no hay revisión del Blueprint en el recorrido;
 - solamente existe un build activo por usuario;
 - los módulos se publican completos y progresivamente;
 - el aprendizaje puede comenzar antes de completar todo el build;

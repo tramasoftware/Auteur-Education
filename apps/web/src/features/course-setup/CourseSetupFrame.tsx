@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import Link from "next/link";
 
 import { JourneyFrame, useJourneyStepValue } from "@/components/layout";
@@ -15,6 +15,10 @@ type CourseSetupFrameProps = {
   backHref?: string;
   backLabel?: string;
   backAriaLabel?: string;
+  /** When false, the header keeps the slot and shows no control. */
+  showBack?: boolean;
+  /** Runs with the back link, for example to leave a loading overlay. */
+  onBackClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
   mainClassName?: string;
   screenClassName?: string;
   /** Public footer chrome; omitted during onboarding, proposals, and Blueprint. */
@@ -42,6 +46,8 @@ export function CourseSetupFrame({
   backHref = "/",
   backLabel = "Exit",
   backAriaLabel = "Exit course setup",
+  showBack = true,
+  onBackClick,
   mainClassName = "question-main",
   screenClassName,
   showFooter = false,
@@ -56,10 +62,19 @@ export function CourseSetupFrame({
       <JourneyFrame bare>
         <header className="topfix">
           <div className="top">
-            <Link className="back" href={backHref} aria-label={backAriaLabel}>
-              <span className="ar izq" aria-hidden="true" />
-              <span className="txt">{backLabel}</span>
-            </Link>
+            {showBack ? (
+              <Link
+                className="back"
+                href={backHref}
+                aria-label={backAriaLabel}
+                onClick={onBackClick}
+              >
+                <span className="ar izq" aria-hidden="true" />
+                <span className="txt">{backLabel}</span>
+              </Link>
+            ) : (
+              <span className="back" aria-hidden="true" />
+            )}
             <Link className="marca" href="/" aria-label="Auteur Education">
               <span className="m1">Auteur</span>
               <span className="m2">Education</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { courses } from "@/lib/api";
 import {
@@ -9,6 +9,7 @@ import {
   inProgressCourses,
   type ReadingDeskModel,
 } from "@/lib/course-progress";
+import { libraryOnHand } from "@/lib/member-library";
 import {
   currentUserId,
   readMemberDisplay,
@@ -19,21 +20,85 @@ import type { CourseList, LibraryCourse } from "@/types/generator";
 import { readingDeskModel } from "./reading-desk-load";
 import { ReadingCoursePager } from "./ReadingCoursePager";
 
+type DeskStart = {
+  phase: "loading" | "ready" | "empty" | "failed";
+  inProgressList: LibraryCourse[];
+  model: ReadingDeskModel | null;
+  models: Record<string, ReadingDeskModel>;
+  coursePage: number;
+  current: number;
+  courseId: string | null;
+  count: number | null;
+};
+
+function readDesk(): DeskStart {
+  const body = libraryOnHand();
+  if (!body) {
+    return {
+      phase: "loading",
+      inProgressList: [],
+      model: null,
+      models: {},
+      coursePage: 0,
+      current: 0,
+      courseId: null,
+      count: null,
+    };
+  }
+  const progressMap = new Map(body.courses.map((item) => [item.id, item.progress] as const));
+  const active = inProgressCourses(body.courses, progressMap);
+  const models: Record<string, ReadingDeskModel> = {};
+  for (const item of active) {
+    models[item.id] = readingDeskModel(item, body.courses);
+  }
+  if (active.length === 0) {
+    return {
+      phase: "empty",
+      inProgressList: [],
+      model: null,
+      models,
+      coursePage: 0,
+      current: 0,
+      courseId: null,
+      count: inProgressCount(body.courses, progressMap),
+    };
+  }
+  const first = active[0];
+  const model = models[first.id];
+  return {
+    phase: "ready",
+    inProgressList: active,
+    model,
+    models,
+    coursePage: 0,
+    current: model.openIndex,
+    courseId: first.id,
+    count: inProgressCount(body.courses, progressMap),
+  };
+}
+
 export function ReadingDesk({
   onInProgress,
 }: {
   onInProgress: (count: number) => void;
 }) {
-  const [phase, setPhase] = useState<"loading" | "ready" | "empty" | "failed">("loading");
-  const [inProgressList, setInProgressList] = useState<LibraryCourse[]>([]);
-  const [coursePage, setCoursePage] = useState(0);
-  const coursePageRef = useRef(0);
-  const shownCourseRef = useRef<string | null>(null);
-  const modelsRef = useRef<Record<string, ReadingDeskModel>>({});
-  const [model, setModel] = useState<ReadingDeskModel | null>(null);
+  const [desk] = useState(readDesk);
+  const [phase, setPhase] = useState(desk.phase);
+  const [inProgressList, setInProgressList] = useState(desk.inProgressList);
+  const [coursePage, setCoursePage] = useState(desk.coursePage);
+  const coursePageRef = useRef(desk.coursePage);
+  const shownCourseRef = useRef<string | null>(desk.courseId);
+  const modelsRef = useRef(desk.models);
+  const [model, setModel] = useState<ReadingDeskModel | null>(desk.model);
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState(desk.current);
   const [compact, setCompact] = useState(false);
+
+  useLayoutEffect(() => {
+    if (desk.count !== null) {
+      onInProgress(desk.count);
+    }
+  }, [desk, onInProgress]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 900px)");
@@ -92,7 +157,7 @@ export function ReadingDesk({
       if (cancelled) {
         return;
       }
-      if (cached?.library) {
+      if (desk.phase === "loading" && cached?.library) {
         showLibrary(cached.library);
       }
       try {
@@ -111,7 +176,7 @@ export function ReadingDesk({
           });
         }
       } catch {
-        if (!cancelled && !cached?.library) {
+        if (!cancelled && desk.phase === "loading" && !cached?.library) {
           setPhase("failed");
         }
       }
@@ -119,7 +184,7 @@ export function ReadingDesk({
     return () => {
       cancelled = true;
     };
-  }, [showLibrary]);
+  }, [desk.phase, showLibrary]);
 
   const showCachedCourse = useCallback(
     (pageIndex: number) => {

@@ -1,24 +1,31 @@
 """Course records: creation from an approved Blueprint and read views.
 
-Reads only expose published modules (BR-GEN-004/005). Build orchestration lives
-in `build.py`.
+An approved lesson is readable before its module is published (DEC-023).
+Module synthesis, the Knowledge Check and aggregated sources stay closed
+until publication (BR-GEN-004). Build orchestration lives in `build.py`.
 """
 
 from __future__ import annotations
 
+import hashlib
+
 from auteur_api.ai.tracing import now, summarize
 from auteur_api.core.config import settings
 from auteur_api.core.errors import invalid_state, not_found
-from auteur_api.core.store import CourseBuildSnapshot, Store, new_id
+from auteur_api.core.store import CourseBuildSnapshot, CourseStatus, Store, new_id
 from auteur_api.modules.blueprints.schemas import BlueprintRecord, BlueprintVersion
 from auteur_api.modules.generation.schemas import (
     CourseDiagnosticsResponse,
     CourseRecord,
     CourseResponse,
     CourseState,
+    CourseStatusLesson,
+    CourseStatusModule,
+    CourseStatusResponse,
     LessonDiagnostics,
     LessonRecord,
     LessonResponse,
+    LessonState,
     LessonSummary,
     ModuleDiagnostics,
     ModuleLessonOutline,
@@ -163,6 +170,7 @@ def list_courses_for_user(store: Store, user_id: str):
                         index=lesson.index,
                         title=lesson.title,
                         word_count=lesson.word_count,
+                        state=lesson.state,
                     )
                     for module in entry.course.modules
                     for lesson in module.lessons
@@ -170,6 +178,37 @@ def list_courses_for_user(store: Store, user_id: str):
             )
         )
     return CourseLibraryResponse(courses=courses)
+
+
+def status_token(status: CourseStatus) -> str:
+    """Stable token for the fields a waiting status read compares."""
+    lines = [status.state.value, status.current_activity or ""]
+    for module in sorted(status.modules, key=lambda item: item.id):
+        lessons = ",".join(
+            f"{lesson.id}:{lesson.state.value}"
+            for lesson in sorted(module.lessons, key=lambda item: item.id)
+        )
+        lines.append(f"{module.id}:{module.state.value}:{lessons}")
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()[:20]
+
+
+def course_status_view(status: CourseStatus) -> CourseStatusResponse:
+    return CourseStatusResponse(
+        state=status.state,
+        current_activity=status.current_activity,
+        seen=status_token(status),
+        modules=[
+            CourseStatusModule(
+                id=module.id,
+                state=module.state,
+                lessons=[
+                    CourseStatusLesson(id=lesson.id, state=lesson.state)
+                    for lesson in module.lessons
+                ],
+            )
+            for module in status.modules
+        ],
+    )
 
 
 def course_view(course: CourseRecord) -> CourseResponse:
@@ -200,15 +239,24 @@ def course_view(course: CourseRecord) -> CourseResponse:
                         index=lesson.index,
                         title=lesson.title,
                         word_count=lesson.word_count,
+                        state=lesson.state,
                     )
                     for lesson in m.lessons
                 ],
-                has_synthesis=bool(m.synthesis and m.synthesis.strip()),
-                source_count=len(_sources(m.lessons)),
+                has_synthesis=(
+                    m.overview_has_synthesis
+                    if m.overview_has_synthesis is not None
+                    else bool(m.synthesis and m.synthesis.strip())
+                ),
+                source_count=_source_count(m.lessons),
                 question_count=(
-                    len(m.knowledge_check.questions)
-                    if m.knowledge_check is not None
-                    else None
+                    m.overview_question_count
+                    if m.overview_has_synthesis is not None
+                    else (
+                        len(m.knowledge_check.questions)
+                        if m.knowledge_check is not None
+                        else None
+                    )
                 ),
             )
             for m in course.modules
@@ -218,6 +266,16 @@ def course_view(course: CourseRecord) -> CourseResponse:
         module_limit=course.module_limit,
         created_at=course.created_at,
     )
+
+
+def _source_count(lessons: list[LessonRecord]) -> int:
+    """Distinct source URLs from evidence, or from an overview URL list."""
+    seen: set[str] = set()
+    for lesson in lessons:
+        urls = [item.url for item in lesson.evidence] or lesson.evidence_urls
+        for url in urls:
+            seen.add(url)
+    return len(seen)
 
 
 def _sources(lessons: list[LessonRecord]) -> list[SourceView]:
@@ -259,7 +317,23 @@ def published_module(course: CourseRecord, module_id: str) -> ModuleRecord:
     return module
 
 
+def readable_lesson(
+    course: CourseRecord, module_id: str, lesson_id: str
+) -> tuple[ModuleRecord, LessonRecord]:
+    """DEC-023: a lesson is readable once it is approved and its draft is stored."""
+    module = get_module(course, module_id)
+    if module.state == ModuleState.NOT_BUILT:
+        raise invalid_state("This lesson is not available yet.")
+    lesson = next((item for item in module.lessons if item.id == lesson_id), None)
+    if lesson is None:
+        raise not_found("Lesson")
+    if lesson.state != LessonState.APPROVED or lesson.draft is None:
+        raise invalid_state("This lesson is not available yet.")
+    return module, lesson
+
+
 def module_view(course: CourseRecord, module: ModuleRecord) -> ModuleResponse:
+    released = module.state == ModuleState.PUBLISHED
     return ModuleResponse(
         id=module.id,
         course_id=course.id,
@@ -276,16 +350,17 @@ def module_view(course: CourseRecord, module: ModuleRecord) -> ModuleResponse:
                 title=lesson.title,
                 purpose=lesson.purpose,
                 word_count=lesson.word_count,
+                state=lesson.state,
             )
             for lesson in module.lessons
         ],
-        synthesis=module.synthesis,
+        synthesis=module.synthesis if released else None,
         knowledge_check=(
             shuffle_knowledge_check_options(module.knowledge_check, seed=module.id)
-            if module.knowledge_check is not None
+            if released and module.knowledge_check is not None
             else None
         ),
-        sources=_sources(module.lessons),
+        sources=_sources(module.lessons) if released else [],
         published_at=module.published_at,
     )
 
@@ -299,7 +374,8 @@ def lesson_view(
     if position is None:
         raise not_found("Lesson")
     lesson = module.lessons[position]
-    assert lesson.draft is not None  # published modules only contain approved lessons
+    if lesson.draft is None:
+        raise invalid_state("This lesson is not available yet.")
     previous_id = module.lessons[position - 1].id if position > 0 else None
     next_id = (
         module.lessons[position + 1].id if position + 1 < len(module.lessons) else None

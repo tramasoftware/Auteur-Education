@@ -1,13 +1,16 @@
-import type { ExperienceLevel } from "@/types/generator";
+import type { Blueprint, ExperienceLevel, LearningRequest } from "@/types/generator";
 
 /**
- * Resume support (UF-05): remember the current learning request in the browser
- * so a reload returns to the last persisted step. Course and Blueprint URLs
- * resume from the API. This is not the auth session.
+ * Progress for the course being created in this browser tab.
+ * sessionStorage survives a reload of the tab, including the login interrupt.
+ * It does not survive a new tab, a new browser session, or "Create my course".
+ * This is not the auth session. Course and Blueprint URLs still load from the API
+ * when this tab has no in-memory snapshot.
  */
 
 const KEY = "auteur.demo.learningRequestId";
 const FLOW_PATH_KEY = "auteur.demo.courseFlowPath";
+const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
 
 export function isCourseFlowPath(pathname: string): boolean {
   return (
@@ -30,13 +33,10 @@ export function courseFlowStageFromPath(pathname: string): CourseFlowStage | nul
   return null;
 }
 
-/** Initial intent form at `/onboarding` before a learning request exists. */
+/** Initial intent form at `/onboarding` before this visit has a learning request. */
 export function hasStartedOnboarding(search: string): boolean {
   const query = search.startsWith("?") ? search.slice(1) : search;
-  if (query && new URLSearchParams(query).get("request")) {
-    return true;
-  }
-  return recallRequestId() !== null;
+  return Boolean(query && new URLSearchParams(query).get("request"));
 }
 
 export function courseFlowStageForOnboardingPage(search: string): CourseFlowStage {
@@ -64,45 +64,60 @@ export function courseFlowStageFromHref(href: string): CourseFlowStage {
   return courseFlowStageFromPath(pathname) ?? "create";
 }
 
-export function rememberCourseFlowPath(path: string): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(FLOW_PATH_KEY, path);
+function purgeLegacyLocalStorage(): void {
+  window.localStorage.removeItem(KEY);
+  window.localStorage.removeItem(FLOW_PATH_KEY);
+  window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+}
+
+function readSessionItem(key: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
   }
+  purgeLegacyLocalStorage();
+  return window.sessionStorage.getItem(key);
+}
+
+function writeSessionItem(key: string, value: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  purgeLegacyLocalStorage();
+  window.sessionStorage.setItem(key, value);
+}
+
+function removeSessionItem(key: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  purgeLegacyLocalStorage();
+  window.sessionStorage.removeItem(key);
+}
+
+export function rememberCourseFlowPath(path: string): void {
+  writeSessionItem(FLOW_PATH_KEY, path);
 }
 
 export function recallCourseFlowPath(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.localStorage.getItem(FLOW_PATH_KEY);
+  return readSessionItem(FLOW_PATH_KEY);
 }
 
 export function forgetCourseFlowPath(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(FLOW_PATH_KEY);
-  }
+  removeSessionItem(FLOW_PATH_KEY);
 }
 
 export function rememberRequestId(id: string): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(KEY, id);
-  }
+  writeSessionItem(KEY, id);
 }
 
 export function recallRequestId(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.localStorage.getItem(KEY);
+  return readSessionItem(KEY);
 }
 
 export function forgetRequestId(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(KEY);
-  }
+  removeSessionItem(KEY);
 }
 
-const ONBOARDING_DRAFT_KEY = "auteur.demo.onboardingDraft";
 const DRAFT_CHANGE_EVENT = "auteur-onboarding-draft";
 const EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
   "None",
@@ -157,16 +172,7 @@ function parseOnboardingDraft(raw: string | null): OnboardingDraft | null {
 }
 
 function readOnboardingDraftRaw(): string | null {
-  const local = window.localStorage.getItem(ONBOARDING_DRAFT_KEY);
-  if (local) {
-    return local;
-  }
-  const session = window.sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
-  if (session) {
-    window.localStorage.setItem(ONBOARDING_DRAFT_KEY, session);
-    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
-  }
-  return session;
+  return readSessionItem(ONBOARDING_DRAFT_KEY);
 }
 
 export function rememberOnboardingDraft(draft: OnboardingDraft): void {
@@ -176,8 +182,7 @@ export function rememberOnboardingDraft(draft: OnboardingDraft): void {
   const raw = JSON.stringify(draft);
   cachedDraftRaw = raw;
   cachedDraft = draft;
-  window.localStorage.setItem(ONBOARDING_DRAFT_KEY, raw);
-  window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  writeSessionItem(ONBOARDING_DRAFT_KEY, raw);
   window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
 }
 
@@ -197,11 +202,45 @@ export function recallOnboardingDraft(): OnboardingDraft | null {
 export function forgetOnboardingDraft(): void {
   cachedDraftRaw = null;
   cachedDraft = null;
+  removeSessionItem(ONBOARDING_DRAFT_KEY);
   if (typeof window !== "undefined") {
-    window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
-    window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
     window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
   }
+}
+
+/** Last learning request and Blueprint of this tab. Not written to storage. */
+let learningRequestSnapshot: LearningRequest | null = null;
+let blueprintSnapshot: Blueprint | null = null;
+
+export function rememberLearningRequest(request: LearningRequest): void {
+  learningRequestSnapshot = request;
+  rememberRequestId(request.id);
+}
+
+export function peekLearningRequest(id: string): LearningRequest | null {
+  return learningRequestSnapshot?.id === id ? learningRequestSnapshot : null;
+}
+
+export function rememberBlueprint(blueprint: Blueprint): void {
+  blueprintSnapshot = blueprint;
+}
+
+export function peekBlueprint(id: string): Blueprint | null {
+  return blueprintSnapshot?.id === id ? blueprintSnapshot : null;
+}
+
+/** Drop in-memory copies after the course exists. The tab can still reload from the API. */
+export function forgetFlowSnapshots(): void {
+  learningRequestSnapshot = null;
+  blueprintSnapshot = null;
+}
+
+/** Drop this tab's creation progress so the next visit starts a new intention. */
+export function beginNewIntention(): void {
+  forgetFlowSnapshots();
+  forgetRequestId();
+  forgetCourseFlowPath();
+  forgetOnboardingDraft();
 }
 
 export function subscribeOnboardingDraft(onStoreChange: () => void): () => void {

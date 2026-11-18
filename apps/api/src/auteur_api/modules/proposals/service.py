@@ -20,8 +20,6 @@ from auteur_api.modules.proposals.schemas import (
 )
 
 MIN_DIFFERING_DIMENSIONS = 3  # BR-PRP-002
-DIRECTION_LABEL_MIN_WORDS = 2
-DIRECTION_LABEL_MAX_WORDS = 4
 
 
 def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[str]:
@@ -51,15 +49,7 @@ def validate_proposal_set(result: StructuredResult[ProposalSetOutput]) -> list[s
             codes.append("proposals_insufficiently_differentiated")
             break
 
-    labels = {p.direction_label.strip().lower() for p in out.proposals}
-    if len(labels) != count:
-        codes.append("proposal_direction_labels_duplicated")
-
     for p in out.proposals:
-        words = len(p.direction_label.split())
-        if not DIRECTION_LABEL_MIN_WORDS <= words <= DIRECTION_LABEL_MAX_WORDS:
-            codes.append("proposal_direction_label_invalid")
-            break
         if p.estimated_modules < 1:
             codes.append("proposal_estimated_modules_invalid")
             break
@@ -151,8 +141,8 @@ def select_proposal(
     request_id: str, proposal_id: str, *, store: Store
 ) -> LearningRequestRecord:
     record = store.get_learning_request(request_id)
-    # BR-BLP-011: another proposal can be chosen while a Blueprint awaits approval
-    # (or failed); the un-approved Blueprint is discarded from the request.
+    # Another proposal can be chosen before the Blueprint is confirmed (DEC-022
+    # removes the review step, so a confirmed course cannot be swapped here).
     selectable = (
         RequestState.PROPOSALS_READY,
         RequestState.PROPOSAL_SELECTED,

@@ -42,13 +42,14 @@ The interface should communicate a learning trajectory:
 Intent
 → Objective
 → Proposals
-→ Blueprint
 → Course
 → Module
 → Lesson
 → Synthesis
 → Knowledge Check
 ```
+
+The Blueprint is still generated. It is not a screen (`DEC-022`). Course preparation covers that generation, the system confirmation, and the first outline.
 
 Avoid turning Auteur into a generic AI chat interface.
 

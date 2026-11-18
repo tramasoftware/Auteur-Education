@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+
+import { waitProgressPercent } from "@/lib/wait-progress";
 
 import { CourseSetupFrame } from "./CourseSetupFrame";
 
@@ -24,6 +26,7 @@ type StagePreparingProps = {
   crawlMs?: number;
   ready: boolean;
   onContinue: () => void;
+  onBackClick?: () => void;
 };
 
 /**
@@ -43,6 +46,7 @@ export function StagePreparing({
   crawlMs = 14000,
   ready,
   onContinue,
+  onBackClick,
 }: StagePreparingProps) {
   const barLock = useRef(false);
   const readyRef = useRef(ready);
@@ -50,6 +54,11 @@ export function StagePreparing({
   const onContinueRef = useRef(onContinue);
   const [phase, setPhase] = useState(phases[0] ?? "");
   const [progress, setProgress] = useState(0);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   onContinueRef.current = onContinue;
 
@@ -89,13 +98,7 @@ export function StagePreparing({
         return;
       }
       const elapsed = performance.now() - started;
-      if (elapsed < approachMs) {
-        const eased = 1 - (1 - elapsed / approachMs) ** 2.2;
-        setProgress(Math.min(94, Math.round(eased * 94)));
-        return;
-      }
-      const extra = Math.min(4, ((elapsed - approachMs) / crawlMs) * 4);
-      setProgress(Math.min(98, Math.round(94 + extra)));
+      setProgress(waitProgressPercent(elapsed, { approachMs, crawlMs }));
     }, 200);
     return () => window.clearInterval(timer);
   }, [ready, approachMs, crawlMs]);
@@ -117,6 +120,10 @@ export function StagePreparing({
     };
   }, []);
 
+  if (!mounted) {
+    return null;
+  }
+
   return createPortal(
     <div className="stage-preparing-overlay">
       <CourseSetupFrame
@@ -126,6 +133,7 @@ export function StagePreparing({
         backHref={backHref}
         backLabel={backLabel}
         backAriaLabel={backAriaLabel}
+        onBackClick={onBackClick}
       >
         <section className={ready ? "gen listo" : "gen"} aria-busy={!ready}>
           <div>
@@ -148,14 +156,14 @@ export function StagePreparing({
 }
 
 export const PROPOSAL_PHASES = [
-  "Reading the confirmed objective…",
+  "Shaping the learning objective…",
   "Separating different ways into the subject…",
   "Checking that each path is distinct…",
   "Writing what each path includes and leaves out…",
 ] as const;
 
-/** One structured proposal call. The bar reaches the end zone around a typical reply. */
-export const PROPOSAL_APPROACH_MS = 45_000;
+/** Objective formulation plus one proposal call. The bar is not server progress. */
+export const PROPOSAL_APPROACH_MS = 75_000;
 
 export const BLUEPRINT_PHASES = [
   "Reading the path you chose…",

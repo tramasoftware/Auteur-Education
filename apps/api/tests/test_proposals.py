@@ -13,8 +13,13 @@ from auteur_api.modules.proposals.schemas import ProposalSetOutput
 
 def confirmed_request(client, fake_ai) -> str:
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     body = client.post("/api/v1/learning-requests", json=REQUEST_BODY).json()
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    revised = client.post(
+        f"/api/v1/learning-requests/{body['id']}/objective/revisions",
+        json={"feedback": "Keep this focus."},
+    )
+    assert revised.status_code == 200
     client.post(
         f"/api/v1/learning-requests/{body['id']}/objective/confirm",
         json={"version": 1},
@@ -24,7 +29,6 @@ def confirmed_request(client, fake_ai) -> str:
 
 def test_proposals_require_confirmed_objective(client, fake_ai) -> None:
     fake_ai.enqueue(RequestAnalysisOutput, analysis())
-    fake_ai.enqueue(LearningObjectiveOutput, objective())
     body = client.post("/api/v1/learning-requests", json=REQUEST_BODY).json()
     response = client.post(f"/api/v1/learning-requests/{body['id']}/proposals")
     assert response.status_code == 409
@@ -44,7 +48,6 @@ def test_generates_exactly_four_with_recommendation(client, fake_ai) -> None:
     )
     assert body["proposals"]["recommendation_reason"]
     first = body["proposals"]["proposals"][0]
-    assert first["direction_label"] == "Through history"
     assert first["estimated_lessons"] == 12
     # BR-PRP-007: no structure leaks into proposals.
     assert "modules" not in first
@@ -101,22 +104,6 @@ def test_select_exactly_one_and_change_before_blueprint(client, fake_ai) -> None
         json={"proposal_id": second},
     )
     assert changed.json()["selected_proposal_id"] == second
-
-
-def test_direction_label_is_validated_and_retried(client, fake_ai) -> None:
-    request_id = confirmed_request(client, fake_ai)
-    invalid = proposal_set(4)
-    invalid["proposals"][0]["direction_label"] = (
-        "Distinguish define and relate social versus demographic drivers"
-    )
-    fake_ai.enqueue(ProposalSetOutput, invalid)
-    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
-    response = client.post(f"/api/v1/learning-requests/{request_id}/proposals")
-    assert response.status_code == 200
-    assert "proposal_direction_label_invalid" in fake_ai.calls[-1]["input"]
-    assert response.json()["proposals"]["proposals"][0]["direction_label"] == (
-        "Through history"
-    )
 
 
 def test_objective_revision_invalidates_proposals(client, fake_ai) -> None:

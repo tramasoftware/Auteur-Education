@@ -72,7 +72,7 @@ def set_lesson_read(
             "This lesson mark changed on another device. Reload progress and "
             "try again."
         ),
-        inaccessible="Only a published lesson can be marked as read.",
+        inaccessible="Only a finished lesson can be marked as read.",
     )
     return get_course_progress(store, course_id, user_id)
 
@@ -97,7 +97,7 @@ def visit_lesson(
             "Your place in the course changed on another device. Reload progress "
             "and try again."
         ),
-        inaccessible="Only a published lesson can be opened.",
+        inaccessible="Only a finished lesson can be opened.",
     )
     return get_course_progress(store, course_id, user_id)
 
@@ -109,7 +109,7 @@ def present_synthesis(
     _reject(
         outcome,
         stale="This progress changed on another device. Reload it and try again.",
-        inaccessible="Only a published lesson can be opened.",
+        inaccessible="Only a finished lesson can be opened.",
     )
     return get_course_progress(store, course_id, user_id)
 

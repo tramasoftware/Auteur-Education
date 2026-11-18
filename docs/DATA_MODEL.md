@@ -41,7 +41,7 @@ Equivalente a `LearningRequestRecord` sin las versiones de objetivo.
 
 ### `objective_versions`
 
-Una fila por versión. UNIQUE `(learning_request_id, version)`. `confirmed` sostiene BR-OBJ-010.
+Una fila por versión. UNIQUE `(learning_request_id, version)`. `confirmed` sostiene `BR-OBJ-010`: el sistema marca la versión al formularla (`DEC-021`). No hay una pantalla de confirmación.
 
 ### `blueprints`
 
@@ -59,7 +59,7 @@ El build. UNIQUE `blueprint_id` (BR-GEN-012). Estados = `CourseState`.
 
 ### `modules` / `lessons`
 
-Filas reales del curso, no el plan del Blueprint. `user_id` y `course_id` denormalizados para RLS y listados. El API público de lección solo responde si el módulo está `published` (BR-GEN-004); RLS no sustituye esa regla. El `id` de la lección se conserva cuando cambia el texto o el orden.
+Filas reales del curso, no el plan del Blueprint. `user_id` y `course_id` denormalizados para RLS y listados. El API público de lección responde si `lessons.state = approved` y el borrador está persistido (`DEC-023`). La síntesis, el Knowledge Check y las fuentes agregadas del módulo solo se sirven si `modules.state = published`. RLS no sustituye esa regla. El `id` de la lección se conserva cuando cambia el texto o el orden. Las fuentes no tienen tabla: viven en `lessons.evidence`.
 
 ### `lesson_reads`
 
@@ -67,7 +67,7 @@ Una marca por `(user_id, lesson_id)` (`BR-PRG-001`). `read` con `marked_at` solo
 
 ### `course_learning_progress`
 
-Una fila por `(user_id, course_id)`. Última lección abierta, última actividad, `position_revision`, `first_completed_at`, `current_completed_at` y `synthesis_auto_presented_at`. Esos tres tiempos no se reconstruyen solo con las marcas. El porcentaje y el estado `not_started` / `in_progress` / `completed` se calculan al leer: el total es el número de lecciones vigentes y solo cuentan como leídas las de módulos `published` (`BR-PRG-002`, `BR-PRG-003`).
+Una fila por `(user_id, course_id)`. Última lección abierta, última actividad, `position_revision`, `first_completed_at`, `current_completed_at` y `synthesis_auto_presented_at`. Esos tres tiempos no se reconstruyen solo con las marcas. El porcentaje y el estado `not_started` / `in_progress` / `completed` se calculan al leer: el total es el número de lecciones vigentes y solo cuentan como leídas las lecciones `approved` que el alumno marcó (`BR-PRG-002`, `DEC-023`). El curso de aprendizaje no se completa hasta que el build está `complete`, todos los módulos están `published` y todas las lecciones están marcadas (`BR-PRG-003`).
 
 ### `generation_traces`
 
