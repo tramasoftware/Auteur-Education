@@ -39,6 +39,12 @@ export class ApiError extends Error {
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   const token = path === "/health" ? null : await ensureAccessToken();
@@ -52,7 +58,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ...(init?.headers ?? {}),
       },
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     throw new ApiError(
       0,
       "network_error",
@@ -297,7 +306,23 @@ export const courses = {
     return activeGenerationRequest;
   },
   get: (courseId: string) => request<Course>(`/courses/${courseId}`),
-  status: (courseId: string) => request<CourseStatus>(`/courses/${courseId}/status`),
+  status: (
+    courseId: string,
+    options?: { wait?: boolean; seen?: string | null; signal?: AbortSignal },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.wait) {
+      params.set("wait", "true");
+    }
+    if (options?.seen) {
+      params.set("seen", options.seen);
+    }
+    const queryText = params.toString();
+    const query = queryText ? `?${queryText}` : "";
+    return request<CourseStatus>(`/courses/${courseId}/status${query}`, {
+      signal: options?.signal,
+    });
+  },
   getModule: (courseId: string, moduleId: string) =>
     request<CourseModule>(`/courses/${courseId}/modules/${moduleId}`),
   getLesson: (courseId: string, moduleId: string, lessonId: string) =>

@@ -441,20 +441,21 @@ El curso no comienza hasta que exista un entitlement. No hay una pantalla de Blu
 
 1. La vista del curso, abierta al terminar la carga de `UF-09`, muestra la etapa real del build sin porcentajes o tiempos inventados.
 2. Investiga y construye los módulos en el orden aprobado.
-3. Cada módulo atraviesa `Queued`, `Researching`, `Writing` y `QA`.
-4. Un módulo se publica únicamente cuando todas sus lecciones, fuentes, síntesis y Knowledge Check están completos.
-5. Al publicarse el primer módulo, el curso pasa a `Partially available`.
-6. El cliente recibe una única notificación de que puede comenzar.
-7. Puede abrir el módulo publicado mientras los siguientes continúan en construcción.
-8. El sistema distingue claramente contenido disponible de contenido futuro.
-9. Al publicarse todas las unidades y la síntesis final, el build pasa a `Complete`.
-10. El cliente recibe una única notificación de curso completo.
+3. Cada módulo atraviesa `Queued`, `Researching`, `Writing` y `QA`. Dentro del módulo, cada lección hace lo mismo y queda `approved` al pasar su revisión.
+4. Una lección se puede leer cuando está `approved` y su borrador está persistido, aunque el módulo siga generándose (`DEC-023`).
+5. Un módulo se publica únicamente cuando todas sus lecciones, fuentes, síntesis y Knowledge Check están completos y pasaron el audit. Hasta entonces la síntesis y el Knowledge Check siguen cerrados.
+6. Al publicarse el primer módulo, el curso pasa a `Partially available`. Eso no es lo mismo que la primera lección legible: la lección puede abrirse antes.
+7. El cliente recibe una única notificación cuando el primer módulo está disponible (`BR-NOT-001`). No hay una notificación por lección.
+8. Puede abrir cada lección `approved` mientras las siguientes del mismo módulo, y los módulos posteriores, continúan en construcción. El módulo siguiente no empieza hasta que el actual está publicado.
+9. El sistema distingue el contenido ya legible del que todavía está generándose o en espera.
+10. Al publicarse todas las unidades y la síntesis final, el build pasa a `Complete`.
+11. El cliente recibe una única notificación de curso completo.
 
 #### Variantes y errores
 
 - Cerrar la pantalla, navegar o cerrar sesión no detiene el proceso.
 - Al regresar, el cliente ve el mismo estado o uno posterior válido.
-- No se muestran placeholders, borradores ni lecciones parcialmente escritas.
+- No se muestran placeholders, borradores ni lecciones parcialmente escritas. Una lección `approved` no es un borrador.
 - Una corrección posterior crea una nueva versión sin perder la identidad del curso ni el progreso compatible.
 
 #### Resultado
@@ -959,7 +960,7 @@ Todo error visible debe explicar:
 | Build | `Researching` | Ver estado de generación |
 | Build | `Generating` | Ver módulo actual |
 | Build | `Reviewing` | Ver estado de control de calidad |
-| Build | `Partially available` | Comenzar módulo publicado o seguir esperando |
+| Build | `Partially available` | Seguir en una lección `approved` o abrir un módulo publicado (`DEC-023`) |
 | Build | `Complete` | Abrir o retomar curso |
 | Build | `Failed` | Consultar diagnóstico o intervención |
 | Build | `Canceled` | Consultar resultado y biblioteca |

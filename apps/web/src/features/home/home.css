@@ -806,7 +806,7 @@
 }
 
 .member .cnuevo {
-  margin-top: 0;
+  margin-top: 64px;
   margin-bottom: 104px;
   padding: 48px 52px 44px;
   border: 0;
@@ -910,6 +910,11 @@
 .member .cursos {
   padding-top: 104px;
   padding-bottom: 104px;
+}
+
+/* Sits under the page title, or under the reading desk when a course is in progress. */
+.member .cursos.creados {
+  padding-top: 56px;
 }
 
 .member .ae-home-explore-head {
@@ -2071,6 +2076,10 @@
   .member .cursos {
     padding-top: 72px;
     padding-bottom: 72px;
+  }
+
+  .member .cursos.creados {
+    padding-top: 40px;
   }
 
   .member .col-grid.cuatro {

@@ -222,11 +222,20 @@ export type ModuleState =
   | "failed"
   | "not_built";
 
+export type LessonState =
+  | "queued"
+  | "researching"
+  | "writing"
+  | "reviewing"
+  | "approved"
+  | "failed";
+
 export type ModuleLessonOutline = {
   id: string;
   index: number;
   title: string;
   word_count: number;
+  state: LessonState;
 };
 
 export type ModuleSummary = {
@@ -260,6 +269,7 @@ export type OutlineLesson = {
   index: number;
   title: string;
   word_count: number;
+  state: LessonState;
 };
 
 export type LearningStatus = "not_started" | "in_progress" | "completed";
@@ -321,14 +331,22 @@ export type CourseList = {
   courses: LibraryCourse[];
 };
 
+export type CourseStatusLesson = {
+  id: string;
+  state: LessonState;
+};
+
 export type CourseStatusModule = {
   id: string;
   state: ModuleState;
+  lessons: CourseStatusLesson[];
 };
 
 export type CourseStatus = {
   state: CourseState;
   current_activity: string | null;
+  /** Token to send back so a waiting read can tell that nothing new was saved. */
+  seen: string;
   modules: CourseStatusModule[];
 };
 
@@ -355,6 +373,7 @@ export type LessonSummary = {
   title: string;
   purpose: string;
   word_count: number;
+  state: LessonState;
 };
 
 export type SourceView = {

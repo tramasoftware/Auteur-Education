@@ -13,15 +13,19 @@ import {
 
 import { ErrorNotice } from "@/components/ui";
 import { ApiError, courses, getAccountProfile } from "@/lib/api";
+import { lessonStatusLabel, moduleClosureLabel } from "@/lib/course-progress";
 import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
-import type { Course, CourseModule, CourseProgress, Lesson, SourceView } from "@/types/generator";
+import type { Course, CourseModule, CourseProgress, Lesson, LessonState, SourceView } from "@/types/generator";
 
 import { KnowledgeCheck } from "./KnowledgeCheck";
 import { LessonReadControl } from "./LessonReadControl";
 import {
   loadModuleReading,
   peekModuleReading,
+  peekSheetPages,
+  rememberSheetPages,
   replaceModuleProgress,
+  sheetMemoryKey,
   subscribeModuleReading,
   type ModuleReading,
 } from "./module-reading-cache";
@@ -97,6 +101,8 @@ type DeskTab = {
   href: string;
   label: string;
   title: string;
+  locked?: boolean;
+  note?: string;
 };
 
 type PageBlock = {
@@ -222,11 +228,13 @@ function SheetPager({
 function PagedSheet({
   blocks,
   pageKey,
+  memoryKey,
   marks,
   footer,
 }: {
   blocks: PageBlock[];
   pageKey: string;
+  memoryKey?: string;
   marks?: ReactNode;
   footer?: ReactNode;
 }) {
@@ -234,14 +242,15 @@ function PagedSheet({
   const measureRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
   const blocksRef = useRef(blocks);
-  const [pages, setPages] = useState<number[][] | null>(null);
-  const [page, setPage] = useState(0);
-
-  blocksRef.current = blocks;
-  const pageKeyRef = useRef(pageKey);
   const signature = blocks
     .map((block) => `${block.key}:${block.breakBefore ? 1 : 0}:${block.keepWithNext ? 1 : 0}`)
     .join("|");
+  const remembered = memoryKey ? peekSheetPages(memoryKey, signature) : null;
+  const [pages, setPages] = useState<number[][] | null>(remembered?.pages ?? null);
+  const [page, setPage] = useState(remembered?.page ?? 0);
+
+  blocksRef.current = blocks;
+  const pageKeyRef = useRef(pageKey);
 
   useIsoLayoutEffect(() => {
     const body = bodyRef.current;
@@ -310,7 +319,13 @@ function PagedSheet({
       attributes.disconnect();
       void fonts;
     };
-  }, [pageKey, signature]);
+  }, [memoryKey, pageKey, signature]);
+
+  useEffect(() => {
+    if (memoryKey && pages) {
+      rememberSheetPages(memoryKey, signature, pages, page);
+    }
+  }, [memoryKey, page, pages, signature]);
 
   const total = pages?.length ?? 1;
   const safePage = Math.min(page, total - 1);
@@ -640,14 +655,24 @@ function CompanionRail({
       <ol>
         {links.map((item) => (
           <li key={item.id}>
-            <Link
-              href={item.href}
-              className={item.id === activeId ? "on" : undefined}
-              aria-current={item.id === activeId ? "page" : undefined}
-            >
-              <span className="n">—</span>
-              <span className="t">{item.title}</span>
-            </Link>
+            {item.locked ? (
+              <span className="locked" aria-disabled="true">
+                <span className="n">—</span>
+                <span className="t">
+                  {item.title}
+                  {item.note ? <span className="note">{item.note}</span> : null}
+                </span>
+              </span>
+            ) : (
+              <Link
+                href={item.href}
+                className={item.id === activeId ? "on" : undefined}
+                aria-current={item.id === activeId ? "page" : undefined}
+              >
+                <span className="n">—</span>
+                <span className="t">{item.title}</span>
+              </Link>
+            )}
           </li>
         ))}
       </ol>
@@ -730,40 +755,62 @@ function coverBlocks(
   moduleCount: number,
   credit: string,
   readIds: ReadonlySet<string>,
+  activity: string | null,
 ): PageBlock[] {
   const minutes = module.lessons.reduce(
     (sum, lesson) => sum + readingMinutes(lesson.word_count),
     0,
   );
   const summary = `${lessonCountPhrase(module.lessons.length)} · ${minutes} min read${module.knowledge_check ? " · one quiz" : ""}`;
-  const rows: { key: string; comp?: boolean; node: ReactNode }[] = module.lessons.map((lesson) => ({
-    key: lesson.id,
-    node: (
-      <Link href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>
+  const rows: { key: string; comp?: boolean; node: ReactNode }[] = module.lessons.map((lesson) => {
+    const readable = lesson.state === "approved";
+    const label = readable
+      ? readIds.has(lesson.id)
+        ? "Read"
+        : lesson.word_count > 0
+          ? `${readingMinutes(lesson.word_count)} min`
+          : "Ready"
+      : lessonStatusLabel(lesson.state);
+    const body = (
+      <>
         <span className="n">{pad(lesson.index)}</span>
         <span className="t">{lesson.title}</span>
-        <span className="d">
-          {readIds.has(lesson.id) ? "Read" : `${readingMinutes(lesson.word_count)} min`}
-        </span>
-      </Link>
-    ),
-  }));
-  if (module.synthesis) {
-    rows.push({
-      key: "synthesis",
-      comp: true,
-      node: (
-        <Link href={`/courses/${courseId}/modules/${module.id}/synthesis`}>
-          <span className="n">—</span>
-          <span className="t">Module synthesis</span>
-        </Link>
+        <span className="d">{label}</span>
+      </>
+    );
+    return {
+      key: lesson.id,
+      node: readable ? (
+        <Link href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>{body}</Link>
+      ) : (
+        <span className="fila">{body}</span>
       ),
-    });
-  }
+    };
+  });
+  const published = module.state === "published";
+  const synthesisNote = moduleClosureLabel(module, activity, "synthesis");
+  const quizNote = moduleClosureLabel(module, activity, "quiz");
+  const sourcesNote = moduleClosureLabel(module, activity, "sources");
+  rows.push({
+    key: "synthesis",
+    comp: true,
+    node: published ? (
+      <Link href={`/courses/${courseId}/modules/${module.id}/synthesis`}>
+        <span className="n">—</span>
+        <span className="t">Module synthesis</span>
+      </Link>
+    ) : (
+      <span className="fila">
+        <span className="n">—</span>
+        <span className="t">Module synthesis</span>
+        <span className="d">{synthesisNote}</span>
+      </span>
+    ),
+  });
   rows.push({
     key: "sources",
     comp: true,
-    node: (
+    node: published ? (
       <Link href={`/courses/${courseId}/modules/${module.id}/sources`}>
         <span className="n">—</span>
         <span className="t">Sources used in this module</span>
@@ -771,21 +818,31 @@ function coverBlocks(
           {module.sources.length === 1 ? "1 source" : `${module.sources.length} sources`}
         </span>
       </Link>
+    ) : (
+      <span className="fila">
+        <span className="n">—</span>
+        <span className="t">Sources used in this module</span>
+        <span className="d">{sourcesNote}</span>
+      </span>
     ),
   });
-  if (module.knowledge_check) {
-    rows.push({
-      key: "quiz",
-      comp: true,
-      node: (
-        <Link href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}>
-          <span className="n">—</span>
-          <span className="t">Module quiz</span>
-          <span className="d">{module.knowledge_check.questions.length} questions</span>
-        </Link>
-      ),
-    });
-  }
+  rows.push({
+    key: "quiz",
+    comp: true,
+    node: published && module.knowledge_check ? (
+      <Link href={`/courses/${courseId}/modules/${module.id}/knowledge-check`}>
+        <span className="n">—</span>
+        <span className="t">Module quiz</span>
+        <span className="d">{module.knowledge_check.questions.length} questions</span>
+      </Link>
+    ) : (
+      <span className="fila">
+        <span className="n">—</span>
+        <span className="t">Module quiz</span>
+        <span className="d">{published ? "Not available yet" : quizNote}</span>
+      </span>
+    ),
+  });
 
   const blocks: PageBlock[] = [
     {
@@ -914,12 +971,16 @@ function synthesisBlocks(module: CourseModule): PageBlock[] {
     },
   ];
   if (parts.length === 0) {
+    const note =
+      module.state === "published"
+        ? "This module does not have a synthesis yet."
+        : moduleClosureLabel(module, null, "synthesis");
     blocks.push({
       key: "empty",
       gap: "para",
       node: (
         <div className="prose">
-          <p>This module does not have a synthesis yet.</p>
+          <p>{note}</p>
         </div>
       ),
     });
@@ -952,10 +1013,14 @@ function sourcesBlocks(module: CourseModule): PageBlock[] {
     },
   ];
   if (module.sources.length === 0) {
+    const note =
+      module.state === "published"
+        ? "No sources were recorded for this module."
+        : moduleClosureLabel(module, null, "sources");
     blocks.push({
       key: "empty",
       gap: "para",
-      node: <p className="sheet-loading">No sources were recorded for this module.</p>,
+      node: <p className="sheet-loading">{note}</p>,
     });
     return blocks;
   }
@@ -1007,9 +1072,10 @@ function QuizSheet({
   const [revealed, setRevealed] = useState(false);
   const [allAnswered, setAllAnswered] = useState(false);
   const next = course?.modules.find((item) => item.index === module.index + 1) ?? null;
+  const nextLesson = next?.lessons.find((lesson) => lesson.state === "approved");
   const continueHref =
-    next && next.state === "published"
-      ? `/courses/${courseId}/modules/${next.id}`
+    next && nextLesson
+      ? `/courses/${courseId}/modules/${next.id}/lessons/${nextLesson.id}`
       : `/courses/${courseId}`;
   const continueLabel = next ? `Continue to module ${pad(next.index)}` : "Back to the course";
   const safePage = Math.min(page, total - 1);
@@ -1040,7 +1106,11 @@ function QuizSheet({
               overviewHref={`/courses/${courseId}/modules/${module.id}`}
             />
           ) : (
-            <p className="sheet-loading">This module does not have a quiz yet.</p>
+            <p className="sheet-loading">
+              {module.state === "published"
+                ? "This module does not have a quiz yet."
+                : moduleClosureLabel(module, null, "quiz")}
+            </p>
           )}
         </div>
       </div>
@@ -1080,11 +1150,28 @@ function lessonStillLoading(
   courseId: string,
   moduleId: string,
 ): boolean {
-  return (
-    pane === "lesson" &&
-    !!lessonId &&
-    !peekModuleReading(courseId, moduleId)?.lessons.has(lessonId)
-  );
+  if (pane !== "lesson" || !lessonId) {
+    return false;
+  }
+  const pack = peekModuleReading(courseId, moduleId);
+  if (!pack) {
+    return true;
+  }
+  if (pack.lessons.has(lessonId)) {
+    return false;
+  }
+  const outline = pack.module.lessons.find((lesson) => lesson.id === lessonId);
+  return !outline || outline.state === "approved";
+}
+
+function closedLessonCopy(state: LessonState | undefined): string {
+  if (state === "failed") {
+    return "This lesson could not be prepared.";
+  }
+  if (state === "researching" || state === "writing" || state === "reviewing") {
+    return "This lesson is being generated.";
+  }
+  return "This lesson is not available yet.";
 }
 
 export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskProps) {
@@ -1217,15 +1304,18 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
   const base = `/courses/${courseId}/modules/${moduleId}`;
   const activeId = pane === "lesson" ? lessonId : pane;
   const companionActiveId = pane === "lesson" ? "lessons" : pane;
+  const firstReady = module?.lessons.find((item) => item.state === "approved") ?? null;
+  const modulePublished = module?.state === "published";
+  const activity = course?.current_activity ?? null;
   const lessonTabs = module
     ? module.lessons.map((item) => ({
         id: item.id,
         href: `${base}/lessons/${item.id}`,
         label: `Lesson ${item.index}`,
         title: item.title,
+        state: item.state,
       }))
     : [];
-  const firstLesson = module?.lessons[0] ?? null;
   const companionLinks = module
     ? [
         {
@@ -1234,33 +1324,37 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
           label: `Module ${pad(module.index)}`,
           title: `Module ${pad(module.index)}`,
         },
-        ...(firstLesson
-          ? [
-              {
-                id: "lessons",
-                href: `${base}/lessons/${firstLesson.id}`,
-                label: "Lessons",
-                title: "Lessons",
-              },
-            ]
-          : []),
+        {
+          id: "lessons",
+          href: firstReady ? `${base}/lessons/${firstReady.id}` : base,
+          label: "Lessons",
+          title: "Lessons",
+          locked: !firstReady,
+          note: firstReady ? undefined : "Not available yet",
+        },
         {
           id: "synthesis",
           href: `${base}/synthesis`,
           label: "Synthesis",
           title: "Module synthesis",
+          locked: !modulePublished,
+          note: modulePublished ? undefined : moduleClosureLabel(module, activity, "synthesis"),
         },
         {
           id: "sources",
           href: `${base}/sources`,
           label: "Sources",
           title: "Sources used in this module",
+          locked: !modulePublished,
+          note: modulePublished ? undefined : moduleClosureLabel(module, activity, "sources"),
         },
         {
           id: "quiz",
           href: `${base}/knowledge-check`,
           label: "Quiz",
           title: "Module quiz",
+          locked: !modulePublished,
+          note: modulePublished ? undefined : moduleClosureLabel(module, activity, "quiz"),
         },
       ]
     : [];
@@ -1286,6 +1380,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
           course?.modules.length ?? module.index,
           coverCredit(learnerName, course?.created_at),
           readIds,
+          activity,
         )
       : pane === "lesson"
         ? visibleLesson
@@ -1295,7 +1390,11 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
                 key: "missing",
                 node: (
                   <p className="sheet-loading">
-                    {pack && !lessonPending ? "This lesson is not available." : "Loading…"}
+                    {pack && !lessonPending
+                      ? closedLessonCopy(
+                          module?.lessons.find((item) => item.id === lessonId)?.state,
+                        )
+                      : "Loading…"}
                   </p>
                 ),
               },
@@ -1329,6 +1428,7 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
                 ) : (
                   <PagedSheet
                     pageKey={pageKey}
+                    memoryKey={sheetMemoryKey(courseId, moduleId, pageKey)}
                     blocks={blocks}
                     marks={pane === "overview" && module ? <CoverMarks module={module} /> : null}
                     footer={
@@ -1347,17 +1447,44 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
             </div>
             {pane === "lesson" && lessonTabs.length > 0 ? (
               <nav className="stabs" aria-label="Lessons in this module">
-                {lessonTabs.map((tab) => (
-                  <Link
-                    key={tab.id}
-                    className={["stab", tab.id === activeId ? "on" : ""].filter(Boolean).join(" ")}
-                    href={tab.href}
-                    aria-current={tab.id === activeId ? "page" : undefined}
-                    title={tab.title}
-                  >
-                    <span className="v">{tab.label}</span>
-                  </Link>
-                ))}
+                {lessonTabs.map((tab) => {
+                  const access =
+                    tab.state === "approved"
+                      ? ""
+                      : tab.state === "failed"
+                        ? "is-failed"
+                        : tab.state === "queued"
+                          ? "is-locked"
+                          : "is-wait";
+                  const note = lessonStatusLabel(tab.state);
+                  const className = ["stab", access, tab.id === activeId ? "on" : ""]
+                    .filter(Boolean)
+                    .join(" ");
+                  if (tab.state !== "approved") {
+                    return (
+                      <span
+                        key={tab.id}
+                        className={className}
+                        aria-disabled="true"
+                        title={note || tab.title}
+                      >
+                        {access === "is-wait" ? <span className="spin" aria-hidden="true" /> : null}
+                        <span className="v">{tab.label}</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={tab.id}
+                      className={className}
+                      href={tab.href}
+                      aria-current={tab.id === activeId ? "page" : undefined}
+                      title={tab.title}
+                    >
+                      <span className="v">{tab.label}</span>
+                    </Link>
+                  );
+                })}
               </nav>
             ) : null}
           </div>

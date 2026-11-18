@@ -296,11 +296,11 @@ La interfaz debe mostrar estados reales y comprensibles, como:
 
 No se muestran porcentajes, tiempos o avances inventados.
 
-Los módulos se construyen en el orden aprobado y se publican progresivamente. Un módulo solamente se publica cuando sus lecciones, fuentes, síntesis y Knowledge Check están completos y pasaron su control de calidad.
+Los módulos se construyen en el orden aprobado. Cada lección aprobada y persistida puede leerse mientras el resto de su módulo sigue generándose (`DEC-023`). Un módulo solamente se publica cuando sus lecciones, fuentes, síntesis y Knowledge Check están completos y pasaron su control de calidad. La síntesis, el Knowledge Check y el módulo siguiente esperan esa publicación. `Partially available` sigue significando que al menos un módulo está publicado.
 
-No se exponen borradores, placeholders, lecciones truncadas ni módulos parcialmente escritos.
+No se exponen borradores, placeholders ni lecciones truncadas. Una lección que todavía no está aprobada no se abre.
 
-El usuario puede comenzar a estudiar módulos completos mientras continúa la generación de los siguientes.
+El usuario puede estudiar una lección aprobada mientras continúa la generación del mismo módulo y, una vez publicado ese módulo, estudiar el siguiente cuando empiece a tener lecciones aprobadas.
 
 El curso pasa a `Complete` cuando se publicaron todos los módulos, la síntesis final, las fuentes y los controles de calidad requeridos.
 

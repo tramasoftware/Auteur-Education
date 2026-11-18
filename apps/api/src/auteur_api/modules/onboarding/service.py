@@ -271,9 +271,11 @@ def apply_precision(
     if record.state not in (
         RequestState.PRECISION_REQUIRED,
         RequestState.OBJECTIVE_CONFIRMATION,
+        RequestState.PROPOSALS_READY,
+        RequestState.PROPOSAL_SELECTED,
     ):
         raise invalid_state(
-            "The learning object can only be chosen before the objective is confirmed."
+            "The learning object can only be chosen before a Blueprint exists."
         )
     if not record.precision.needs_precision:
         raise invalid_state("This request does not need a learning-object precision.")
@@ -302,6 +304,15 @@ def apply_precision(
             free_text=payload.free_text.strip(),
             learning_object=payload.free_text.strip(),
         )
+
+    # The same focus keeps the paths already generated (UF-04).
+    current = record.selected_precision
+    same_focus = current is not None and (
+        current.option_id == selection.option_id
+        and (current.free_text or None) == (selection.free_text or None)
+    )
+    if record.proposal_set is not None and same_focus:
+        return record
 
     # BR-ONB-008: changing the precision invalidates dependent results.
     # DEC-021: the objective is formulated with the learning paths, not here.

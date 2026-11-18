@@ -1,7 +1,7 @@
 "use client";
 
 import { courses } from "@/lib/api";
-import type { Course, CourseModule, CourseProgress, Lesson } from "@/types/generator";
+import type { Course, CourseModule, CourseProgress, CourseStatus, Lesson } from "@/types/generator";
 
 export type ModuleReading = {
   course: Course;
@@ -12,6 +12,10 @@ export type ModuleReading = {
 
 const pending = new Map<string, Promise<ModuleReading>>();
 const resolved = new Map<string, ModuleReading>();
+const sheetPages = new Map<
+  string,
+  { signature: string; pages: number[][]; page: number }
+>();
 const progressPending = new Map<string, Promise<CourseProgress>>();
 const readingListeners = new Set<() => void>();
 let pendingWrite: Promise<void> = Promise.resolve();
@@ -113,6 +117,16 @@ export function replaceModuleProgress(
   }
 }
 
+function approvedLessonIds(module: CourseModule): string[] {
+  return module.lessons
+    .filter((lesson) => lesson.state === "approved")
+    .map((lesson) => lesson.id);
+}
+
+function lessonIsApproved(module: CourseModule, lessonId: string | undefined): boolean {
+  return approvedLessonIds(module).includes(lessonId ?? "");
+}
+
 function addLesson(id: string, lesson: Lesson): ModuleReading | null {
   const current = resolved.get(id);
   if (!current) {
@@ -154,6 +168,43 @@ export function peekModuleReading(courseId: string, moduleId: string): ModuleRea
   return resolved.get(key(courseId, moduleId)) ?? null;
 }
 
+export function sheetMemoryKey(courseId: string, moduleId: string, pageKey: string): string {
+  return `${key(courseId, moduleId)}:${pageKey}`;
+}
+
+export function peekSheetPages(
+  memoryKey: string,
+  signature: string,
+): { pages: number[][]; page: number } | null {
+  const found = sheetPages.get(memoryKey);
+  if (!found || found.signature !== signature) {
+    return null;
+  }
+  return { pages: found.pages, page: found.page };
+}
+
+export function rememberSheetPages(
+  memoryKey: string,
+  signature: string,
+  pages: number[][],
+  page: number,
+): void {
+  sheetPages.set(memoryKey, { signature, pages, page });
+}
+
+/** Drop this module's reading pack when the reader leaves it. */
+export function forgetModuleReading(courseId: string, moduleId: string): void {
+  const id = key(courseId, moduleId);
+  resolved.delete(id);
+  pending.delete(id);
+  const prefix = `${id}:`;
+  for (const memoryKey of sheetPages.keys()) {
+    if (memoryKey.startsWith(prefix)) {
+      sheetPages.delete(memoryKey);
+    }
+  }
+}
+
 export function loadModuleReading(
   courseId: string,
   moduleId: string,
@@ -162,10 +213,11 @@ export function loadModuleReading(
   const id = key(courseId, moduleId);
   const preferLessonId = options?.preferLessonId;
   const ready = resolved.get(id);
-  if (ready && (!preferLessonId || ready.lessons.has(preferLessonId))) {
+  const wantsBody = Boolean(ready && lessonIsApproved(ready.module, preferLessonId));
+  if (ready && (!preferLessonId || ready.lessons.has(preferLessonId) || !wantsBody)) {
     return Promise.resolve(ready);
   }
-  if (ready && preferLessonId) {
+  if (ready && preferLessonId && wantsBody) {
     return courses.getLesson(courseId, moduleId, preferLessonId).then((lesson) => {
       const lessons = new Map(ready.lessons);
       lessons.set(lesson.id, lesson);
@@ -180,8 +232,12 @@ export function loadModuleReading(
       return inflight;
     }
     return inflight.then(async (pack) => {
-      if (pack.lessons.has(preferLessonId) || resolved.get(id)?.lessons.has(preferLessonId)) {
-        return resolved.get(id) ?? pack;
+      const current = resolved.get(id) ?? pack;
+      if (
+        current.lessons.has(preferLessonId) ||
+        !lessonIsApproved(current.module, preferLessonId)
+      ) {
+        return current;
       }
       const lesson = await courses.getLesson(courseId, moduleId, preferLessonId);
       const lessons = new Map(resolved.get(id)?.lessons ?? pack.lessons);
@@ -199,23 +255,17 @@ export function loadModuleReading(
       loadProgress(courseId),
     ]);
     rememberCourseOutline(course);
-    const preferred =
-      preferLessonId && module.lessons.some((lesson) => lesson.id === preferLessonId)
-        ? preferLessonId
-        : module.lessons[0]?.id;
+    const preferred = lessonIsApproved(module, preferLessonId) ? preferLessonId : undefined;
     const pack: ModuleReading = { course, module, lessons: new Map(), progress };
     publish(id, pack);
-    const restIds = module.lessons
-      .map((lesson) => lesson.id)
-      .filter((lessonId) => lessonId !== preferred);
-    const waitForPreferred = Boolean(preferLessonId && preferred === preferLessonId);
-    if (waitForPreferred && preferred) {
+    const restIds = approvedLessonIds(module).filter((lessonId) => lessonId !== preferred);
+    if (preferred) {
       const first = await courses.getLesson(courseId, moduleId, preferred);
       const withLesson = addLesson(id, first) ?? pack;
       prefetchLessonBodies(courseId, moduleId, restIds);
       return withLesson;
     }
-    prefetchLessonBodies(courseId, moduleId, preferred ? [preferred, ...restIds] : restIds);
+    prefetchLessonBodies(courseId, moduleId, restIds);
     return resolved.get(id) ?? pack;
   })().finally(() => {
     pending.delete(id);
@@ -224,14 +274,106 @@ export function loadModuleReading(
   return promise;
 }
 
-/** Prefetch the first published module and the lesson the reader is about to open. */
+/** Prefetch the first module that already has a readable lesson. */
 export function warmCourseReading(course: Course): Promise<void> {
   rememberCourseOutline(course);
-  const first = course.modules.find((module) => module.state === "published");
+  const first = course.modules.find((module) =>
+    module.lessons.some((lesson) => lesson.state === "approved"),
+  );
   if (!first || peekModuleReading(course.id, first.id)) {
     return Promise.resolve();
   }
-  return loadModuleReading(course.id, first.id, {
-    preferLessonId: first.lessons[0]?.id,
-  }).then(() => undefined);
+  const lessonId = first.lessons.find((lesson) => lesson.state === "approved")?.id;
+  return loadModuleReading(course.id, first.id, { preferLessonId: lessonId }).then(
+    () => undefined,
+  );
+}
+
+export function replaceCachedModule(
+  courseId: string,
+  moduleId: string,
+  module: CourseModule,
+): void {
+  const id = key(courseId, moduleId);
+  const current = resolved.get(id);
+  if (!current) {
+    return;
+  }
+  publish(id, { ...current, module });
+}
+
+export function rememberLesson(courseId: string, moduleId: string, lesson: Lesson): void {
+  addLesson(key(courseId, moduleId), lesson);
+}
+
+/** Apply a course status read to the open module. Returns lessons that just became readable. */
+export function patchModuleFromStatus(
+  courseId: string,
+  moduleId: string,
+  status: CourseStatus,
+): { becameApproved: string[]; becamePublished: boolean } | null {
+  const id = key(courseId, moduleId);
+  const current = resolved.get(id);
+  const statusModule = status.modules.find((item) => item.id === moduleId);
+  if (!current || !statusModule) {
+    return null;
+  }
+  const becameApproved: string[] = [];
+  let lessonChanged = false;
+  const lessons = current.module.lessons.map((lesson) => {
+    const next = statusModule.lessons.find((item) => item.id === lesson.id);
+    if (!next || next.state === lesson.state) {
+      return lesson;
+    }
+    // A slower read must not close a lesson this visit already showed as approved.
+    if (lesson.state === "approved" && next.state !== "failed") {
+      return lesson;
+    }
+    lessonChanged = true;
+    if (next.state === "approved") {
+      becameApproved.push(lesson.id);
+    }
+    return { ...lesson, state: next.state };
+  });
+  const becamePublished =
+    statusModule.state === "published" && current.module.state !== "published";
+  const courseChanged =
+    current.course.state !== status.state ||
+    current.course.current_activity !== status.current_activity;
+  if (!lessonChanged && !becamePublished && current.module.state === statusModule.state && !courseChanged) {
+    return { becameApproved, becamePublished };
+  }
+  const nextModule = {
+    ...current.module,
+    state: statusModule.state,
+    lessons,
+  };
+  const course = {
+    ...current.course,
+    state: status.state,
+    current_activity: status.current_activity,
+    modules: current.course.modules.map((item) => {
+      const next = status.modules.find((row) => row.id === item.id);
+      if (!next) {
+        return item;
+      }
+      return {
+        ...item,
+        state: next.state,
+        lessons: item.lessons.map((lesson) => {
+          const row = next.lessons.find((candidate) => candidate.id === lesson.id);
+          if (!row || row.state === lesson.state) {
+            return lesson;
+          }
+          if (lesson.state === "approved" && row.state !== "failed") {
+            return lesson;
+          }
+          return { ...lesson, state: row.state };
+        }),
+      };
+    }),
+  };
+  rememberCourseOutline(course);
+  publish(id, { ...current, course, module: nextModule });
+  return { becameApproved, becamePublished };
 }

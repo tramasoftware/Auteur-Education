@@ -458,10 +458,29 @@ def test_library_read_skips_lesson_bodies() -> None:
     assert entries[0].course.modules[0].title == "Streets"
     assert entries[0].course.modules[0].lessons[0].title == "The corner"
     assert entries[0].course.modules[0].lessons[0].draft is None
-    assert "draft" not in selected["lessons"]
+    lesson_columns = selected["lessons"].split(",")
+    assert "draft" not in lesson_columns
+    assert "has_draft" in lesson_columns
     assert "evidence" not in selected["lessons"]
     assert "synthesis" not in selected["modules"]
     assert "knowledge_check" not in selected["modules"]
+
+
+def test_outline_row_records_a_stored_draft_without_loading_it() -> None:
+    from auteur_api.core.postgres_store import _lesson_outline
+
+    lesson = _lesson_outline(
+        {
+            "id": "l1",
+            "index": 1,
+            "title": "The corner",
+            "state": "approved",
+            "word_count": 900,
+            "has_draft": True,
+        }
+    )
+    assert lesson.draft is None
+    assert lesson.draft_stored is True
 
 
 def test_read_retries_when_the_connection_drops() -> None:

@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { waitProgressPercent } from "@/lib/wait-progress";
+
 import "./preparing-course.css";
 
 const PHASES = [
@@ -279,19 +281,14 @@ export function PreparingCourse({
       return;
     }
     const started = performance.now();
-    const approachMs = 24000;
+    // Exponential approach, with a pause at 50, 60, 70, 80 and 90.
+    const approachMs = 90_000;
     const timer = window.setInterval(() => {
       if (barLock.current) {
         return;
       }
       const elapsed = performance.now() - started;
-      if (elapsed < approachMs) {
-        const eased = 1 - (1 - elapsed / approachMs) ** 2.2;
-        setProgress(Math.min(94, Math.round(eased * 94)));
-        return;
-      }
-      const extra = Math.min(4, ((elapsed - approachMs) / 14000) * 4);
-      setProgress(Math.min(98, Math.round(94 + extra)));
+      setProgress(waitProgressPercent(elapsed, { approachMs }));
     }, 200);
     return () => window.clearInterval(timer);
   }, [ready]);

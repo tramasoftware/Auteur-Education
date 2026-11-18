@@ -12,6 +12,7 @@ import { ReadingDesk } from "./ReadingDesk";
 
 const topics = ["Photography", "Music", "Everyday economics"] as const;
 
+/* Temporarily hidden: "From your current course" on home.
 const ideas = [
   {
     tab: "People and places",
@@ -58,6 +59,7 @@ const ideas = [
     modules: ["From the bean to the port", "Roast, grind, sell", "Price isn’t cost", "The cost of serving"],
   },
 ] as const;
+*/
 
 function pad(step: number): string {
   return String(step).padStart(2, "0");
@@ -88,8 +90,10 @@ export function HomeScreen() {
           </Link>
         </header>
         <ReadingDesk onInProgress={setInProgress} />
+        {/* Temporarily hidden: From your current course.
         <Curiosity step={2} fromCurrentCourse />
-        <NewQuestion step={3} />
+        */}
+        <NewQuestion step={2} />
       </main>
     </MemberFrame>
   );
@@ -151,6 +155,7 @@ function NewQuestion({ step }: { step: number }) {
   );
 }
 
+/* Temporarily hidden with the "From your current course" section.
 function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCourse: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const idea = open === null ? null : ideas[open];
@@ -253,3 +258,4 @@ function Curiosity({ step, fromCurrentCourse }: { step: number; fromCurrentCours
     </section>
   );
 }
+*/
