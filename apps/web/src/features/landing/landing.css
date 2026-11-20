@@ -2021,6 +2021,7 @@
 }
 
 .landing .lp-cierre .btn,
+.landing .lp-sec .btn,
 .landing .plan .btn {
   display: inline-flex;
   align-items: center;
@@ -2081,4 +2082,27 @@
   .landing .planes {
     grid-template-columns: 1fr;
   }
+}
+
+.landing .billing-note {
+  max-width: 62ch;
+  margin-top: 16px;
+  color: var(--m-2);
+}
+
+.landing .billing-list {
+  margin: 0 0 28px;
+  padding-left: 1.1rem;
+}
+
+.landing .plan button.btn,
+.landing .lp-sec button.btn {
+  border: 0;
+  cursor: pointer;
+}
+
+.landing .plan button.btn:disabled,
+.landing .lp-sec button.btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }

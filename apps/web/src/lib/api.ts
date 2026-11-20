@@ -12,6 +12,9 @@ import type {
   ErrorCode,
   LearningRequest,
   Lesson,
+  LessonAudioPlayback,
+  LessonAudioProgress,
+  LessonAudioStatus,
 } from "@/types/generator";
 
 import { ensureAccessToken } from "@/lib/auth/session";
@@ -321,4 +324,73 @@ export const courses = {
     }),
   presentSynthesis: (courseId: string) =>
     post<CourseProgress>(`/courses/${courseId}/synthesis-presentation`),
+  requestLessonAudio: (courseId: string, moduleId: string, lessonId: string) =>
+    post<LessonAudioStatus>(
+      `/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio`,
+    ),
+  getLessonAudio: (courseId: string, moduleId: string, lessonId: string) =>
+    request<LessonAudioStatus>(
+      `/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio`,
+    ),
+  getLessonAudioPlayback: (courseId: string, moduleId: string, lessonId: string) =>
+    request<LessonAudioPlayback>(
+      `/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio/playback`,
+    ),
+  saveLessonAudioProgress: (
+    courseId: string,
+    moduleId: string,
+    lessonId: string,
+    body: LessonAudioProgress,
+  ) =>
+    put<LessonAudioProgress>(
+      `/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio/progress`,
+      body,
+    ),
+  retryLessonAudio: (courseId: string, moduleId: string, lessonId: string) =>
+    post<LessonAudioStatus>(
+      `/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio/retry`,
+    ),
+};
+
+export type BillingOffer = {
+  version_id: string;
+  code: string;
+  display_name: string;
+  kind: "one_time" | "subscription";
+  credits: number;
+  currency: string;
+  amount_cents: number;
+  provisional: boolean;
+  checkout_ready: boolean;
+};
+
+export type BillingAccount = {
+  balance: number;
+  has_customer: boolean;
+  provisional: boolean;
+  subscription: {
+    status: string;
+    cancel_at_period_end: boolean;
+    current_period_end: string | null;
+  } | null;
+  payments: {
+    status: string;
+    amount_cents: number;
+    currency: string;
+    created_at: string;
+  }[];
+  movements: {
+    entry_type: string;
+    credits: number;
+    delta: number;
+    created_at: string;
+  }[];
+};
+
+export const billing = {
+  offers: () => request<{ offers: BillingOffer[]; provisional: boolean }>("/billing/offers"),
+  account: () => request<BillingAccount>("/billing/account"),
+  checkout: (offerVersionId: string) =>
+    post<{ url: string }>("/billing/checkout", { offer_version_id: offerVersionId }),
+  portal: () => post<{ url: string }>("/billing/portal"),
 };

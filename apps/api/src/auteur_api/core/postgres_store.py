@@ -1158,6 +1158,7 @@ class PostgresStore:
             "lessons",
             "lesson_reads",
             "course_learning_progress",
+            "lesson_audio_progress",
             "generation_traces",
         ):
             self._table(table).update({"user_id": to_user_id}).eq(

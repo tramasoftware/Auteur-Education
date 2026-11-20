@@ -17,6 +17,7 @@ import { CourseSetupFrame } from "@/features/course-setup/CourseSetupFrame";
 import type { Course, CourseModule, CourseProgress, Lesson, SourceView } from "@/types/generator";
 
 import { KnowledgeCheck } from "./KnowledgeCheck";
+import { AudioRail } from "./LessonAudioRail";
 import { LessonReadControl } from "./LessonReadControl";
 import {
   loadModuleReading,
@@ -547,81 +548,6 @@ function LessonMeta({ lesson }: { lesson: Lesson }) {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function AudioRail({ title }: { title: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="ae-audio-slot">
-      <section
-        className="ae-audio-reader"
-        data-expanded={open ? "true" : "false"}
-        data-state="idle"
-        aria-label="Lesson audio"
-      >
-          <button
-            className="ae-audio-disclosure"
-            type="button"
-            aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
-          >
-            <span className="ae-audio-art" aria-hidden="true">
-              <svg className="ae-audio-folder" viewBox="0 0 64 56" fill="none">
-                <path
-                  d="M3 18c3.3 0 5-2.3 5-5.6V11c0-1.66 1.34-3 3-3h14c1.66 0 3 1.34 3 3v1.4c0 3.3 2.3 5.6 5.6 5.6H57c2.21 0 4 1.79 4 4v23c0 2.21-1.79 4-4 4H7c-2.21 0-4-1.79-4-4V22c0-2.21 1.79-4 4-4Z"
-                  fill="#24314f"
-                />
-                <path
-                  d="M7 21h50c2.21 0 4 1.79 4 4v21c0 2.21-1.79 4-4 4H7c-2.21 0-4-1.79-4-4V25c0-2.21 1.79-4 4-4Z"
-                  fill="#192341"
-                />
-              </svg>
-            </span>
-            <span className="ae-audio-copy">
-              <span className="ae-audio-eyebrow">Listen</span>
-              <span className="ae-audio-title">{title}</span>
-            </span>
-            <span className="ae-audio-signal" aria-hidden="true" />
-          </button>
-          <div className="ae-audio-panel">
-            <div className="ae-audio-panel-clip">
-              <div className="ae-audio-detail">
-                <div className="ae-audio-controls">
-                  <button className="ae-audio-step" type="button" disabled aria-label="Previous passage">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path
-                        d="M6 5v14M18 5l-9 7 9 7Z"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <button className="ae-audio-toggle" type="button" disabled aria-label="Listen">
-                    <svg viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="M6 3.5 16 10 6 16.5Z" fill="currentColor" />
-                    </svg>
-                  </button>
-                  <button className="ae-audio-step" type="button" disabled aria-label="Next passage">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path
-                        d="M18 5v14M6 5l9 7-9 7Z"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <p className="ae-audio-note">Audio is not available yet.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
   );
 }
 
@@ -1363,7 +1289,14 @@ export function ModuleDesk({ courseId, moduleId, pane, lessonId }: ModuleDeskPro
           </div>
           <aside className="side">
             <CompanionRail links={companionLinks} activeId={companionActiveId} />
-            <AudioRail title={audioTitle} />
+            <AudioRail
+              title={audioTitle}
+              lesson={
+                pane === "lesson" && lessonId
+                  ? { courseId, moduleId, lessonId }
+                  : undefined
+              }
+            />
           </aside>
         </div>
         <div className="form-avisos">

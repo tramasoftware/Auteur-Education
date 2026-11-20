@@ -214,6 +214,9 @@ def _fail_course(course: CourseRecord, message: str, store: Store) -> None:
     course.failure = message
     course.current_activity = None
     store.save_course(course)
+    from auteur_api.modules.commercial.gate import restitute_failed_course
+
+    restitute_failed_course(course.id)
 
 
 def _preserved_sentence(course: CourseRecord) -> str:

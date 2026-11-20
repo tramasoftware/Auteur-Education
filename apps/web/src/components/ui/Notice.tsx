@@ -73,6 +73,8 @@ function titleFor(error: ApiError): string {
       return "Generation service unavailable";
     case "generation_failed":
       return "Generation did not produce a valid result";
+    case "audio_unavailable":
+      return "Lesson audio is not available";
     case "network_error":
       return "Cannot reach the API";
     default:

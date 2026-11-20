@@ -4,7 +4,7 @@ import { PlansPage } from "@/features/landing/PlansPage";
 
 export const metadata: Metadata = {
   title: "Plans · Auteur Education",
-  description: "Your first lesson is free with an account. No card needed. Prices in USD, including VAT.",
+  description: "Provisional sandbox plans. Prices and credits are not the final offer.",
 };
 
 export default function Plans() {

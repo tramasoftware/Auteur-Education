@@ -27,6 +27,9 @@ ErrorCode = Literal[
     "unauthorized",
     "generation_failed",
     "provider_unavailable",
+    "commercial_not_configured",
+    "insufficient_credits",
+    "audio_unavailable",
     "internal_error",
 ]
 
@@ -39,6 +42,9 @@ _STATUS_BY_CODE: dict[str, int] = {
     "unauthorized": 401,
     "generation_failed": 502,
     "provider_unavailable": 503,
+    "commercial_not_configured": 409,
+    "insufficient_credits": 409,
+    "audio_unavailable": 503,
     "internal_error": 500,
 }
 

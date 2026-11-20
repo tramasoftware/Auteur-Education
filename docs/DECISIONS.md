@@ -175,6 +175,22 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Impacto:** `BR-BLP-010`, `BR-BLP-011`, `BR-GEN-001`, `UF-09` a `UF-11`, `UF-13`, `UF-15`, `AI-PRN-08`, `AI-STG-05`, `MVP.md` §9, `PRODUCT.md`, `POST /learning-requests/{id}/blueprint`, propuestas y la carga del curso en `apps/web`. Se eliminan `POST /blueprints/{id}/approve` y `POST /blueprints/{id}/revisions`.
 - **Límite:** no fusiona `AI-STG-05` con el build. No quita campos del Blueprint ni sus tablas. No cambia créditos, suscripción ni la vista de lectura. La numeración visible del armado pasa de tres pasos a dos (Onboarding, Learning path).
 
+### DEC-023 — Base comercial de Stripe y créditos, sin restringir la generación
+
+- **Estatus:** TEMPORAL (implementación de noviembre 2026; reglas de producto todavía abiertas)
+- **Necesidad:** hace falta una base real de Checkout, suscripción, portal, webhooks y ledger antes de fijar precios, la unidad de consumo y el momento en que el usuario ve la falta de créditos.
+- **Decisión:** Stripe vive solo en FastAPI. Las ofertas y la tarifa `course_build` son filas versionadas y provisionales (USD 11 y USD 22 de sandbox, un crédito). El navegador no confirma un pago al volver de Checkout. Los créditos se mueven en funciones SQL transaccionales, revocadas a `anon` y `authenticated`. Un reembolso de Stripe no restituye créditos. `COMMERCIAL_GATE_ENABLED` queda apagado: la reserva dentro de `approve_blueprint` no corre y el Learning Path no cambia. `BR-SUB-001`, `BR-SUB-003`, `BR-CRD-002` y la unidad definitiva de consumo no se adoptan con esta base.
+- **Impacto:** migración `20261116230000_commercial_ledger.sql`, `modules/commercial`, `/api/v1/billing/*`, planes y `/account`.
+- **Límite:** no se aplica la migración al remoto ni se activan cobros live. No hay vencimiento, acumulación ni beneficio de bienvenida. No se ofrece Checkout antes de generar el curso. Encender el flag sin esa pantalla descubriría la falta de saldo durante “Generating course”.
+
+### DEC-024 — Narración de lecciones independiente del proveedor
+
+- **Estatus:** TEMPORAL (implementación de noviembre 2026; ElevenLabs aún sin cuenta)
+- **Necesidad:** el MVP pide audio bajo demanda (`BR-AUD-001` a `BR-AUD-008`, `UF-18`) sin atar el producto a un único TTS ni a un poll del navegador que facture.
+- **Decisión:** FastAPI posee el trabajo. Un contrato `TTSProvider` declara `max_input`, `input_unit` (`chars` o `bytes`), `generation` (`sync` o `async`) y `usage_unit`. El mock es el proveedor de desarrollo. ElevenLabs queda detrás del mismo contrato, apagado sin credenciales. Google no se implementa. El texto narrado reutiliza `lesson_reading_text()` y se parte según las capacidades del proveedor activo. La reutilización usa `content_sha256` más `config_sha256` (proveedor, modelo, voz, formato). El `POST` persiste y agenda el runner existente; los `GET` de estado y playback solo leen. Cada fragmento se reserva con `lease_token` y vencimiento; la llamada TTS ocurre fuera de la transacción. Un fragmento `ready` no se vuelve a sintetizar. En un proceso largo, el lifespan retoma leases vencidos (no en Vercel). La recuperación en Vercel es un `GET /api/v1/internal/audio/tick` con `CRON_SECRET`; el cron no se activa en este cambio. El bucket `lesson-audio` es privado. El progreso de audio vive en `lesson_audio_progress`, no en `position_revision`. El audio no toca el ledger (`BR-CRD-008`) ni el estado del curso (`BR-AUD-007`). El mock no corre cuando `APP_ENV=production`.
+- **Impacto:** migración `20261117200000_lesson_audio.sql`, `modules/audio`, rutas bajo `/courses/{id}/modules/{id}/lessons/{id}/audio`, `AudioRail` en `ModuleDesk`, `docs/AUDIO.md`.
+- **Límite:** no concatena un único archivo (manifiesto de fragmentos). No hay streaming ni SSML en el contrato. Un corte después de que el proveedor cobró y antes de persistir el objeto puede repetir esa llamada al vencer el lease; el token evita dos escrituras, no un segundo cobro del proveedor. No se aplica la migración ni se crea el bucket remoto. No se configura el cron en Vercel.
+
 ## Pendientes sin decisión
 
 - Expiración de la sesión anónima (`BR-ONB-009`) si se mantiene el bypass demo.

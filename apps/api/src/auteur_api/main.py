@@ -32,6 +32,7 @@ def resume_on_startup() -> bool:
 async def lifespan(_application: FastAPI):
     if resume_on_startup():
         await _resume_incomplete_builds()
+        await _resume_stale_narrations()
     yield
 
 
@@ -51,6 +52,23 @@ async def _resume_incomplete_builds() -> None:
         )
     except Exception:
         logger.exception("startup_resume_failed")
+
+
+async def _resume_stale_narrations() -> None:
+    if not settings.supabase_configured or not settings.tts_enabled:
+        return
+    from auteur_api.core.background import get_task_runner
+    from auteur_api.modules.audio.access import get_audio_store, get_tts_provider
+    from auteur_api.modules.audio.jobs import resume_stale_narrations
+
+    try:
+        await resume_stale_narrations(
+            store=get_audio_store(),
+            provider=get_tts_provider(),
+            runner=get_task_runner(),
+        )
+    except Exception:
+        logger.exception("startup_audio_resume_failed")
 
 
 def create_app() -> FastAPI:

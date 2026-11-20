@@ -1291,6 +1291,59 @@
   text-align: center;
 }
 
+.landing.module-desk .ae-audio-meter-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.landing.module-desk .ae-audio-time {
+  color: #49576a;
+  font-family: var(--font-ui);
+  font-size: calc(11px * var(--ft, 1));
+  min-width: 2.4em;
+}
+
+.landing.module-desk .ae-audio-meter {
+  width: 100%;
+  accent-color: var(--noche-2);
+}
+
+.landing.module-desk .ae-audio-speeds {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.landing.module-desk .ae-audio-speed,
+.landing.module-desk .ae-audio-retry {
+  border-radius: 999px;
+  background: transparent;
+  color: var(--noche-2);
+  font-family: var(--font-ui);
+  font-size: calc(11px * var(--ft, 1));
+}
+
+.landing.module-desk .ae-audio-speed {
+  min-width: 44px;
+  padding: 4px 8px;
+}
+
+.landing.module-desk .ae-audio-speed[data-active="true"] {
+  background: var(--noche-2);
+  color: #fcfcfa;
+}
+
+.landing.module-desk .ae-audio-retry {
+  display: block;
+  margin: 8px auto 0;
+  padding: 6px 14px;
+  text-decoration: underline;
+}
+
 .landing.module-desk .sheet-loading {
   margin: 0;
   color: var(--t-3);

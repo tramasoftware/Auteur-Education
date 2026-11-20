@@ -45,12 +45,62 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
 
-    @field_validator("openai_api_key", "supabase_service_role_key", mode="before")
+    # Stripe sandbox. Price ids live on offer versions, not in these settings.
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    commercial_gate_enabled: bool = False
+    public_site_url: str = "http://localhost:3000"
+
+    # Lesson narration (DEC-024). Secrets stay on the API. Mock is development only.
+    tts_enabled: bool = True
+    tts_provider: str = "mock"
+    tts_allow_mock: bool = False
+    tts_model: str = "eleven_multilingual_v2"
+    tts_voice_id: str = "mock-voice"
+    tts_output_format: str = "mp3_44100_128"
+    tts_max_input: int | None = None
+    tts_max_active_jobs_per_user: int = 1
+    tts_lease_seconds: int = 120
+    tts_monthly_unit_cap: int = 0
+    tts_max_chunk_attempts: int = 3
+    tts_signed_url_seconds: int = 300
+    elevenlabs_api_key: SecretStr | None = None
+    elevenlabs_base_url: str = "https://api.elevenlabs.io"
+    cron_secret: SecretStr | None = None
+
+    @field_validator(
+        "openai_api_key",
+        "supabase_service_role_key",
+        "stripe_secret_key",
+        "stripe_webhook_secret",
+        "elevenlabs_api_key",
+        "cron_secret",
+        mode="before",
+    )
     @classmethod
-    def empty_openai_api_key_is_none(cls, value: object) -> object:
+    def empty_secret_is_none(cls, value: object) -> object:
         if value is None:
             return None
         if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("commercial_gate_enabled", mode="before")
+    @classmethod
+    def blank_gate_is_off(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return False
+        return value
+
+    @field_validator("public_site_url")
+    @classmethod
+    def strip_site_url(cls, value: str) -> str:
+        return value.strip().rstrip("/")
+
+    @field_validator("tts_max_input", mode="before")
+    @classmethod
+    def blank_max_input_is_none(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
             return None
         return value
 
@@ -68,12 +118,18 @@ class Settings(BaseSettings):
         # DEC-003 / BR-BLP-001 / BR-SUB-003: subscription and entitlement checks
         # are not implemented. Gating them on APP_ENV=production rejects every
         # Blueprint, including an authenticated learner, and Try again repeats
-        # that rejection. Restore `not self.is_production` when billing can pass.
+        # DEC-003 keeps generation open. COMMERCIAL_GATE_ENABLED is the separate
+        # credit hold, and it stays off until that journey is decided (DEC-023).
         return True
 
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
+
+    @property
+    def mock_tts_permitted(self) -> bool:
+        # Production never serves the mock, even if TTS_ALLOW_MOCK is true.
+        return not self.is_production
 
     @property
     def has_openai_api_key(self) -> bool:

@@ -28,6 +28,9 @@ export type ErrorCode =
   | "unauthorized"
   | "generation_failed"
   | "provider_unavailable"
+  | "commercial_not_configured"
+  | "insufficient_credits"
+  | "audio_unavailable"
   | "internal_error";
 
 export type ApiErrorBody = {
@@ -441,6 +444,30 @@ export type StageTrace = {
   validation_codes: string[];
   qa_result: string | null;
   web_search: boolean;
+};
+
+export type LessonAudioStatus = {
+  narration_id: string;
+  status: "queued" | "generating" | "ready" | "failed";
+  error_message: string | null;
+  chunk_count: number;
+  ready_chunks: number;
+  duration_ms: number;
+  estimated_cost_cents: number | null;
+};
+
+export type LessonAudioPlayback = {
+  narration_id: string;
+  media_type: string;
+  duration_ms: number;
+  position_ms: number;
+  playback_rate: number;
+  chunks: { index: number; duration_ms: number; url: string }[];
+};
+
+export type LessonAudioProgress = {
+  position_ms: number;
+  playback_rate: number;
 };
 
 export type CourseDiagnostics = {

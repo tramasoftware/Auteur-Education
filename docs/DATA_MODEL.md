@@ -4,7 +4,7 @@
 
 **Versión:** 0.1
 
-**Estado:** Modelo de persistencia del generador y del progreso de aprendizaje en `auteur-education-dev`. No cubre Stripe, posición de audio, biblioteca, administración ni respuestas de Knowledge Check.
+**Estado:** Modelo de persistencia del generador, del progreso de lectura, de la base comercial y de la narración de lecciones. La migración de audio está en el repositorio y no se aplica al remoto sin autorización. No cubre biblioteca extra, administración ni respuestas de Knowledge Check.
 
 **Ubicación canónica:** `docs/DATA_MODEL.md`
 
@@ -85,7 +85,10 @@ auth.users
               ├── courses
               │     ├── modules
               │     │     └── lessons
-              │     │           └── lesson_reads
+              │     │           ├── lesson_reads
+              │     │           ├── lesson_narrations
+              │     │           │     └── lesson_narration_chunks
+              │     │           └── lesson_audio_progress
               │     └── course_learning_progress
               └── generation_traces
 ```
@@ -96,4 +99,25 @@ RLS está activo en las tablas de dominio, incluidas `lesson_reads` y `course_le
 
 ## Fuera de alcance
 
-Stripe, créditos, ElevenLabs, posición y preferencias de audio, biblioteca, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011). El progreso de lectura sí está en alcance (DEC-020); el de audio y el resultado del Knowledge Check, no.
+Biblioteca extra, administración, respuestas de Knowledge Check, TTL de solicitudes anónimas (`BR-ONB-009`). La sesión de Auth sí está en alcance (DEC-011). El progreso de lectura sí está en alcance (DEC-020). La base comercial está descrita abajo y todavía no restringe la generación (`DEC-023`). La narración de lecciones está en alcance (`DEC-024`); la migración y el bucket privados no se aplican al remoto sin autorización.
+
+## Base comercial
+
+Migración local `supabase/migrations/20261116230000_commercial_ledger.sql`. FastAPI es el único plano de datos. El navegador no lee estas tablas: `anon` y `authenticated` no tienen grants, y las funciones de saldo solo las ejecuta `service_role`.
+
+Ofertas y tarifas se versionan. La semilla es provisional: pago único de 1100 centavos USD y suscripción de 2200, un crédito cada una, y una tarifa `course_build` de un crédito. `stripe_price_id` queda vacío. `expires_at` existe y no tiene política de vencimiento. No hay beneficio de bienvenida.
+
+`stripe_events` guarda el comando normalizado. Un evento `processed` no vuelve a acreditar. Un evento `failed` puede reintentarse: la respuesta HTTP es 500 y Stripe reenvía el mismo `event_id`. El grant y el evento se confirman en la misma función SQL. Un reembolso de Stripe marca el pago como `refunded` y no llama a `refund_reservation_for_course`.
+
+`COMMERCIAL_GATE_ENABLED` queda en false. Con el flag apagado, confirmar el Blueprint no toca el ledger.
+
+## Narración de lecciones
+
+Migración local `supabase/migrations/20261117200000_lesson_audio.sql`. FastAPI es el único plano de datos. `anon` y `authenticated` no tienen grants.
+
+- `lesson_narrations`: una fila por lección + hash del texto narrado + hash de la configuración TTS. Estados `queued`, `generating`, `ready`, `failed`.
+- `lesson_narration_chunks`: fragmentos ordenados, reserva (`leased`, `lease_token`, `lease_expires_at`) y `provider_job_id` por si un adaptador futuro es asíncrono.
+- `lesson_audio_progress`: posición y velocidad por usuario y lección. Independiente de `lesson_reads` y de `position_revision`.
+- `tts_price_versions`: tarifa opcional por proveedor y modelo. Sin fila activa, el costo estimado queda nulo.
+
+El bucket `lesson-audio` es privado. El objeto se sirve con URL firmada después de autorizar. El audio no consume créditos de curso.

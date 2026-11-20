@@ -175,6 +175,9 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
     current = blueprint.current
     if blueprint.state == BlueprintState.APPROVED and blueprint.course_id:
         if version == blueprint.approved_version:
+            from auteur_api.modules.commercial.gate import confirm_hold
+
+            confirm_hold(blueprint.id, version, blueprint.course_id)
             return blueprint.course_id  # BR-GEN-012: no duplicate builds
         raise ApiError(
             "stale_version",
@@ -203,7 +206,19 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
             "starting another."
         )
 
-    course = create_course_for_blueprint(blueprint, current, store=store)
+    from auteur_api.modules.commercial.gate import (
+        confirm_hold,
+        hold_for_blueprint,
+        release_hold,
+    )
+
+    hold = hold_for_blueprint(blueprint.user_id, blueprint.id, current.version)
+    try:
+        course = create_course_for_blueprint(blueprint, current, store=store)
+    except Exception:
+        if hold == "reserved":
+            release_hold(blueprint.id, current.version)
+        raise
     blueprint.state = BlueprintState.APPROVED
     blueprint.approved_version = current.version
     blueprint.course_id = course.id
@@ -212,6 +227,11 @@ def approve_blueprint(blueprint_id: str, version: int, *, store: Store) -> str:
     request.state = RequestState.APPROVED
     request.course_id = course.id
     store.save_learning_request(request)
+    if hold in {"reserved", "already_held", "already_consumed"}:
+        try:
+            confirm_hold(blueprint.id, current.version, course.id)
+        except Exception:
+            logger.exception("credit_confirm_failed blueprint=%s", blueprint.id)
     return course.id
 
 
