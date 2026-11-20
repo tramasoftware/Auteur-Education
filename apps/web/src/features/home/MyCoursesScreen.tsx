@@ -91,6 +91,7 @@ function folderFrom(item: LibraryCourse, index: number): FolderCourse {
 
 const READING_PAGE_SIZE = 3;
 
+/* Temporarily hidden: "Chosen for your reading".
 const chosen = [
   {
     tab: "From Read a building",
@@ -117,6 +118,7 @@ const chosen = [
     color: "#191C37",
   },
 ] as const;
+*/
 
 function foldersFrom(body: CourseList | null): FolderCourse[] | null {
   if (!body) {
@@ -250,7 +252,7 @@ export function MyCoursesScreen() {
           />
         </section>
       ) : null}
-      <section className="cursos">
+      <section className="cursos creados">
         <span className="lab">Courses you’ve created</span>
         {failed ? <p>Your courses could not be loaded.</p> : null}
         {created === null && !failed ? <p>Loading your courses.</p> : null}
@@ -308,6 +310,7 @@ export function MyCoursesScreen() {
         </div>
         ) : null}
       </section>
+      {/* Temporarily hidden: Chosen for your reading.
       <section className="cursos">
         <span className="lab">Chosen for your reading</span>
         <p>Based on the subjects you’ve explored.</p>
@@ -335,6 +338,7 @@ export function MyCoursesScreen() {
           ))}
         </div>
       </section>
+      */}
     </MemberFrame>
   );
 }

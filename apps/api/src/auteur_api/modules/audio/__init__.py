@@ -1,1 +1,1 @@
-"""On-demand lesson narration, independent of the TTS vendor (DEC-024)."""
+"""On-demand lesson narration, independent of the TTS vendor (DEC-025)."""

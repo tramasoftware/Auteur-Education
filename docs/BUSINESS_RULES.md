@@ -161,8 +161,8 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | `BR-GEN-001` | La confirmación del sistema inicia un build asíncrono y persistente asociado a una versión exacta del Blueprint (`DEC-022`). | Cerrar la pantalla, navegar o cerrar sesión no detiene ni duplica el proceso. |
 | `BR-GEN-002` | Solo puede existir un build activo por usuario. | Un segundo intento dirige al build existente y no consume otro entitlement. |
 | `BR-GEN-003` | Los módulos se construyen en el orden aprobado. | No se publica una etapa que dependa de contenido anterior aún incompleto. |
-| `BR-GEN-004` | Un módulo se publica atómicamente solo cuando sus lecciones, fuentes, síntesis, Knowledge Check y QA local están completos. | El usuario nunca recibe borradores, placeholders, fragmentos truncados ni módulos parcialmente válidos. |
-| `BR-GEN-005` | La publicación es progresiva por módulos completos. | El usuario puede estudiar un módulo publicado mientras continúa el resto del build. |
+| `BR-GEN-004` | Un módulo se publica atómicamente solo cuando sus lecciones, fuentes, síntesis, Knowledge Check y QA local están completos. Una lección `approved` con borrador persistido puede leerse antes de esa publicación (`DEC-023`). | El usuario no recibe borradores, placeholders ni fragmentos truncados. La síntesis y el Knowledge Check no se muestran hasta que el módulo está publicado. |
+| `BR-GEN-005` | Los módulos se publican en orden, y el siguiente no empieza hasta que el actual está publicado. `partially_available` significa que al menos un módulo está publicado. Cada lección `approved` puede estudiarse mientras el resto de su módulo se genera (`DEC-023`). | El usuario puede leer una lección terminada sin esperar la síntesis ni el módulo siguiente. |
 | `BR-GEN-006` | El curso pasa a `Complete` solo cuando todos sus módulos, síntesis final, fuentes y QA global están completos. | No existe estado completo con unidades obligatorias faltantes. |
 | `BR-GEN-007` | Los estados mostrados deben corresponder a etapas reales persistidas. | No se inventan porcentajes, tiempos restantes ni progreso ficticio. |
 | `BR-GEN-008` | Cada unidad admite inicialmente hasta tres reintentos automáticos ante fallos recuperables. | Los reintentos quedan registrados y no duplican contenido publicado. |
@@ -233,7 +233,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | ID | Regla | Consecuencia verificable |
 | --- | --- | --- |
 | `BR-PRG-001` | El usuario marca y desmarca manualmente una lección como completada. | Abrir, desplazar, escuchar o responder un check no la completa automáticamente. |
-| `BR-PRG-002` | El progreso de un módulo se calcula sobre sus lecciones publicadas y marcadas como completas. | Lecciones aún no publicadas no aparecen como completadas ni accesibles. |
+| `BR-PRG-002` | El progreso de lectura cuenta las lecciones `approved` marcadas como completas (`DEC-023`). El módulo no queda completado para el alumno hasta que está publicado y sus lecciones están marcadas. | Una lección que todavía no está `approved` no es accesible ni cuenta como completada. |
 | `BR-PRG-003` | Un curso se considera completado solo cuando el build está completo y todas sus lecciones están marcadas. | Terminar el contenido disponible durante un build parcial no completa el curso. |
 | `BR-PRG-004` | Última actividad, última lección, posición de lectura, completitud y resultados de checks persisten entre sesiones y dispositivos. | La biblioteca y el lector reanudan el punto real del usuario. |
 | `BR-PRG-005` | Los estados de build, suscripción y progreso de aprendizaje son independientes. | Cancelar no completa ni reinicia el curso; publicar no marca lecciones; estudiar no altera la suscripción. |
@@ -304,7 +304,7 @@ Una fuente de menor prioridad nunca amplía por sí sola el alcance del MVP. Tod
 | Blueprint vigente confirmado por el sistema antes del build (`DEC-022`) | Construcción de una versión obsoleta o no confirmada. |
 | Entitlement disponible antes del build | Consumo negativo o creación comercial no autorizada. |
 | Un build activo por usuario | Cursos duplicados y doble consumo. |
-| QA local antes de publicar módulo | Contenido parcial, sin fuentes o sin Knowledge Check. |
+| QA local antes de publicar módulo (`DEC-023`) | Publicar el módulo sin síntesis, Knowledge Check o audit. No impide leer una lección ya `approved`. |
 | QA global antes de completar curso | Estado `Complete` con contenido faltante. |
 | Idempotencia en pagos, builds y créditos | Cobros, beneficios, consumos o restituciones duplicadas. |
 | Separación de estados | Que cancelar, estudiar o generar altere dimensiones no relacionadas. |

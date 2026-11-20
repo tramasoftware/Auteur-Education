@@ -93,9 +93,13 @@ function OnboardingSession() {
   const retryRef = useRef<() => void>(() => {});
   const holdDirections = params.get("hold") === "1";
   const holdRef = useRef(holdDirections);
+  const revisingPrecision =
+    params.get("revise") === "precision" &&
+    (request?.state === "proposals_ready" || request?.state === "proposal_selected");
   const showPrecision =
     request?.state === "precision_required" ||
-    (leftWait && Boolean(request?.precision.needs_precision));
+    (leftWait && Boolean(request?.precision.needs_precision)) ||
+    (revisingPrecision && Boolean(request?.precision.needs_precision));
   const awaitingDirections = Boolean(
     request &&
       !request.proposals &&
@@ -187,7 +191,7 @@ function OnboardingSession() {
     if (!requestId || holdDirections) {
       return;
     }
-    if (hasProposals && requestState !== "objective_confirmed") {
+    if (hasProposals && requestState !== "objective_confirmed" && !revisingPrecision) {
       router.push(`/proposals?request=${requestId}`);
       return;
     }
@@ -249,10 +253,21 @@ function OnboardingSession() {
     return () => {
       cancelled = true;
     };
-  }, [hasProposals, holdDirections, precisionKey, requestId, requestState, router]);
+  }, [hasProposals, holdDirections, precisionKey, requestId, requestState, revisingPrecision, router]);
 
   const chooseFocus = async (payload: { option_id?: string; free_text?: string }) => {
     if (!request) {
+      return;
+    }
+    const selected = request.selected_precision;
+    const sameFocus =
+      Boolean(request.proposals) &&
+      Boolean(selected) &&
+      ((Boolean(payload.option_id) && payload.option_id === selected?.option_id) ||
+        (Boolean(payload.free_text?.trim()) &&
+          payload.free_text?.trim() === (selected?.free_text ?? "").trim()));
+    if (params.get("revise") === "precision" && sameFocus) {
+      router.push(`/proposals?request=${request.id}`);
       return;
     }
     setError(null);
@@ -1099,8 +1114,12 @@ type PrecisionPanelProps = {
 };
 
 function PrecisionPanel({ request, busy, onChoose, onReset }: PrecisionPanelProps) {
-  const [optionId, setOptionId] = useState<string>("");
-  const [freeText, setFreeText] = useState("");
+  const [optionId, setOptionId] = useState(
+    () => request.selected_precision?.option_id ?? "",
+  );
+  const [freeText, setFreeText] = useState(
+    () => request.selected_precision?.free_text ?? "",
+  );
   const p = request.precision;
   const wrote = request.inputs.initial_intent.trim();
 

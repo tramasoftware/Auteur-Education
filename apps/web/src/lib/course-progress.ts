@@ -1,6 +1,7 @@
 import type {
   Course,
   CourseProgress,
+  LessonState,
   LessonSummary,
   LibraryCourse,
   ModuleState,
@@ -92,6 +93,103 @@ export function chooseDeskCourse(
 export function folderNumber(items: LibraryCourse[], courseId: string): string {
   const index = byCreation(items).findIndex((item) => item.id === courseId);
   return pad(index < 0 ? 1 : index + 1);
+}
+
+export function lessonAccess(
+  state: LessonState,
+): "ready" | "generating" | "waiting" | "failed" {
+  if (state === "approved") {
+    return "ready";
+  }
+  if (state === "failed") {
+    return "failed";
+  }
+  if (state === "queued") {
+    return "waiting";
+  }
+  return "generating";
+}
+
+export function lessonStatusLabel(state: LessonState): string {
+  switch (lessonAccess(state)) {
+    case "ready":
+      return "";
+    case "failed":
+      return "Could not be prepared";
+    case "waiting":
+      return "Not available yet";
+    default:
+      return "Generating";
+  }
+}
+
+/** Learner-facing line for the build's real `current_activity`. No invented stages. */
+export function learnerActivity(activity: string | null): string | null {
+  if (!activity) {
+    return null;
+  }
+  if (activity === "Writing final synthesis") {
+    return activity;
+  }
+  if (activity === "Auditing course") {
+    return "Reviewing";
+  }
+  const step = activity.match(/^Module \d+: (.+)$/)?.[1] ?? activity;
+  if (step.startsWith("researching lesson ")) {
+    return `Researching lesson ${step.slice("researching lesson ".length)}`;
+  }
+  if (step.startsWith("writing lesson ")) {
+    return `Writing lesson ${step.slice("writing lesson ".length)}`;
+  }
+  if (step.startsWith("reviewing lesson ")) {
+    return `Reviewing lesson ${step.slice("reviewing lesson ".length)}`;
+  }
+  if (step === "writing synthesis") {
+    return "Writing the module synthesis";
+  }
+  if (step === "creating Knowledge Check") {
+    return "Preparing the knowledge check";
+  }
+  if (step === "auditing module") {
+    return "Reviewing the module";
+  }
+  return step.charAt(0).toUpperCase() + step.slice(1);
+}
+
+/** The activity line when it names this lesson. Otherwise null. */
+export function lessonStepLabel(activity: string | null, lessonIndex: number): string | null {
+  const named = activity?.match(/lesson (\d+)/);
+  if (!named || Number(named[1]) !== lessonIndex) {
+    return null;
+  }
+  return learnerActivity(activity);
+}
+
+export function moduleClosureLabel(
+  module: { state: ModuleState; lessons: { state: LessonState }[] },
+  activity: string | null,
+  part: "synthesis" | "quiz" | "sources",
+): string {
+  if (module.state === "published") {
+    return "";
+  }
+  if (module.state === "failed") {
+    return "Could not be prepared";
+  }
+  if (module.lessons.some((lesson) => lesson.state !== "approved")) {
+    return "Not available yet";
+  }
+  if (part === "sources") {
+    return "Not available yet";
+  }
+  const text = activity?.toLowerCase() ?? "";
+  if (part === "quiz") {
+    if (text.includes("knowledge check") || text.includes("auditing")) {
+      return "Generating";
+    }
+    return "Not available yet";
+  }
+  return "Generating";
 }
 
 export function resumeHref(courseId: string, progress: CourseProgress): string {
@@ -334,17 +432,27 @@ function deskModule(
 ): DeskModule {
   const learning = progress.modules.find((item) => item.module_id === module.id);
   const published = module.state === "published";
+  const readable = lessons.some((lesson) => lesson.state === "approved");
+  const open = published || readable;
   const done = learning?.learning_status === "completed";
-  const current = context.isResume && published && !done;
-  const queued = !published;
+  const current = context.isResume && open && !done;
+  const queued = !open;
   const moduleHref = `/courses/${courseId}/modules/${module.id}`;
+  const firstReadable = lessons.find((lesson) => lesson.state === "approved");
+  const openHref =
+    firstReadable && !published
+      ? `/courses/${courseId}/modules/${module.id}/lessons/${firstReadable.id}`
+      : moduleHref;
   let action: DeskModule["action"] = null;
   if (published && done) {
     action = { label: "Review the module", href: moduleHref };
   } else if (current) {
     action = { label: context.continueLabel, href: context.continueHref };
-  } else if (published) {
-    action = { label: "View module overview", href: moduleHref };
+  } else if (open) {
+    action = {
+      label: published ? "View module overview" : "Start reading",
+      href: openHref,
+    };
   }
   const resumeHere =
     context.resumeLesson && lessons.some((lesson) => lesson.id === context.resumeLesson?.id)
@@ -364,16 +472,18 @@ function deskModule(
             })
             .join(" | ")
         : null,
-    lessons: published
+    lessons: open
       ? lessons.map((lesson) => ({
           id: lesson.id,
           number: pad(lesson.index),
           title: lesson.title,
-          mark: context.readIds.has(lesson.id)
-            ? "Read"
-            : readingMinutes(lesson.word_count)
-              ? `${readingMinutes(lesson.word_count)} min`
-              : "Unread",
+          mark: !published && lesson.state !== "approved"
+            ? lessonStatusLabel(lesson.state)
+            : context.readIds.has(lesson.id)
+              ? "Read"
+              : readingMinutes(lesson.word_count)
+                ? `${readingMinutes(lesson.word_count)} min`
+                : "Unread",
         }))
       : [],
     done,

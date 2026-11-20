@@ -1,4 +1,4 @@
-"""Narration text splitting respects provider input units (DEC-024)."""
+"""Narration text splitting respects provider input units (DEC-025)."""
 
 from auteur_api.modules.audio.script import measure, split_narration
 from auteur_api.modules.generation.prompts import lesson_reading_text

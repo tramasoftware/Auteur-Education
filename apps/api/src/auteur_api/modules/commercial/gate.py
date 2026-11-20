@@ -1,6 +1,6 @@
 """Internal credit hold for a system-confirmed Blueprint.
 
-DEC-023. This does not run while COMMERCIAL_GATE_ENABLED is false, and it is
+DEC-024. This does not run while COMMERCIAL_GATE_ENABLED is false, and it is
 not the screen where a learner should be offered Checkout.
 """
 

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
+import { waitProgressPercent } from "@/lib/wait-progress";
+
 import { CourseSetupFrame } from "./CourseSetupFrame";
 
 import "./stage-preparing.css";
@@ -96,13 +98,7 @@ export function StagePreparing({
         return;
       }
       const elapsed = performance.now() - started;
-      if (elapsed < approachMs) {
-        const eased = 1 - (1 - elapsed / approachMs) ** 2.2;
-        setProgress(Math.min(94, Math.round(eased * 94)));
-        return;
-      }
-      const extra = Math.min(4, ((elapsed - approachMs) / crawlMs) * 4);
-      setProgress(Math.min(98, Math.round(94 + extra)));
+      setProgress(waitProgressPercent(elapsed, { approachMs, crawlMs }));
     }, 200);
     return () => window.clearInterval(timer);
   }, [ready, approachMs, crawlMs]);

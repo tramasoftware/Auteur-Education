@@ -1,4 +1,4 @@
--- Commercial base (DEC-023). Local only until an explicit apply is authorized.
+-- Commercial base (DEC-024). Local only until an explicit apply is authorized.
 -- Credits move only inside these functions. A Stripe refund updates the payment
 -- and does not call refund_reservation_for_course.
 -- service_role is the only caller. anon, authenticated and PUBLIC cannot execute.

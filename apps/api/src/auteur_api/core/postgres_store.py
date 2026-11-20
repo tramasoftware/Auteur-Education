@@ -15,12 +15,15 @@ from supabase import Client, create_client
 
 from auteur_api.ai.tracing import StageTrace, TokenUsage
 from auteur_api.core.config import Settings, settings
+from auteur_api.core.course_wait import notify_course
 from auteur_api.core.errors import ApiError, invalid_state, not_found
 from auteur_api.core.store import (
     CourseBuildSnapshot,
     CourseStatus,
     LibraryEntry,
     ProfileRecord,
+    StatusLesson,
+    StatusModule,
     assert_owner,
     course_structure_counts,
     normalize_text_size,
@@ -91,7 +94,9 @@ _OVERVIEW_MODULE = (
     "id,course_id,index,title,function,guiding_questions,outcome,state,"
     "has_synthesis,question_count,published_at"
 )
-_OUTLINE_LESSON = "id,course_id,module_id,index,title,word_count,state"
+_OUTLINE_LESSON = (
+    "id,course_id,module_id,index,title,word_count,state,has_draft"
+)
 _MODULE_LESSON = (
     "id,course_id,module_id,index,title,purpose,state,word_count,evidence"
 )
@@ -238,6 +243,7 @@ def _lesson_outline(row: dict[str, Any]) -> LessonRecord:
         evidence=evidence,
         evidence_urls=_evidence_urls(row),
         draft=draft,
+        draft_stored=bool(row.get("has_draft")) or draft is not None,
         word_count=row.get("word_count") or 0,
     )
 
@@ -637,6 +643,7 @@ class PostgresStore:
                 self._table("lessons").upsert(
                     _lesson_payload(record, module, lesson)
                 ).execute()
+        notify_course(record.id)
 
     def save_course_progress(
         self,
@@ -651,26 +658,40 @@ class PostgresStore:
             self._table("lessons").upsert(
                 _lesson_payload(record, module, lesson)
             ).execute()
+            notify_course(record.id)
             return
         if module_id is not None:
             module = _module_in(record, module_id)
             self._table("modules").upsert(_module_payload(record, module)).execute()
+            notify_course(record.id)
             return
         self._table("courses").upsert(_course_payload(record)).execute()
+        notify_course(record.id)
 
     def get_course_status(
         self, course_id: str, *, user_id: str | None = None
     ) -> CourseStatus:
-        """One read of course activity and module states. Lessons stay unread."""
+        """One read of course activity, module states, and lesson states."""
         row = self._course_row(
-            course_id, "id,user_id,state,current_activity,modules(id,state)"
+            course_id,
+            "id,user_id,state,current_activity,modules(id,state,lessons(id,state))",
         )
         assert_owner(row["user_id"], user_id)
         return CourseStatus(
             state=CourseState(row["state"]),
             current_activity=row.get("current_activity"),
             modules=tuple(
-                (module["id"], ModuleState(module["state"]))
+                StatusModule(
+                    id=module["id"],
+                    state=ModuleState(module["state"]),
+                    lessons=tuple(
+                        StatusLesson(
+                            id=lesson["id"],
+                            state=LessonState(lesson["state"]),
+                        )
+                        for lesson in (module.get("lessons") or [])
+                    ),
+                )
                 for module in (row.get("modules") or [])
             ),
         )

@@ -1,4 +1,4 @@
-"""Lesson narration: mock TTS, durable jobs, authorization (DEC-024, BR-AUD-*)."""
+"""Lesson narration: mock TTS, durable jobs, authorization (DEC-025, BR-AUD-*)."""
 
 from __future__ import annotations
 

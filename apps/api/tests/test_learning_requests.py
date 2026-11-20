@@ -396,6 +396,37 @@ def test_directions_reject_precision_and_incompatible(client, fake_ai) -> None:
     assert blocked.status_code == 409
 
 
+def test_same_precision_keeps_paths_and_another_replaces_them(client, fake_ai) -> None:
+    """UF-04: the same focus keeps the set. A different focus invalidates it."""
+    body = create(client, fake_ai, needs_precision=True, options=3).json()
+    options = body["precision"]["options"]
+    client.post(
+        f"/api/v1/learning-requests/{body['id']}/precision",
+        json={"option_id": options[0]["id"]},
+    )
+    fake_ai.enqueue(LearningObjectiveOutput, objective())
+    fake_ai.enqueue(ProposalSetOutput, proposal_set(4))
+    ready = client.post(f"/api/v1/learning-requests/{body['id']}/directions")
+    assert ready.status_code == 200
+    paths_id = ready.json()["proposals"]["id"]
+
+    kept = client.post(
+        f"/api/v1/learning-requests/{body['id']}/precision",
+        json={"option_id": options[0]["id"]},
+    )
+    assert kept.status_code == 200
+    assert kept.json()["state"] == "proposals_ready"
+    assert kept.json()["proposals"]["id"] == paths_id
+
+    changed = client.post(
+        f"/api/v1/learning-requests/{body['id']}/precision",
+        json={"option_id": options[1]["id"]},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["state"] == "objective_confirmation"
+    assert changed.json()["proposals"] is None
+
+
 def test_directions_use_the_chosen_precision(client, fake_ai) -> None:
     body = create(client, fake_ai, needs_precision=True, options=3).json()
     option = body["precision"]["options"][0]

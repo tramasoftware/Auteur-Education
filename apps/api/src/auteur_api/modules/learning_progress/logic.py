@@ -1,7 +1,8 @@
-"""Pure learning-progress rules (BR-PRG-001..003).
+"""Pure learning-progress rules (BR-PRG-001..003, DEC-023).
 
-Percents and learning statuses are derived from lesson rows, module publication,
-and read marks. `first_completed_at`, `current_completed_at`, and
+Percents and learning statuses are derived from lesson rows, whether a lesson
+is approved, and read marks. A module's learning status stays unset until that
+module is published. `first_completed_at`, `current_completed_at`, and
 `synthesis_auto_presented_at` are the only stored facts that marks cannot rebuild.
 
 The Postgres write functions in the learning-progress migration must follow
@@ -18,6 +19,7 @@ from auteur_api.modules.generation.schemas import (
     CourseRecord,
     CourseState,
     LessonRecord,
+    LessonState,
     ModuleRecord,
     ModuleState,
 )
@@ -120,15 +122,26 @@ def percent(part: int, whole: int) -> int | None:
     return (part * 100) // whole
 
 
+def lesson_is_readable(lesson: LessonRecord) -> bool:
+    """DEC-023: approved and stored. A queued or failed lesson is not a lesson yet.
+
+    Progress and library reads omit the draft body. `draft_stored` is that fact
+    without loading the text.
+    """
+    if lesson.state != LessonState.APPROVED:
+        return False
+    return lesson.draft is not None or lesson.draft_stored
+
+
 def course_counts(
     course: CourseRecord, reads: dict[str, LessonRead]
 ) -> tuple[int, int]:
-    """Lc is every current lesson. Rc is published lessons marked read."""
+    """Lc is every current lesson. Rc is approved lessons marked read."""
     lesson_total = 0
     lessons_read = 0
-    for module, lesson in structure(course):
+    for _module, lesson in structure(course):
         lesson_total += 1
-        if module.state == ModuleState.PUBLISHED and is_read(reads, lesson.id):
+        if lesson_is_readable(lesson) and is_read(reads, lesson.id):
             lessons_read += 1
     return lesson_total, lessons_read
 
@@ -165,15 +178,15 @@ def module_learning_status(
 
 
 def resume_lesson_id(course: CourseRecord, last_lesson_id: str | None) -> str | None:
-    first_published: str | None = None
-    for module, lesson in structure(course):
-        if module.state != ModuleState.PUBLISHED:
+    first_readable: str | None = None
+    for _module, lesson in structure(course):
+        if not lesson_is_readable(lesson):
             continue
-        if first_published is None:
-            first_published = lesson.id
+        if first_readable is None:
+            first_readable = lesson.id
         if last_lesson_id is not None and lesson.id == last_lesson_id:
             return lesson.id
-    return first_published
+    return first_readable
 
 
 def reconcile_progress_row(
@@ -226,11 +239,8 @@ def build_snapshot(
     lessons: list[LessonProgress] = []
     for module, lesson in structure(course):
         row = mapped.get(lesson.id)
-        read = (
-            module.state == ModuleState.PUBLISHED
-            and row is not None
-            and row.read
-        )
+        readable = lesson_is_readable(lesson)
+        read = readable and row is not None and row.read
         lessons.append(
             LessonProgress(
                 lesson_id=lesson.id,
@@ -241,13 +251,12 @@ def build_snapshot(
             )
         )
     for module in sorted(course.modules, key=lambda item: item.index):
-        lesson_ids = [lesson.id for lesson in module.lessons]
-        total = len(lesson_ids)
-        read_count = 0
-        if module.state == ModuleState.PUBLISHED:
-            read_count = sum(
-                1 for lesson_id in lesson_ids if is_read(mapped, lesson_id)
-            )
+        total = len(module.lessons)
+        read_count = sum(
+            1
+            for lesson in module.lessons
+            if lesson_is_readable(lesson) and is_read(mapped, lesson.id)
+        )
         modules.append(
             ModuleProgress(
                 module_id=module.id,
@@ -309,8 +318,8 @@ def apply_read_mark(
     found = find_lesson(course, lesson_id)
     if found is None:
         return WriteResult(ProgressWrite.NOT_FOUND, reads, progress)
-    module, _lesson = found
-    if module.state != ModuleState.PUBLISHED:
+    _module, lesson = found
+    if not lesson_is_readable(lesson):
         return WriteResult(ProgressWrite.NOT_ACCESSIBLE, reads, progress)
     current = reads.get(lesson_id)
     current_read = current is not None and current.read
@@ -349,8 +358,8 @@ def record_lesson_visit(
     found = find_lesson(course, lesson_id)
     if found is None:
         return WriteResult(ProgressWrite.NOT_FOUND, reads, progress)
-    module, _lesson = found
-    if module.state != ModuleState.PUBLISHED:
+    _module, lesson = found
+    if not lesson_is_readable(lesson):
         return WriteResult(ProgressWrite.NOT_ACCESSIBLE, reads, progress)
     if progress is not None and progress.last_lesson_id == lesson_id:
         refreshed = replace(progress, last_activity_at=now)

@@ -1,12 +1,14 @@
+import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 
 from auteur_api.ai.client import AIClient, get_ai_client
 from auteur_api.core.auth import CurrentUserId, PermanentUserId
 from auteur_api.core.background import TaskRunner, bind_request_tasks, get_task_runner
 from auteur_api.core.config import settings
+from auteur_api.core.course_wait import begin_wait
 from auteur_api.core.errors import not_found
 from auteur_api.core.store import Store as StoreBackend
 from auteur_api.core.store import get_store
@@ -33,6 +35,9 @@ from auteur_api.modules.learning_progress.service import (
 )
 
 router = APIRouter(prefix="/courses", tags=["courses"])
+
+# Safety cutoff for one held status read. The build's notify returns sooner.
+_STATUS_WAIT_SECONDS = 50.0
 
 Store = Annotated[StoreBackend, Depends(get_store)]
 AI = Annotated[AIClient, Depends(get_ai_client)]
@@ -66,10 +71,31 @@ def get_course(course_id: str, store: Store, user_id: CurrentUserId) -> CourseRe
 
 
 @router.get("/{course_id}/status", response_model=CourseStatusResponse)
-def get_course_status(
-    course_id: str, store: Store, user_id: CurrentUserId
+async def get_course_status(
+    course_id: str,
+    request: Request,
+    store: Store,
+    user_id: CurrentUserId,
+    wait: Annotated[bool, Query()] = False,
+    seen: Annotated[str | None, Query()] = None,
 ) -> CourseStatusResponse:
-    """Build poll: course activity and module states, without lesson bodies."""
+    """Activity plus module and lesson states. No lesson bodies.
+
+    `wait=true` with the `seen` token from the previous response stays open
+    until the build persists a change, or until the safety cutoff, then reads
+    once (DEC-004). A different token returns immediately.
+    """
+    event = begin_wait(course_id) if wait and seen else None
+    status = store.get_course_status(course_id, user_id=user_id)
+    current = courses.course_status_view(status)
+    if event is None or current.seen != seen:
+        return current
+    try:
+        await asyncio.wait_for(event.wait(), _STATUS_WAIT_SECONDS)
+    except TimeoutError:
+        pass
+    if await request.is_disconnected():
+        return current
     return courses.course_status_view(
         store.get_course_status(course_id, user_id=user_id)
     )
@@ -79,9 +105,9 @@ def get_course_status(
 def get_module(
     course_id: str, module_id: str, store: Store, user_id: CurrentUserId
 ) -> ModuleResponse:
-    """UF-07: a published module with lessons, synthesis, Knowledge Check, sources."""
+    """UF-07: module outline. Synthesis and the quiz appear once it is published."""
     course = store.get_module_course(course_id, module_id, user_id=user_id)
-    module = courses.published_module(course, module_id)
+    module = courses.get_module(course, module_id)
     return courses.module_view(course, module)
 
 
@@ -96,8 +122,9 @@ def get_lesson(
     store: Store,
     user_id: CurrentUserId,
 ) -> LessonResponse:
+    """DEC-023: lesson body once the lesson is approved and its draft is stored."""
     course = store.get_lesson_course(course_id, module_id, user_id=user_id)
-    module = courses.published_module(course, module_id)
+    module, _lesson = courses.readable_lesson(course, module_id, lesson_id)
     return courses.lesson_view(course, module, lesson_id)
 
 

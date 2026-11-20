@@ -1,4 +1,4 @@
-"""Lesson audio. GET never synthesizes. POST schedules durable work (DEC-024)."""
+"""Lesson audio. GET never synthesizes. POST schedules durable work (DEC-025)."""
 
 from __future__ import annotations
 

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     commercial_gate_enabled: bool = False
     public_site_url: str = "http://localhost:3000"
 
-    # Lesson narration (DEC-024). Secrets stay on the API. Mock is development only.
+    # Lesson narration (DEC-025). Secrets stay on the API. Mock is development only.
     tts_enabled: bool = True
     tts_provider: str = "mock"
     tts_allow_mock: bool = False
@@ -119,7 +119,7 @@ class Settings(BaseSettings):
         # are not implemented. Gating them on APP_ENV=production rejects every
         # Blueprint, including an authenticated learner, and Try again repeats
         # DEC-003 keeps generation open. COMMERCIAL_GATE_ENABLED is the separate
-        # credit hold, and it stays off until that journey is decided (DEC-023).
+        # credit hold, and it stays off until that journey is decided (DEC-024).
         return True
 
     @property

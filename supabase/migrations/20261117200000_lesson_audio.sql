@@ -1,4 +1,4 @@
--- Lesson narration (DEC-024). Local only until an explicit apply is authorized.
+-- Lesson narration (DEC-025). Local only until an explicit apply is authorized.
 -- FastAPI is the only data plane. Audio does not consume course credits.
 -- service_role is the only caller. anon, authenticated and PUBLIC cannot execute.
 

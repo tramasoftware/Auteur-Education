@@ -15,6 +15,7 @@ export function readingDeskModel(
       title: lesson.title,
       purpose: "",
       word_count: lesson.word_count,
+      state: lesson.state,
     });
     lessonsByModule[lesson.module_id] = bucket;
   }
@@ -43,6 +44,7 @@ export function readingDeskModel(
         index: lesson.index,
         title: lesson.title,
         word_count: lesson.word_count,
+        state: lesson.state,
       })),
       has_synthesis: false,
       source_count: 0,

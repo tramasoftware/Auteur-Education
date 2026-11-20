@@ -12,12 +12,14 @@ from datetime import date, datetime
 from typing import Literal, Protocol
 
 from auteur_api.ai.tracing import StageTrace, now
+from auteur_api.core.course_wait import notify_course, reset_waits
 from auteur_api.core.errors import invalid_state, not_found
 from auteur_api.modules.blueprints.schemas import BlueprintRecord
 from auteur_api.modules.generation.schemas import (
     CourseListItem,
     CourseRecord,
     CourseState,
+    LessonState,
     ModuleState,
 )
 from auteur_api.modules.learning_progress.logic import (
@@ -41,12 +43,27 @@ def new_id() -> str:
 
 
 @dataclass(frozen=True)
+class StatusLesson:
+    """Lesson build state for the poll. No draft and no sources."""
+
+    id: str
+    state: LessonState
+
+
+@dataclass(frozen=True)
+class StatusModule:
+    id: str
+    state: ModuleState
+    lessons: tuple[StatusLesson, ...]
+
+
+@dataclass(frozen=True)
 class CourseStatus:
     """Build poll fields. Lesson bodies and drafts stay unread."""
 
     state: CourseState
     current_activity: str | None
-    modules: tuple[tuple[str, ModuleState], ...]
+    modules: tuple[StatusModule, ...]
 
 
 @dataclass(frozen=True)
@@ -284,6 +301,7 @@ class DemoStore:
 
     def reset(self) -> None:
         self.__init__()
+        reset_waits()
 
     def get_learning_request(
         self, request_id: str, *, user_id: str | None = None
@@ -320,6 +338,7 @@ class DemoStore:
 
     def save_course(self, record: CourseRecord) -> None:
         self.courses[record.id] = record
+        notify_course(record.id)
 
     def save_course_progress(
         self,
@@ -331,6 +350,7 @@ class DemoStore:
         # One object per course. The partial write is the Postgres path.
         del module_id, lesson_id
         self.courses[record.id] = record
+        notify_course(record.id)
 
     def get_course_status(
         self, course_id: str, *, user_id: str | None = None
@@ -339,7 +359,17 @@ class DemoStore:
         return CourseStatus(
             state=course.state,
             current_activity=course.current_activity,
-            modules=tuple((module.id, module.state) for module in course.modules),
+            modules=tuple(
+                StatusModule(
+                    id=module.id,
+                    state=module.state,
+                    lessons=tuple(
+                        StatusLesson(id=lesson.id, state=lesson.state)
+                        for lesson in module.lessons
+                    ),
+                )
+                for module in course.modules
+            ),
         )
 
     def list_courses_for_user(self, user_id: str) -> list[CourseListItem]:

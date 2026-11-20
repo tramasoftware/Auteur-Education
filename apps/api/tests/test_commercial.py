@@ -1,4 +1,4 @@
-"""Commercial ledger, Stripe webhook and the disabled generation gate (DEC-023)."""
+"""Commercial ledger, Stripe webhook and the disabled generation gate (DEC-024)."""
 
 from __future__ import annotations
 

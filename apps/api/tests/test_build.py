@@ -116,10 +116,20 @@ def test_published_module_exposes_lessons_synthesis_check_and_sources(
     assert lesson["next_lesson_id"] == module["lessons"][1]["id"]
     assert lesson["previous_lesson_id"] is None
 
-    # BR-GEN-004: unpublished modules are not readable.
-    not_built = course["modules"][1]["id"]
-    blocked = client.get(f"/api/v1/courses/{course_id}/modules/{not_built}")
-    assert blocked.status_code == 409
+    # DEC-023: the outline of an unbuilt module is visible. Its lessons are not.
+    not_built = course["modules"][1]
+    blocked = client.get(f"/api/v1/courses/{course_id}/modules/{not_built['id']}")
+    assert blocked.status_code == 200
+    body = blocked.json()
+    assert body["state"] == "not_built"
+    assert body["synthesis"] is None
+    assert body["knowledge_check"] is None
+    assert body["sources"] == []
+    refused = client.get(
+        f"/api/v1/courses/{course_id}/modules/{not_built['id']}/lessons/"
+        f"{not_built['lessons'][0]['id']}"
+    )
+    assert refused.status_code == 409
 
 
 @pytest.mark.skip(
@@ -210,6 +220,80 @@ def test_block_fails_module_and_keeps_nothing_unpublished(client, fake_ai) -> No
     assert course["modules"][0]["id"] not in failure
 
 
+def test_approved_lesson_is_readable_before_publication(client, fake_ai) -> None:
+    """DEC-023: an approved lesson opens before its module is published."""
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(
+        BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
+    )
+    script_full_build(fake_ai)
+    fake_ai.enqueue(LessonReviewOutput, review("Pass"))
+    fake_ai.enqueue(LessonReviewOutput, review("Block"))
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
+    course = client.get(f"/api/v1/courses/{course_id}").json()
+    module = course["modules"][0]
+    assert module["state"] == "failed"
+    assert [lesson["state"] for lesson in module["lessons"]] == ["approved", "failed"]
+    detail = client.get(f"/api/v1/courses/{course_id}/modules/{module['id']}").json()
+    assert detail["synthesis"] is None
+    assert detail["knowledge_check"] is None
+    assert detail["sources"] == []
+    first = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module['id']}/lessons/{module['lessons'][0]['id']}"
+    )
+    assert first.status_code == 200
+    assert first.json()["sections"]
+    second = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module['id']}/lessons/{module['lessons'][1]['id']}"
+    )
+    assert second.status_code == 409
+    status = client.get(f"/api/v1/courses/{course_id}/status").json()
+    assert [lesson["state"] for lesson in status["modules"][0]["lessons"]] == [
+        "approved",
+        "failed",
+    ]
+    assert "sections" not in status["modules"][0]["lessons"][0]
+
+
+def test_retry_does_not_regenerate_an_approved_lesson(client, fake_ai) -> None:
+    """BR-GEN-012: a finished lesson survives a retry of the lesson that failed."""
+    rid = selected_request(client, fake_ai)
+    fake_ai.enqueue(
+        BlueprintOutput, blueprint(modules=2, lessons=2, deviation_reason="demo")
+    )
+    script_full_build(fake_ai)
+    fake_ai.enqueue(LessonReviewOutput, review("Pass"))
+    fake_ai.enqueue(LessonReviewOutput, review("Block"))
+    course_id = client.post(f"/api/v1/learning-requests/{rid}/blueprint").json()[
+        "course_id"
+    ]
+    course = client.get(f"/api/v1/courses/{course_id}").json()
+    module_id = course["modules"][0]["id"]
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    before = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/{lesson_id}"
+    ).json()
+    writes_before = [
+        call for call in fake_ai.calls if call["schema"] == "LessonWriteOutput"
+    ]
+    retried = client.post(f"/api/v1/courses/{course_id}/retry")
+    assert retried.status_code == 202
+    body = retried.json()
+    assert body["id"] == course_id
+    assert body["state"] == "partially_available"
+    assert body["modules"][0]["state"] == "published"
+    after = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/{lesson_id}"
+    ).json()
+    assert after["sections"] == before["sections"]
+    writes_after = [
+        call for call in fake_ai.calls if call["schema"] == "LessonWriteOutput"
+    ]
+    assert len(writes_after) == len(writes_before) + 1
+
+
 def test_knowledge_check_shuffle_spreads_correct_answer() -> None:
     from auteur_api.modules.generation.validators import shuffle_knowledge_check_options
 
@@ -275,6 +359,16 @@ def test_module_audit_failure_prevents_publication(client, fake_ai) -> None:
     assert course["modules"][0]["state"] == "failed"
     assert "did not pass review" in course["failure"].lower()
     assert "AI-STG" not in course["failure"]
+    module_id = course["modules"][0]["id"]
+    module = client.get(f"/api/v1/courses/{course_id}/modules/{module_id}").json()
+    assert module["synthesis"] is None
+    assert module["knowledge_check"] is None
+    lesson = client.get(
+        f"/api/v1/courses/{course_id}/modules/{module_id}/lessons/"
+        f"{course['modules'][0]['lessons'][0]['id']}"
+    )
+    assert lesson.status_code == 200
+    assert lesson.json()["sections"]
 
 
 def test_invented_source_ref_is_dropped_and_research_sources_are_shown(

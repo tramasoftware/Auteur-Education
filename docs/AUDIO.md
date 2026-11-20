@@ -2,7 +2,7 @@
 
 # Auteur Education — Narración de lecciones
 
-**Estado:** implementación local (DEC-024). El bucket, las migraciones remotas, el cron de Vercel y ElevenLabs no están activos.
+**Estado:** implementación local (DEC-025). El bucket, las migraciones remotas, el cron de Vercel y ElevenLabs no están activos.
 
 **Ubicación canónica:** `docs/AUDIO.md`
 

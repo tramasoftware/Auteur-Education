@@ -175,7 +175,15 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Impacto:** `BR-BLP-010`, `BR-BLP-011`, `BR-GEN-001`, `UF-09` a `UF-11`, `UF-13`, `UF-15`, `AI-PRN-08`, `AI-STG-05`, `MVP.md` §9, `PRODUCT.md`, `POST /learning-requests/{id}/blueprint`, propuestas y la carga del curso en `apps/web`. Se eliminan `POST /blueprints/{id}/approve` y `POST /blueprints/{id}/revisions`.
 - **Límite:** no fusiona `AI-STG-05` con el build. No quita campos del Blueprint ni sus tablas. No cambia créditos, suscripción ni la vista de lectura. La numeración visible del armado pasa de tres pasos a dos (Onboarding, Learning path).
 
-### DEC-023 — Base comercial de Stripe y créditos, sin restringir la generación
+### DEC-023 — Una lección aprobada se puede leer antes de publicar el módulo
+
+- **Estatus:** APROBADA (pedido de implementación, noviembre 2026)
+- **Necesidad:** el build ya persiste cada lección al aprobarla, pero el lector esperaba a la publicación del módulo entero. La primera lección quedaba lista y no se podía estudiar.
+- **Decisión:** una lección con `lessons.state = approved` y borrador persistido se puede leer aunque el módulo siga generándose. La síntesis del módulo, el Knowledge Check, la publicación del módulo y el inicio del módulo siguiente no cambian: siguen después de todas las lecciones y del audit `AI-STG-14`. `courses.state = partially_available` sigue significando que al menos un módulo está publicado. La primera lección puede leerse antes de ese estado. No se agregan estados nuevos: `queued`, `researching`, `writing`, `reviewing`, `approved` y `failed` siguen siendo los de la lección. Las fuentes siguen en `lessons.evidence`. Una búsqueda vacía sigue pudiendo aprobar la lección (`DEC-002`).
+- **Impacto:** `BR-GEN-004`, `BR-GEN-005`, `BR-PRG-002`, `UF-13`, `MVP.md` §10, `DATA_MODEL.md`, la compuerta de `GET` de lección y de módulo, el poll `GET /courses/{id}/status`, el progreso de lectura y la pantalla del módulo.
+- **Límite:** no adelanta `BR-NOT-001`. La notificación sigue siendo el primer módulo disponible, no la primera lección. No parte la síntesis ni el Knowledge Check en lecturas separadas. No agrega cola, worker ni WebSocket (`DEC-004`).
+
+### DEC-024 — Base comercial de Stripe y créditos, sin restringir la generación
 
 - **Estatus:** TEMPORAL (implementación de noviembre 2026; reglas de producto todavía abiertas)
 - **Necesidad:** hace falta una base real de Checkout, suscripción, portal, webhooks y ledger antes de fijar precios, la unidad de consumo y el momento en que el usuario ve la falta de créditos.
@@ -183,7 +191,7 @@ Las entradas `TEMPORAL` no amplían el MVP ni relajan reglas de negocio; solo om
 - **Impacto:** migración `20261116230000_commercial_ledger.sql`, `modules/commercial`, `/api/v1/billing/*`, planes y `/account`.
 - **Límite:** no se aplica la migración al remoto ni se activan cobros live. No hay vencimiento, acumulación ni beneficio de bienvenida. No se ofrece Checkout antes de generar el curso. Encender el flag sin esa pantalla descubriría la falta de saldo durante “Generating course”.
 
-### DEC-024 — Narración de lecciones independiente del proveedor
+### DEC-025 — Narración de lecciones independiente del proveedor
 
 - **Estatus:** TEMPORAL (implementación de noviembre 2026; ElevenLabs aún sin cuenta)
 - **Necesidad:** el MVP pide audio bajo demanda (`BR-AUD-001` a `BR-AUD-008`, `UF-18`) sin atar el producto a un único TTS ni a un poll del navegador que facture.
